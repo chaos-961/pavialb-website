@@ -1,58 +1,15 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pavia Local Admin</title>
-  <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="css/styles.css" />
-  <style>
-    body{background:#fffdf8}.admin-shell{padding:36px 0 80px}.admin-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:28px}.admin-grid{display:grid;grid-template-columns:390px 1fr;gap:20px;align-items:start}.admin-panel{border:1px solid var(--line);border-radius:28px;background:#fff;box-shadow:var(--shadow-soft);padding:22px}.admin-form{display:grid;gap:12px}.admin-form label{display:grid;gap:6px;font-weight:800;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.1em}.admin-form input,.admin-form textarea,.admin-form select{border:1px solid var(--line);border-radius:14px;min-height:44px;padding:0 12px;background:#fffdf8}.admin-form textarea{min-height:90px;padding:12px}.admin-products{display:grid;gap:12px}.admin-row{display:grid;grid-template-columns:74px 1fr auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:20px;padding:10px}.admin-row img{width:74px;height:90px;object-fit:cover;border-radius:14px;background:var(--cream)}.admin-row h3{font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:16px;letter-spacing:0}.admin-row p{margin:4px 0;color:var(--muted);font-size:13px}.admin-actions{display:grid;gap:8px}.admin-actions button{border:1px solid var(--line);border-radius:999px;background:#fff;padding:9px 12px}.note{padding:16px;border-radius:18px;background:var(--cream);color:var(--ink-soft)}@media(max-width:900px){.admin-grid{grid-template-columns:1fr}.admin-header{display:block}.admin-actions{grid-template-columns:1fr 1fr}}
-  </style>
-</head>
-<body>
-  <main class="container admin-shell">
-    <div class="admin-header">
-      <div>
-        <p class="eyebrow">Pavia demo dashboard</p>
-        <h1 style="font-size:clamp(40px,7vw,76px)">Local product admin</h1>
-        <p class="muted">This edits the static demo catalog in your browser using localStorage. For a live store, connect this design to Shopify, WooCommerce, Medusa, Supabase, or a custom backend.</p>
-      </div>
-      <a class="button button-primary" href="index.html">Back to website</a>
-    </div>
-
-    <p class="note"><strong>Important:</strong> changes here are saved only on this device/browser. Use it to demo product management, then replace it with a real admin backend before launch.</p>
-
-    <section class="admin-grid">
-      <form class="admin-panel admin-form" data-admin-form>
-        <input type="hidden" name="id" />
-        <h2 style="font-size:36px">Add / edit style</h2>
-        <label>Product name<input name="name" required /></label>
-        <label>Category<select name="category"><option>Tops</option><option>Skirts</option><option>Pants</option><option>Dresses</option><option>Outerwear</option><option>Sets</option></select></label>
-        <label>Price USD<input name="price" type="number" min="0" step="1" required /></label>
-        <label>Compare at USD<input name="compareAt" type="number" min="0" step="1" /></label>
-        <label>Badge<input name="badge" placeholder="New, Best Seller, Limited" /></label>
-        <label>Image path<input name="image" placeholder="assets/products/example.svg" required /></label>
-        <label>Description<textarea name="description" required></textarea></label>
-        <label>Sizes comma-separated<input name="sizes" placeholder="S, M, L" required /></label>
-        <label>Colors comma-separated<input name="colors" placeholder="Beige, Black" required /></label>
-        <label>Stock<input name="stock" type="number" min="0" step="1" required /></label>
-        <label>Featured<select name="featured"><option value="true">Yes</option><option value="false">No</option></select></label>
-        <button class="button button-primary" type="submit">Save product</button>
-        <button class="button button-ghost" type="button" data-new-product>Clear form</button>
-        <button class="button button-ghost" type="button" data-reset-products>Reset demo catalog</button>
-      </form>
-
-      <div class="admin-panel">
-        <div class="section-heading" style="margin-bottom:16px">
-          <div><p class="eyebrow">Catalog</p><h2 style="font-size:38px">Products</h2></div>
-          <strong data-admin-count>0 items</strong>
-        </div>
-        <div class="admin-products" data-admin-products></div>
-      </div>
-    </section>
-  </main>
-  <script src="js/products.js"></script>
-  <script src="js/admin.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content="0; url=admin/" />
+    <title>Redirecting…</title>
+    <link rel="canonical" href="admin/" />
+    <script>
+      window.location.replace('admin/');
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to <a href="admin/">the studio</a>…</p>
+  </body>
 </html>

@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f1e8" />
+    <title>Pavia · Studio</title>
+    <link rel="icon" href="../assets/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/styles.css" />
+    <style>
+      .admin-shell {
+        min-height: 100vh;
+        background: var(--cream);
+        padding: clamp(1rem, 4vw, 2.5rem);
+      }
+      .login-card {
+        max-width: 420px;
+        margin: 8vh auto;
+        background: #fff;
+        border-radius: var(--r-lg);
+        padding: clamp(1.75rem, 4vw, 2.5rem);
+        box-shadow: var(--shadow-lg);
+        border: 1px solid var(--line);
+      }
+      .login-card h1 {
+        font-family: var(--font-display);
+        font-size: clamp(1.75rem, 4vw, 2.25rem);
+        margin: 0 0 0.25rem;
+        color: var(--cocoa);
+        letter-spacing: -0.02em;
+      }
+      .login-card .sub {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-bottom: 1.75rem;
+      }
+      .login-card form { display: grid; gap: 1rem; }
+      .login-card label {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .login-card input {
+        width: 100%;
+        padding: 0.85rem 1rem;
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        font-family: inherit;
+        font-size: 0.95rem;
+        background: var(--cream);
+        transition: border-color 0.2s, background 0.2s;
+      }
+      .login-card input:focus {
+        outline: none;
+        border-color: var(--cocoa);
+        background: #fff;
+      }
+      .login-error {
+        background: #fbe9e7;
+        color: #b3261e;
+        padding: 0.75rem 1rem;
+        border-radius: var(--r-md);
+        font-size: 0.85rem;
+        display: none;
+      }
+      .login-error.show { display: block; }
+      .login-hint {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px dashed var(--line);
+        font-size: 0.78rem;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      .login-hint code {
+        background: var(--cream);
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        font-family: ui-monospace, monospace;
+        color: var(--cocoa);
+      }
+
+      .admin-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+      }
+      .admin-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+      }
+      .admin-brand img { width: 44px; height: 44px; }
+      .admin-brand .name {
+        font-family: var(--font-display);
+        font-size: 1.4rem;
+        color: var(--cocoa);
+        line-height: 1;
+        letter-spacing: -0.01em;
+      }
+      .admin-brand .role {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        color: var(--muted);
+      }
+      .admin-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+      .admin-tabs {
+        display: flex;
+        gap: 0.25rem;
+        background: #fff;
+        padding: 0.35rem;
+        border-radius: var(--r-md);
+        border: 1px solid var(--line);
+        overflow-x: auto;
+        margin-bottom: 1.5rem;
+        scrollbar-width: none;
+      }
+      .admin-tabs::-webkit-scrollbar { display: none; }
+      .admin-tab {
+        flex: 1;
+        min-width: max-content;
+        padding: 0.7rem 1.1rem;
+        border: 0;
+        background: transparent;
+        border-radius: 8px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--muted);
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+      .admin-tab.active {
+        background: var(--cocoa);
+        color: #fff;
+        font-weight: 600;
+      }
+      .admin-panel { display: none; }
+      .admin-panel.active { display: block; animation: fadeUp 0.3s ease; }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      .stat-card {
+        background: #fff;
+        border-radius: var(--r-md);
+        padding: 1.25rem;
+        border: 1px solid var(--line);
+      }
+      .stat-card .label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .stat-card .value {
+        font-family: var(--font-display);
+        font-size: clamp(1.5rem, 3vw, 2.1rem);
+        color: var(--cocoa);
+        margin-top: 0.4rem;
+        font-weight: 500;
+      }
+
+      .panel-card {
+        background: #fff;
+        border-radius: var(--r-md);
+        padding: clamp(1rem, 3vw, 1.75rem);
+        border: 1px solid var(--line);
+        margin-bottom: 1rem;
+      }
+      .panel-card h2 {
+        font-family: var(--font-display);
+        font-size: 1.25rem;
+        margin: 0 0 0.25rem;
+        color: var(--cocoa);
+      }
+      .panel-card .desc {
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .product-form {
+        display: grid;
+        gap: 0.85rem;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
+      .product-form .full { grid-column: 1 / -1; }
+      .product-form label {
+        display: grid;
+        gap: 0.35rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .product-form input,
+      .product-form textarea,
+      .product-form select {
+        padding: 0.7rem 0.85rem;
+        border: 1px solid var(--line);
+        border-radius: var(--r-sm);
+        font-family: inherit;
+        font-size: 0.9rem;
+        background: var(--cream);
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: normal;
+        color: var(--ink);
+      }
+      .product-form textarea { min-height: 80px; resize: vertical; }
+      .form-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.75rem;
+      }
+
+      .product-list {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+      .product-row {
+        display: grid;
+        grid-template-columns: 60px 1fr auto;
+        gap: 0.85rem;
+        align-items: center;
+        background: var(--cream);
+        padding: 0.75rem;
+        border-radius: var(--r-sm);
+        border: 1px solid var(--line);
+      }
+      .product-row img {
+        width: 60px;
+        height: 60px;
+        object-fit: contain;
+        background: #fff;
+        border-radius: 6px;
+      }
+      .product-row .info strong {
+        display: block;
+        font-size: 0.95rem;
+        color: var(--cocoa);
+        margin-bottom: 0.15rem;
+      }
+      .product-row .info small {
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+      .product-row .actions {
+        display: flex;
+        gap: 0.35rem;
+      }
+
+      .order-list { display: grid; gap: 0.75rem; }
+      .order-item {
+        background: var(--cream);
+        padding: 1rem;
+        border-radius: var(--r-sm);
+        border: 1px solid var(--line);
+      }
+      .order-item .head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.5rem;
+      }
+      .order-item .id {
+        font-family: ui-monospace, monospace;
+        font-weight: 600;
+        color: var(--cocoa);
+        font-size: 0.9rem;
+      }
+      .order-item .when {
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .order-item .body {
+        font-size: 0.85rem;
+        color: var(--ink);
+        line-height: 1.6;
+      }
+      .order-item .body div { padding: 0.15rem 0; }
+      .order-item .body strong { color: var(--cocoa); }
+      .order-item .total {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px dashed var(--line);
+        font-weight: 600;
+        color: var(--cocoa);
+      }
+
+      .empty {
+        text-align: center;
+        padding: 2.5rem 1rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .danger-zone {
+        background: #fff7f6;
+        border-color: #f3d4d0;
+      }
+      .danger-zone h2 { color: #b3261e; }
+
+      .field-row {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: end;
+      }
+      .field-row label { flex: 1; min-width: 180px; }
+
+      .badge-soft {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        background: var(--cream);
+        border-radius: 999px;
+        font-size: 0.72rem;
+        color: var(--muted);
+        font-weight: 500;
+      }
+
+      @media (max-width: 640px) {
+        .product-row {
+          grid-template-columns: 50px 1fr;
+        }
+        .product-row .actions {
+          grid-column: 1 / -1;
+          justify-content: flex-end;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="admin-shell">
+      <!-- Login screen -->
+      <section id="loginScreen" class="login-card" hidden>
+        <h1>Studio Access</h1>
+        <p class="sub">Sign in to manage your boutique.</p>
+        <form id="loginForm" autocomplete="off">
+          <div>
+            <label for="loginUser">Username</label>
+            <input id="loginUser" type="text" required autocomplete="username" />
+          </div>
+          <div>
+            <label for="loginPass">Password</label>
+            <input id="loginPass" type="password" required autocomplete="current-password" />
+          </div>
+          <div id="loginError" class="login-error"></div>
+          <button type="submit" class="btn btn-primary">Sign in</button>
+        </form>
+        <div class="login-hint">
+          Default credentials: <code>admin</code> / <code>pavia2025</code><br />
+          Change your password from <strong>Settings</strong> after signing in.
+        </div>
+      </section>
+
+      <!-- Dashboard -->
+      <section id="dashboard" hidden>
+        <header class="admin-header">
+          <div class="admin-brand">
+            <img src="../assets/logo.svg" alt="Pavia" />
+            <div>
+              <div class="name">Pavia Studio</div>
+              <div class="role">Boutique manager</div>
+            </div>
+          </div>
+          <div class="admin-actions">
+            <a href="../index.html" class="btn btn-ghost">View store</a>
+            <button id="logoutBtn" class="btn btn-secondary">Sign out</button>
+          </div>
+        </header>
+
+        <nav class="admin-tabs" role="tablist">
+          <button class="admin-tab active" data-tab="dashboard">Overview</button>
+          <button class="admin-tab" data-tab="products">Products</button>
+          <button class="admin-tab" data-tab="orders">Orders</button>
+          <button class="admin-tab" data-tab="settings">Settings</button>
+        </nav>
+
+        <!-- Overview panel -->
+        <div class="admin-panel active" data-panel="dashboard">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="label">Revenue</div>
+              <div class="value" id="statRevenue">$0</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Orders</div>
+              <div class="value" id="statOrders">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Items sold</div>
+              <div class="value" id="statItems">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Subscribers</div>
+              <div class="value" id="statSubs">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Catalog</div>
+              <div class="value" id="statCatalog">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Avg. order</div>
+              <div class="value" id="statAvg">$0</div>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <h2>Recent orders</h2>
+            <p class="desc">Last five orders placed through the storefront.</p>
+            <div id="recentOrders" class="order-list"></div>
+          </div>
+        </div>
+
+        <!-- Products panel -->
+        <div class="admin-panel" data-panel="products">
+          <div class="panel-card">
+            <h2 id="formTitle">Add a product</h2>
+            <p class="desc">Add or edit pieces shown in your boutique.</p>
+            <form id="productForm" class="product-form" autocomplete="off">
+              <input type="hidden" id="prodId" />
+              <label class="full">
+                <span>Name</span>
+                <input id="prodName" type="text" required />
+              </label>
+              <label>
+                <span>Price ($)</span>
+                <input id="prodPrice" type="number" step="0.01" min="0" required />
+              </label>
+              <label>
+                <span>Compare-at price</span>
+                <input id="prodCompare" type="number" step="0.01" min="0" placeholder="Optional" />
+              </label>
+              <label>
+                <span>Category</span>
+                <input id="prodCategory" type="text" required placeholder="Dresses, Outerwear…" />
+              </label>
+              <label>
+                <span>Stock</span>
+                <input id="prodStock" type="number" min="0" value="10" />
+              </label>
+              <label class="full">
+                <span>Image path</span>
+                <input id="prodImage" type="text" placeholder="assets/products/example.svg" />
+              </label>
+              <label class="full">
+                <span>Sizes (comma-separated)</span>
+                <input id="prodSizes" type="text" placeholder="XS, S, M, L" />
+              </label>
+              <label class="full">
+                <span>Colors (Name:#hex, comma-separated)</span>
+                <input id="prodColors" type="text" placeholder="Cream:#f5ecdf, Cocoa:#5e463a" />
+              </label>
+              <label class="full">
+                <span>Description</span>
+                <textarea id="prodDesc"></textarea>
+              </label>
+              <label class="full">
+                <span>Tags (comma-separated)</span>
+                <input id="prodTags" type="text" placeholder="featured, sale, new" />
+              </label>
+              <div class="form-actions full">
+                <button type="submit" class="btn btn-primary" id="formSubmit">Add product</button>
+                <button type="button" class="btn btn-ghost" id="formReset">Reset</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="panel-card">
+            <h2>Catalog</h2>
+            <p class="desc">Click a product to edit, or use the buttons to delete.</p>
+            <div id="productList" class="product-list"></div>
+          </div>
+        </div>
+
+        <!-- Orders panel -->
+        <div class="admin-panel" data-panel="orders">
+          <div class="panel-card">
+            <h2>Customer orders</h2>
+            <p class="desc">Orders placed through the storefront and stored locally.</p>
+            <div id="allOrders" class="order-list"></div>
+          </div>
+        </div>
+
+        <!-- Settings panel -->
+        <div class="admin-panel" data-panel="settings">
+          <div class="panel-card">
+            <h2>Change password</h2>
+            <p class="desc">Update the password used to sign in to this dashboard.</p>
+            <form id="passwordForm" class="product-form" autocomplete="off">
+              <label class="full">
+                <span>Current password</span>
+                <input id="pwCurrent" type="password" required />
+              </label>
+              <label class="full">
+                <span>New password</span>
+                <input id="pwNew" type="password" required minlength="6" />
+              </label>
+              <label class="full">
+                <span>Confirm new password</span>
+                <input id="pwConfirm" type="password" required minlength="6" />
+              </label>
+              <div id="pwMsg" class="login-error"></div>
+              <div class="form-actions full">
+                <button type="submit" class="btn btn-primary">Update password</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="panel-card">
+            <h2>Subscribers</h2>
+            <p class="desc">Newsletter subscribers collected from the storefront.</p>
+            <div id="subscriberCount" class="badge-soft">0 subscribers</div>
+            <div class="form-actions">
+              <button id="exportSubs" class="btn btn-secondary">Export as CSV</button>
+              <button id="clearSubs" class="btn btn-ghost">Clear list</button>
+            </div>
+          </div>
+
+          <div class="panel-card danger-zone">
+            <h2>Danger zone</h2>
+            <p class="desc">These actions cannot be undone.</p>
+            <div class="form-actions">
+              <button id="clearOrders" class="btn btn-ghost">Clear all orders</button>
+              <button id="resetCatalog" class="btn btn-ghost">Reset catalog to defaults</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
+
+    <script src="../js/products.js"></script>
+    <script src="../js/admin.js"></script>
+  </body>
+</html>

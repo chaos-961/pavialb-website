@@ -1,96 +1,479 @@
-(() => {
-  const KEY = 'PAVIA_PRODUCTS';
-  const $ = (selector, scope = document) => scope.querySelector(selector);
-  const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
-  const form = $('[data-admin-form]');
-  const list = $('[data-admin-products]');
-  const count = $('[data-admin-count]');
-  let products = readProducts();
+/* Pavia Studio — Admin dashboard
+ * Client-side gated with SHA-256 password hashing.
+ * NOTE: This is a soft gate, not real security. Anyone with file access
+ * can read the source. Use a real backend for sensitive deployments.
+ */
+(function () {
+  'use strict';
 
-  function readProducts(){
-    try { return JSON.parse(localStorage.getItem(KEY)) || window.PAVIA_DEFAULT_PRODUCTS || []; }
-    catch { return window.PAVIA_DEFAULT_PRODUCTS || []; }
+  const KEYS = {
+    products: 'PAVIA_PRODUCTS',
+    orders: 'PAVIA_ORDERS',
+    subscribers: 'PAVIA_SUBSCRIBERS',
+    pwHash: 'PAVIA_ADMIN_HASH',
+    session: 'PAVIA_ADMIN_SESSION',
+  };
+  const DEFAULT_USER = 'admin';
+  const DEFAULT_PASS = 'pavia2025';
+
+  /* ---------- helpers ---------- */
+  const $ = (s, ctx = document) => ctx.querySelector(s);
+  const $$ = (s, ctx = document) => Array.from(ctx.querySelectorAll(s));
+  const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+
+  function readLS(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
   }
-  function saveProducts(){ localStorage.setItem(KEY, JSON.stringify(products)); render(); }
-  function toArray(value){ return String(value || '').split(',').map(item => item.trim()).filter(Boolean); }
-  function slug(value){ return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
+  function writeLS(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
 
-  function render(){
-    count.textContent = `${products.length} items`;
-    list.innerHTML = products.map(product => `
-      <article class="admin-row">
-        <img src="${product.image}" alt="${product.name}">
-        <div>
-          <h3>${product.name}</h3>
-          <p>${product.category} · $${product.price} · ${product.stock} in stock</p>
-          <p>${product.sizes.join(', ')} · ${product.colors.join(', ')}</p>
+  async function sha256(text) {
+    const enc = new TextEncoder().encode(text);
+    const buf = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  function toast(message) {
+    const wrap = $('#toastWrap');
+    if (!wrap) return;
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = message;
+    wrap.appendChild(el);
+    setTimeout(() => el.classList.add('show'), 10);
+    setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 300);
+    }, 2400);
+  }
+
+  /* ---------- auth ---------- */
+  async function getStoredHash() {
+    let hash = localStorage.getItem(KEYS.pwHash);
+    if (!hash) {
+      hash = await sha256(DEFAULT_PASS);
+      localStorage.setItem(KEYS.pwHash, hash);
+    }
+    return hash;
+  }
+
+  function isAuthed() {
+    return sessionStorage.getItem(KEYS.session) === 'ok';
+  }
+
+  function setAuthed(v) {
+    if (v) sessionStorage.setItem(KEYS.session, 'ok');
+    else sessionStorage.removeItem(KEYS.session);
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const user = $('#loginUser').value.trim();
+    const pass = $('#loginPass').value;
+    const err = $('#loginError');
+    err.classList.remove('show');
+
+    if (user !== DEFAULT_USER) {
+      err.textContent = 'Invalid username or password.';
+      err.classList.add('show');
+      return;
+    }
+    const stored = await getStoredHash();
+    const entered = await sha256(pass);
+    if (entered !== stored) {
+      err.textContent = 'Invalid username or password.';
+      err.classList.add('show');
+      return;
+    }
+    setAuthed(true);
+    showDashboard();
+  }
+
+  function logout() {
+    setAuthed(false);
+    showLogin();
+  }
+
+  function showLogin() {
+    $('#loginScreen').hidden = false;
+    $('#dashboard').hidden = true;
+    $('#loginPass') && ($('#loginPass').value = '');
+  }
+
+  function showDashboard() {
+    $('#loginScreen').hidden = true;
+    $('#dashboard').hidden = false;
+    refreshAll();
+  }
+
+  /* ---------- products ---------- */
+  function getProducts() {
+    return readLS(KEYS.products, null) || (window.PAVIA_PRODUCTS || []);
+  }
+
+  function saveProducts(list) {
+    writeLS(KEYS.products, list);
+  }
+
+  function parseColors(str) {
+    return str
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((tok) => {
+        const [name, hex] = tok.split(':').map((p) => (p || '').trim());
+        return {
+          name: name || 'Color',
+          hex: hex && hex.startsWith('#') ? hex : '#cccccc',
+        };
+      });
+  }
+
+  function colorsToString(colors) {
+    if (!colors || !colors.length) return '';
+    return colors
+      .map((c) => {
+        if (typeof c === 'string') return c;
+        return `${c.name}:${c.hex}`;
+      })
+      .join(', ');
+  }
+
+  function renderProductList() {
+    const list = getProducts();
+    const wrap = $('#productList');
+    if (!list.length) {
+      wrap.innerHTML = '<div class="empty">No products yet. Add one above.</div>';
+      return;
+    }
+    wrap.innerHTML = list
+      .map(
+        (p) => `
+      <div class="product-row" data-id="${p.id}">
+        <img src="${p.image || '../assets/logo.svg'}" alt="" onerror="this.src='../assets/logo.svg'" />
+        <div class="info">
+          <strong>${escapeHtml(p.name)}</strong>
+          <small>${escapeHtml(p.category || '')} · ${fmt(p.price)}${
+          p.comparePrice ? ` <s>${fmt(p.comparePrice)}</s>` : ''
+        } · stock ${p.stock ?? 0}</small>
         </div>
-        <div class="admin-actions">
-          <button type="button" data-edit="${product.id}">Edit</button>
-          <button type="button" data-delete="${product.id}">Delete</button>
+        <div class="actions">
+          <button class="btn btn-ghost" data-edit="${p.id}">Edit</button>
+          <button class="btn btn-ghost" data-del="${p.id}">Delete</button>
         </div>
-      </article>
-    `).join('');
-    $$('[data-edit]').forEach(button => button.addEventListener('click', () => editProduct(button.dataset.edit)));
-    $$('[data-delete]').forEach(button => button.addEventListener('click', () => deleteProduct(button.dataset.delete)));
+      </div>
+    `,
+      )
+      .join('');
+
+    wrap.querySelectorAll('[data-edit]').forEach((b) =>
+      b.addEventListener('click', () => loadIntoForm(b.dataset.edit)),
+    );
+    wrap.querySelectorAll('[data-del]').forEach((b) =>
+      b.addEventListener('click', () => deleteProduct(b.dataset.del)),
+    );
   }
 
-  function editProduct(id){
-    const product = products.find(item => item.id === id);
-    if(!product) return;
-    form.id.value = product.id;
-    form.name.value = product.name;
-    form.category.value = product.category;
-    form.price.value = product.price;
-    form.compareAt.value = product.compareAt || '';
-    form.badge.value = product.badge || '';
-    form.image.value = product.image;
-    form.description.value = product.description;
-    form.sizes.value = product.sizes.join(', ');
-    form.colors.value = product.colors.join(', ');
-    form.stock.value = product.stock;
-    form.featured.value = String(Boolean(product.featured));
-    window.scrollTo({top:0, behavior:'smooth'});
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[m]));
   }
 
-  function deleteProduct(id){
-    if(!confirm('Delete this product from the local demo catalog?')) return;
-    products = products.filter(product => product.id !== id);
-    saveProducts();
+  function resetForm() {
+    $('#productForm').reset();
+    $('#prodId').value = '';
+    $('#formTitle').textContent = 'Add a product';
+    $('#formSubmit').textContent = 'Add product';
   }
 
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    const data = new FormData(form);
+  function loadIntoForm(id) {
+    const p = getProducts().find((x) => x.id === id);
+    if (!p) return;
+    $('#prodId').value = p.id;
+    $('#prodName').value = p.name || '';
+    $('#prodPrice').value = p.price ?? '';
+    $('#prodCompare').value = p.comparePrice ?? '';
+    $('#prodCategory').value = p.category || '';
+    $('#prodStock').value = p.stock ?? 0;
+    $('#prodImage').value = p.image || '';
+    $('#prodSizes').value = (p.sizes || []).join(', ');
+    $('#prodColors').value = colorsToString(p.colors);
+    $('#prodDesc').value = p.description || '';
+    $('#prodTags').value = (p.tags || []).join(', ');
+    $('#formTitle').textContent = 'Edit product';
+    $('#formSubmit').textContent = 'Save changes';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function deleteProduct(id) {
+    if (!confirm('Delete this product?')) return;
+    const list = getProducts().filter((p) => p.id !== id);
+    saveProducts(list);
+    renderProductList();
+    refreshStats();
+    toast('Product deleted');
+  }
+
+  function handleProductSubmit(e) {
+    e.preventDefault();
+    const id = $('#prodId').value || `p${Date.now().toString(36)}`;
+    const list = getProducts();
+    const existing = list.find((p) => p.id === id);
     const product = {
-      id: data.get('id') || slug(data.get('name')) || `product-${Date.now()}`,
-      name: data.get('name'),
-      category: data.get('category'),
-      price: Number(data.get('price')),
-      compareAt: Number(data.get('compareAt') || 0),
-      badge: data.get('badge') || 'New',
-      image: data.get('image'),
-      description: data.get('description'),
-      sizes: toArray(data.get('sizes')),
-      colors: toArray(data.get('colors')),
-      stock: Number(data.get('stock')),
-      featured: data.get('featured') === 'true'
+      id,
+      name: $('#prodName').value.trim(),
+      price: parseFloat($('#prodPrice').value) || 0,
+      comparePrice: $('#prodCompare').value
+        ? parseFloat($('#prodCompare').value)
+        : null,
+      category: $('#prodCategory').value.trim(),
+      stock: parseInt($('#prodStock').value, 10) || 0,
+      image: $('#prodImage').value.trim() || 'assets/logo.svg',
+      sizes: $('#prodSizes').value
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+      colors: parseColors($('#prodColors').value),
+      description: $('#prodDesc').value.trim(),
+      tags: $('#prodTags').value
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+      createdAt: existing?.createdAt ?? Date.now(),
     };
-    const existingIndex = products.findIndex(item => item.id === product.id);
-    if(existingIndex >= 0) products[existingIndex] = product;
-    else products.unshift(product);
-    saveProducts();
-    form.reset();
-    form.id.value = '';
-  });
 
-  $('[data-new-product]').addEventListener('click', () => { form.reset(); form.id.value = ''; });
-  $('[data-reset-products]').addEventListener('click', () => {
-    if(!confirm('Reset all products to the original demo catalog?')) return;
-    products = window.PAVIA_DEFAULT_PRODUCTS || [];
-    localStorage.removeItem(KEY);
-    render();
-  });
+    if (existing) {
+      Object.assign(existing, product);
+    } else {
+      list.push(product);
+    }
+    saveProducts(list);
+    renderProductList();
+    refreshStats();
+    resetForm();
+    toast(existing ? 'Product updated' : 'Product added');
+  }
 
-  render();
+  /* ---------- orders ---------- */
+  function getOrders() {
+    return readLS(KEYS.orders, []);
+  }
+
+  function renderOrderItem(order) {
+    const itemsHtml = (order.items || [])
+      .map(
+        (it) =>
+          `<div>· ${escapeHtml(it.name)} × ${it.qty}${
+            it.size ? ` · ${escapeHtml(it.size)}` : ''
+          }${it.color ? ` · ${escapeHtml(typeof it.color === 'string' ? it.color : it.color.name || '')}` : ''} — ${fmt(
+            (it.price || 0) * (it.qty || 1),
+          )}</div>`,
+      )
+      .join('');
+    const customer = order.customer || {};
+    return `
+      <div class="order-item">
+        <div class="head">
+          <span class="id">#${escapeHtml(order.id || '')}</span>
+          <span class="when">${new Date(order.createdAt || Date.now()).toLocaleString()}</span>
+        </div>
+        <div class="body">
+          <div><strong>${escapeHtml(customer.name || 'Customer')}</strong> · ${escapeHtml(
+      customer.phone || '',
+    )}</div>
+          <div>${escapeHtml(customer.address || '')}${
+      customer.city ? `, ${escapeHtml(customer.city)}` : ''
+    }</div>
+          <div>Payment: ${escapeHtml(order.payment || 'Cash')}</div>
+          ${order.promo ? `<div>Promo: <strong>${escapeHtml(order.promo)}</strong></div>` : ''}
+          ${itemsHtml}
+          <div class="total">Total: ${fmt(order.total || 0)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderRecentOrders() {
+    const orders = getOrders().slice(-5).reverse();
+    const wrap = $('#recentOrders');
+    wrap.innerHTML = orders.length
+      ? orders.map(renderOrderItem).join('')
+      : '<div class="empty">No orders yet. Once customers check out, their orders will appear here.</div>';
+  }
+
+  function renderAllOrders() {
+    const orders = getOrders().slice().reverse();
+    const wrap = $('#allOrders');
+    wrap.innerHTML = orders.length
+      ? orders.map(renderOrderItem).join('')
+      : '<div class="empty">No orders yet.</div>';
+  }
+
+  /* ---------- stats ---------- */
+  function refreshStats() {
+    const orders = getOrders();
+    const products = getProducts();
+    const subs = readLS(KEYS.subscribers, []);
+
+    const revenue = orders.reduce((s, o) => s + (Number(o.total) || 0), 0);
+    const items = orders.reduce(
+      (s, o) =>
+        s + (o.items || []).reduce((a, it) => a + (Number(it.qty) || 0), 0),
+      0,
+    );
+    const avg = orders.length ? revenue / orders.length : 0;
+
+    $('#statRevenue').textContent = fmt(revenue);
+    $('#statOrders').textContent = orders.length;
+    $('#statItems').textContent = items;
+    $('#statSubs').textContent = subs.length;
+    $('#statCatalog').textContent = products.length;
+    $('#statAvg').textContent = fmt(avg);
+    $('#subscriberCount').textContent = `${subs.length} subscriber${subs.length === 1 ? '' : 's'}`;
+  }
+
+  /* ---------- settings ---------- */
+  async function handlePasswordChange(e) {
+    e.preventDefault();
+    const current = $('#pwCurrent').value;
+    const next = $('#pwNew').value;
+    const confirmPw = $('#pwConfirm').value;
+    const msg = $('#pwMsg');
+    msg.classList.remove('show');
+
+    const stored = await getStoredHash();
+    const enteredCurrent = await sha256(current);
+    if (enteredCurrent !== stored) {
+      msg.textContent = 'Current password is incorrect.';
+      msg.classList.add('show');
+      return;
+    }
+    if (next.length < 6) {
+      msg.textContent = 'New password must be at least 6 characters.';
+      msg.classList.add('show');
+      return;
+    }
+    if (next !== confirmPw) {
+      msg.textContent = 'Passwords do not match.';
+      msg.classList.add('show');
+      return;
+    }
+    const newHash = await sha256(next);
+    localStorage.setItem(KEYS.pwHash, newHash);
+    $('#passwordForm').reset();
+    toast('Password updated');
+  }
+
+  function exportSubscribers() {
+    const subs = readLS(KEYS.subscribers, []);
+    if (!subs.length) {
+      toast('No subscribers yet');
+      return;
+    }
+    const rows = [['email', 'subscribedAt']];
+    subs.forEach((s) => {
+      const email = typeof s === 'string' ? s : s.email || '';
+      const when =
+        typeof s === 'string'
+          ? ''
+          : s.subscribedAt
+          ? new Date(s.subscribedAt).toISOString()
+          : '';
+      rows.push([email, when]);
+    });
+    const csv = rows
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pavia-subscribers-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Exported');
+  }
+
+  function clearSubscribers() {
+    if (!confirm('Clear all subscribers?')) return;
+    writeLS(KEYS.subscribers, []);
+    refreshStats();
+    toast('Subscribers cleared');
+  }
+
+  function clearOrders() {
+    if (!confirm('Clear all orders? This cannot be undone.')) return;
+    writeLS(KEYS.orders, []);
+    refreshStats();
+    renderRecentOrders();
+    renderAllOrders();
+    toast('Orders cleared');
+  }
+
+  function resetCatalog() {
+    if (!confirm('Reset catalog to defaults? Custom products will be lost.')) return;
+    localStorage.removeItem(KEYS.products);
+    renderProductList();
+    refreshStats();
+    toast('Catalog reset');
+  }
+
+  /* ---------- tabs ---------- */
+  function setupTabs() {
+    $$('.admin-tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const target = tab.dataset.tab;
+        $$('.admin-tab').forEach((t) => t.classList.toggle('active', t === tab));
+        $$('.admin-panel').forEach((p) =>
+          p.classList.toggle('active', p.dataset.panel === target),
+        );
+        if (target === 'orders') renderAllOrders();
+        if (target === 'products') renderProductList();
+        if (target === 'dashboard') {
+          refreshStats();
+          renderRecentOrders();
+        }
+        if (target === 'settings') refreshStats();
+      });
+    });
+  }
+
+  function refreshAll() {
+    refreshStats();
+    renderRecentOrders();
+    renderProductList();
+  }
+
+  /* ---------- init ---------- */
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Make sure default hash is seeded
+    await getStoredHash();
+
+    $('#loginForm').addEventListener('submit', handleLogin);
+    $('#logoutBtn').addEventListener('click', logout);
+    $('#productForm').addEventListener('submit', handleProductSubmit);
+    $('#formReset').addEventListener('click', resetForm);
+    $('#passwordForm').addEventListener('submit', handlePasswordChange);
+    $('#exportSubs').addEventListener('click', exportSubscribers);
+    $('#clearSubs').addEventListener('click', clearSubscribers);
+    $('#clearOrders').addEventListener('click', clearOrders);
+    $('#resetCatalog').addEventListener('click', resetCatalog);
+    setupTabs();
+
+    if (isAuthed()) showDashboard();
+    else showLogin();
+  });
 })();
