@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#14120f" />
+  <meta name="description" content="Pavia Lebanon — modern elegant fashion, delivered all over Lebanon." />
+  <title>Pavia Lebanon | Modern Elegant Fashion</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#shop">Skip to shop</a>
+
+  <div class="announcement" role="banner">
+    <span>Crafted for modern elegance</span>
+    <span>Delivery all over Lebanon</span>
+    <a href="https://wa.me/9613017725" target="_blank" rel="noreferrer">WhatsApp: 03 017725</a>
+  </div>
+
+  <header class="site-header" data-header>
+    <div class="container nav-wrap">
+      <a class="brand" href="#home" aria-label="Pavia home">
+        <img src="assets/logo.svg" alt="Pavia" />
+      </a>
+      <nav class="desktop-nav" aria-label="Primary navigation">
+        <a href="#shop">Shop</a>
+        <a href="#collections">Collections</a>
+        <a href="#lookbook">Lookbook</a>
+        <a href="#visit">Visit</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="icon-button search-trigger" aria-label="Focus search">Search</button>
+        <button class="icon-button" data-open-wishlist aria-label="Open wishlist">♡ <span data-wishlist-count>0</span></button>
+        <button class="cart-pill" data-open-cart aria-label="Open cart">
+          <span>Bag</span><strong data-cart-count>0</strong>
+        </button>
+        <button class="hamburger" data-menu-toggle aria-label="Open menu"><span></span><span></span></button>
+      </div>
+    </div>
+    <div class="mobile-nav" data-mobile-nav>
+      <a href="#shop">Shop</a>
+      <a href="#collections">Collections</a>
+      <a href="#lookbook">Lookbook</a>
+      <a href="#visit">Visit</a>
+      <a href="admin.html">Local Admin</a>
+    </div>
+  </header>
+
+  <main id="home">
+    <section class="hero section-pad">
+      <div class="container hero-grid">
+        <div class="hero-copy reveal">
+          <p class="eyebrow">Based in Beirut · Delivered across Lebanon</p>
+          <h1>Modern elegance, curated for your everyday wardrobe.</h1>
+          <p class="hero-text">A boutique shopping experience for Pavia: premium collection pages, persistent cart, fast checkout, WhatsApp order flow, wishlist, filters, and a local product manager.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#shop">Shop the collection</a>
+            <a class="button button-ghost" href="https://wa.me/9613017725" target="_blank" rel="noreferrer">Order on WhatsApp</a>
+          </div>
+          <div class="hero-stats" aria-label="Pavia social proof">
+            <span><strong>4.2K+</strong> followers</span>
+            <span><strong>111</strong> curated posts</span>
+            <span><strong>24h</strong> order support</span>
+          </div>
+        </div>
+        <div class="hero-visual reveal delay-1" aria-label="Pavia featured fashion collage">
+          <div class="visual-card card-large">
+            <img src="assets/products/beige-trench-coat.svg" alt="Beige trench coat" />
+            <div class="floating-label">EID COLLECTION</div>
+          </div>
+          <div class="visual-card card-small top">
+            <img src="assets/products/blue-pearl-blouse.svg" alt="Blue ruffle blouse" />
+          </div>
+          <div class="visual-card card-small bottom">
+            <img src="assets/products/black-satin-skirt.svg" alt="Black satin skirt" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="trust-strip" aria-label="Store features">
+      <div class="container trust-grid">
+        <article><span>01</span><strong>Lebanon delivery</strong><p>Clear checkout details for Beirut and all areas.</p></article>
+        <article><span>02</span><strong>Fast WhatsApp orders</strong><p>Cart turns into a ready-to-send order message.</p></article>
+        <article><span>03</span><strong>Elegant product pages</strong><p>Size, color, stock, quick view, and wishlist.</p></article>
+        <article><span>04</span><strong>Local admin</strong><p>Edit product catalog in the browser for demos.</p></article>
+      </div>
+    </section>
+
+    <section id="collections" class="section-pad collections">
+      <div class="container">
+        <div class="section-heading reveal">
+          <p class="eyebrow">Curated edits</p>
+          <h2>Shop by mood</h2>
+          <p>Clean collection cards inspired by Pavia’s boutique feed.</p>
+        </div>
+        <div class="collection-grid reveal delay-1">
+          <button class="collection-card" data-category-jump="Tops"><span>Tops</span><strong>Ruffles, shirts & refined layers</strong></button>
+          <button class="collection-card" data-category-jump="Pants"><span>Pants</span><strong>Wide-leg tailoring and soft neutrals</strong></button>
+          <button class="collection-card" data-category-jump="Outerwear"><span>Outerwear</span><strong>Trenches, coats & statement finishes</strong></button>
+          <button class="collection-card" data-category-jump="Sets"><span>Sets</span><strong>Effortless matching looks</strong></button>
+        </div>
+      </div>
+    </section>
+
+    <section id="shop" class="section-pad shop-section">
+      <div class="container">
+        <div class="section-heading shop-heading reveal">
+          <div>
+            <p class="eyebrow">Online boutique</p>
+            <h2>Shop Pavia</h2>
+          </div>
+          <p>Search, filter, sort, quick-view, wishlist, add to cart, and checkout.</p>
+        </div>
+
+        <div class="toolbar reveal delay-1" aria-label="Product filters">
+          <label class="search-box">
+            <span>Search</span>
+            <input id="productSearch" type="search" placeholder="Search blouse, skirt, coat..." autocomplete="off" />
+          </label>
+          <label>
+            <span>Size</span>
+            <select id="sizeFilter">
+              <option value="all">All sizes</option>
+              <option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option>
+            </select>
+          </label>
+          <label>
+            <span>Sort</span>
+            <select id="sortFilter">
+              <option value="featured">Featured</option>
+              <option value="price-low">Price: low to high</option>
+              <option value="price-high">Price: high to low</option>
+              <option value="newest">Newest first</option>
+            </select>
+          </label>
+          <div class="category-pills" role="tablist" aria-label="Categories" data-category-pills></div>
+        </div>
+
+        <div class="shop-meta reveal delay-2">
+          <p><strong data-result-count>0</strong> styles available</p>
+          <button class="text-button" id="clearFilters">Clear filters</button>
+        </div>
+        <div class="product-grid" data-product-grid aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section id="lookbook" class="section-pad lookbook">
+      <div class="container lookbook-grid">
+        <div class="lookbook-copy reveal">
+          <p class="eyebrow">Lookbook</p>
+          <h2>Build refined outfits in seconds.</h2>
+          <p>Product cards are designed for Instagram-driven sales: clean visuals, boutique copy, direct add-to-bag, and fast checkout.</p>
+          <ul class="check-list">
+            <li>Persistent cart with quantity controls</li>
+            <li>Free delivery threshold logic</li>
+            <li>Pre-filled WhatsApp checkout message</li>
+            <li>Wishlist saved in the visitor’s browser</li>
+          </ul>
+        </div>
+        <div class="outfit-card reveal delay-1">
+          <img src="assets/products/chocolate-mini-dress.svg" alt="Chocolate dress" />
+          <div>
+            <span>Featured fit</span>
+            <strong>Chocolate Mini Dress</strong>
+            <button class="button button-primary" data-featured-product="chocolate-mini-dress">Quick view</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="visit" class="section-pad visit">
+      <div class="container visit-grid">
+        <div class="visit-card reveal">
+          <p class="eyebrow">Visit & contact</p>
+          <h2>Pavia Beirut</h2>
+          <p>Crafted for modern elegance. Based in Beirut with delivery all over Lebanon.</p>
+          <div class="contact-list">
+            <a href="tel:+9613017725">03 017725</a>
+            <a href="https://instagram.com/pavia.leb" target="_blank" rel="noreferrer">@pavia.leb</a>
+            <a href="https://wa.me/9613017725" target="_blank" rel="noreferrer">Chat on WhatsApp</a>
+          </div>
+        </div>
+        <form class="newsletter reveal delay-1" data-newsletter>
+          <p class="eyebrow">Private drops</p>
+          <h3>Get collection alerts</h3>
+          <p>Collects email locally for this static demo. Connect it to Mailchimp, Klaviyo, or your backend later.</p>
+          <label>Email<input type="email" required placeholder="you@example.com" /></label>
+          <button class="button button-primary" type="submit">Notify me</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <aside class="drawer" data-cart-drawer aria-label="Shopping bag" aria-hidden="true">
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <div><p class="eyebrow">Your bag</p><h2>Shopping cart</h2></div>
+        <button class="close-button" data-close-cart aria-label="Close cart">×</button>
+      </div>
+      <div class="cart-items" data-cart-items></div>
+      <div class="cart-summary">
+        <div><span>Subtotal</span><strong data-subtotal>$0</strong></div>
+        <div><span>Delivery</span><strong data-delivery-estimate>Calculated at checkout</strong></div>
+        <div class="summary-total"><span>Total</span><strong data-total>$0</strong></div>
+        <button class="button button-primary full" data-checkout>Checkout</button>
+        <button class="button button-ghost full" data-continue-shopping>Continue shopping</button>
+      </div>
+    </div>
+  </aside>
+
+  <aside class="drawer" data-wishlist-drawer aria-label="Wishlist" aria-hidden="true">
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <div><p class="eyebrow">Saved styles</p><h2>Wishlist</h2></div>
+        <button class="close-button" data-close-wishlist aria-label="Close wishlist">×</button>
+      </div>
+      <div class="cart-items" data-wishlist-items></div>
+    </div>
+  </aside>
+
+  <div class="modal" data-product-modal aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <button class="close-button modal-close" data-close-modal aria-label="Close quick view">×</button>
+      <div class="modal-content" data-modal-content></div>
+    </div>
+  </div>
+
+  <div class="modal" data-checkout-modal aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
+    <form class="modal-card checkout-card" data-checkout-form>
+      <button class="close-button modal-close" type="button" data-close-checkout aria-label="Close checkout">×</button>
+      <div class="checkout-grid">
+        <div>
+          <p class="eyebrow">Secure order request</p>
+          <h2 id="checkoutTitle">Checkout</h2>
+          <p class="muted">This static version prepares the order and sends it to Pavia via WhatsApp. Connect a payment provider later for full online payment.</p>
+          <div class="checkout-fields">
+            <label>Full name<input name="name" required placeholder="Your name" /></label>
+            <label>Phone<input name="phone" required placeholder="03 000 000" /></label>
+            <label>City / Area<input name="city" required placeholder="Beirut, Tripoli, Saida..." /></label>
+            <label>Address<textarea name="address" required placeholder="Street, building, floor"></textarea></label>
+            <label>Payment<select name="payment"><option>Cash on delivery</option><option>Whish Money</option><option>Card on delivery</option></select></label>
+            <label>Notes<textarea name="notes" placeholder="Preferred delivery time, sizing notes..."></textarea></label>
+          </div>
+        </div>
+        <div class="order-preview">
+          <h3>Order summary</h3>
+          <div data-checkout-summary></div>
+          <button class="button button-primary full" type="submit">Send order on WhatsApp</button>
+          <button class="button button-ghost full" type="button" data-copy-order>Copy order text</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
+
+  <script src="js/products.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "Pavia Lebanon Boutique",
+  "short_name": "Pavia",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fffdf8",
+  "theme_color": "#151310",
+  "icons": [
+    { "src": "assets/logo.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
