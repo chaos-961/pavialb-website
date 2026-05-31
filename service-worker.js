@@ -1,11 +1,11 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v2';
+const CACHE = 'pavia-v3';
 const ASSETS = [
   './',
   './index.html',
-  './css/styles.css',
-  './js/products.js',
-  './js/app.js',
+  './css/styles.css?v=3',
+  './js/products.js?v=3',
+  './js/app.js?v=3',
   './manifest.webmanifest',
   './assets/logo.svg',
   './assets/products/azure-coord-set.svg',

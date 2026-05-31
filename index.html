@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css?v=3" />
 </head>
 <body>
   <a class="skip-link" href="#shop">Skip to shop</a>
@@ -89,7 +89,7 @@
           </div>
         </div>
 
-        <div class="hero-visual reveal" style="transition-delay: 0.15s">
+        <div class="hero-visual reveal reveal-delay-150">
           <span class="hero-tag">Eid Collection</span>
           <div class="hero-card main">
             <img src="assets/products/beige-trench-coat.svg" alt="Beige trench coat" />
@@ -148,7 +148,7 @@
           <p>Quick edits inspired by Pavia's boutique feed — pick a category, find your fit.</p>
         </div>
 
-        <div class="collections-scroll reveal" style="transition-delay: 0.1s">
+        <div class="collections-scroll reveal reveal-delay-100">
           <button class="collection-card" data-category-jump="Tops">
             <span>Tops</span>
             <strong>Ruffles &amp; refined layers</strong>
@@ -257,7 +257,7 @@
       <div class="container">
         <div class="section-header">
           <p class="eyebrow">For you</p>
-          <h2 style="font-size:clamp(24px,5vw,38px);font-style:italic;font-weight:400">Recently viewed</h2>
+          <h2 class="section-title-compact">Recently viewed</h2>
         </div>
         <div class="recent-scroll" data-recent-list></div>
       </div>
@@ -278,7 +278,7 @@
             <li>Promo codes and order history</li>
           </ul>
         </div>
-        <div class="editorial-feature reveal" style="transition-delay: 0.12s">
+        <div class="editorial-feature reveal reveal-delay-120">
           <img src="assets/products/chocolate-mini-dress.svg" alt="Chocolate dress" />
           <div class="meta">
             <span>Featured fit</span>
@@ -294,8 +294,8 @@
       <div class="container visit-grid">
         <div class="visit-card reveal">
           <p class="eyebrow">Visit &amp; contact</p>
-          <h2 style="font-style:italic;font-weight:300;font-size:clamp(28px,6vw,46px)">Pavia Beirut</h2>
-          <p style="margin-top:8px">Crafted for modern elegance. Based in Beirut · delivery all over Lebanon.</p>
+          <h2 class="visit-title">Pavia Beirut</h2>
+          <p class="mt-8">Crafted for modern elegance. Based in Beirut · delivery all over Lebanon.</p>
           <div class="contact-list">
             <a href="tel:+9613017725"><strong>03 017 725</strong><span>Call →</span></a>
             <a href="https://instagram.com/pavia.leb" target="_blank" rel="noreferrer"><strong>@pavia.leb</strong><span>Instagram →</span></a>
@@ -303,10 +303,10 @@
           </div>
         </div>
 
-        <form class="newsletter reveal" data-newsletter style="transition-delay: 0.1s">
+        <form class="newsletter reveal reveal-delay-100" data-newsletter>
           <p class="eyebrow">Private drops</p>
           <h3>Get collection alerts</h3>
-          <p style="margin-top:8px;font-size:14px">Be first to see new arrivals, restocks, and quiet sales.</p>
+          <p class="newsletter-note">Be first to see new arrivals, restocks, and quiet sales.</p>
           <label>Email
             <input type="email" required placeholder="you@example.com" />
           </label>
@@ -331,7 +331,7 @@
         </a>
       </div>
       <p>&copy; <span data-year></span> Pavia Lebanon · Crafted with care.</p>
-      <p style="margin-top:6px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,253,248,.4)">Modern elegant fashion</p>
+      <p class="footer-tagline">Modern elegant fashion</p>
     </div>
   </footer>
 
@@ -383,13 +383,13 @@
           <input type="text" placeholder="Promo code (try PAVIA10)" data-promo-input />
           <button type="button" data-promo-apply>Apply</button>
         </div>
-        <div class="promo-applied" data-promo-applied style="display:none"></div>
+        <div class="promo-applied is-hidden" data-promo-applied></div>
         <div class="summary-line"><span>Subtotal</span><strong data-subtotal>$0</strong></div>
-        <div class="summary-line" data-discount-line style="display:none"><span>Discount</span><strong data-discount>-$0</strong></div>
+        <div class="summary-line is-hidden" data-discount-line><span>Discount</span><strong data-discount>-$0</strong></div>
         <div class="summary-line"><span>Delivery</span><strong data-delivery-estimate>Calculated at checkout</strong></div>
         <div class="summary-line total"><span>Total</span><strong data-total>$0</strong></div>
         <button class="btn btn-primary full btn-lg" data-checkout>Checkout</button>
-        <button class="btn btn-ghost full btn-sm" data-continue-shopping style="margin-top:6px">Continue shopping</button>
+        <button class="btn btn-ghost full btn-sm stack-gap-sm" data-continue-shopping>Continue shopping</button>
       </div>
     </div>
   </aside>
@@ -437,8 +437,8 @@
       <div class="modal-body checkout-body">
         <div>
           <p class="eyebrow">Secure order request</p>
-          <h2 id="checkoutTitle" style="font-style:italic;font-weight:400;font-size:clamp(28px,6vw,38px)">Checkout</h2>
-          <p class="muted" style="margin-top:8px;font-size:14px">Your order will be sent to Pavia via WhatsApp for confirmation.</p>
+          <h2 id="checkoutTitle" class="checkout-title">Checkout</h2>
+          <p class="muted checkout-note">Your order will be sent to Pavia via WhatsApp for confirmation.</p>
         </div>
         <div class="checkout-grid">
           <div class="checkout-fields">
@@ -488,11 +488,11 @@
           <div class="order-preview">
             <h3>Order summary</h3>
             <div data-checkout-summary></div>
-            <button class="btn btn-primary full btn-lg" type="submit" style="margin-top:14px">
+            <button class="btn btn-primary full btn-lg checkout-submit" type="submit">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.2-5.6A8.4 8.4 0 1 1 21 11.5Z"/></svg>
               Place order via WhatsApp
             </button>
-            <button class="btn btn-ghost full btn-sm" type="button" data-copy-order style="margin-top:6px">Copy order text</button>
+            <button class="btn btn-ghost full btn-sm stack-gap-sm" type="button" data-copy-order>Copy order text</button>
           </div>
         </div>
       </div>
@@ -502,7 +502,7 @@
   <!-- ========== Toast region ========== -->
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
-  <script src="js/products.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/products.js?v=3"></script>
+  <script src="js/app.js?v=3"></script>
 </body>
 </html>

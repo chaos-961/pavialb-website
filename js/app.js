@@ -57,13 +57,33 @@
     return lookup[norm(name)] || '#a78970';
   }
 
+  function normalizeProduct(p) {
+    const tags = Array.isArray(p.tags) ? p.tags : [];
+    const compareAt = Number(p.compareAt ?? p.comparePrice ?? 0) || 0;
+    const stock = Number.isFinite(Number(p.stock)) ? Number(p.stock) : 0;
+    return {
+      ...p,
+      id: p.id || `product-${Date.now()}`,
+      name: p.name || 'Untitled product',
+      category: p.category || 'New Arrivals',
+      price: Number(p.price) || 0,
+      compareAt,
+      badge: p.badge || (tags[0] || ''),
+      image: p.image || 'assets/logo.svg',
+      description: p.description || '',
+      sizes: Array.isArray(p.sizes) && p.sizes.length ? p.sizes : ['One size'],
+      colors: (Array.isArray(p.colors) && p.colors.length ? p.colors : ['Default']).map(colorObj),
+      tags,
+      stock,
+      featured: Boolean(p.featured || tags.map(norm).includes('featured')),
+      createdAt: Number(p.createdAt) || 0
+    };
+  }
+
   // ---------- State ----------
   let products = readJSON(STORE_KEYS.products, window.PAVIA_DEFAULT_PRODUCTS || []);
-  // Migrate any old string colors → object form
-  products = products.map(p => ({
-    ...p,
-    colors: (p.colors || []).map(colorObj)
-  }));
+  // Migrate older saved product records into the current storefront shape.
+  products = products.map(normalizeProduct);
 
   let cart        = readJSON(STORE_KEYS.cart, []);
   let wishlist    = readJSON(STORE_KEYS.wishlist, []);
@@ -611,10 +631,10 @@
     n.deliveryEl.textContent = freeShip ? 'Free' : 'Calculated at checkout';
 
     if (discount > 0) {
-      n.discountLine.style.display = '';
+      n.discountLine.classList.remove('is-hidden');
       n.discountEl.textContent = `-${money(discount)}`;
     } else {
-      n.discountLine.style.display = 'none';
+      n.discountLine.classList.add('is-hidden');
     }
 
     if (appliedPromo) {
@@ -622,10 +642,10 @@
       const c = codes[appliedPromo];
       if (c) {
         n.promoApplied.textContent = `✓ ${appliedPromo} — ${c.label}`;
-        n.promoApplied.style.display = '';
+        n.promoApplied.classList.remove('is-hidden');
       }
     } else {
-      n.promoApplied.style.display = 'none';
+      n.promoApplied.classList.add('is-hidden');
     }
 
     if (!cart.length) {

@@ -20,6 +20,7 @@
   const $ = (s, ctx = document) => ctx.querySelector(s);
   const $$ = (s, ctx = document) => Array.from(ctx.querySelectorAll(s));
   const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+  const norm = (v) => String(v || '').trim().toLowerCase();
 
   function readLS(key, fallback) {
     try {
@@ -31,6 +32,46 @@
   }
   function writeLS(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  function slugify(value) {
+    return norm(value)
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `p${Date.now().toString(36)}`;
+  }
+
+  function normalizeImagePath(value) {
+    const path = String(value || '').trim();
+    if (!path) return 'assets/logo.svg';
+    return path.replace(/^(\.\/)+/, '').replace(/^(\.\.\/)+/, '');
+  }
+
+  function imageSrc(path) {
+    const src = normalizeImagePath(path);
+    if (/^(https?:|data:|\/)/i.test(src)) return src;
+    return `../${src}`;
+  }
+
+  function normalizeProduct(product) {
+    const tags = Array.isArray(product.tags) ? product.tags : [];
+    const compareAt = Number(product.compareAt ?? product.comparePrice ?? 0) || 0;
+    return {
+      ...product,
+      id: product.id || slugify(product.name),
+      name: product.name || 'Untitled product',
+      price: Number(product.price) || 0,
+      compareAt,
+      category: product.category || 'New Arrivals',
+      stock: Number.isFinite(Number(product.stock)) ? Number(product.stock) : 0,
+      image: normalizeImagePath(product.image),
+      sizes: Array.isArray(product.sizes) && product.sizes.length ? product.sizes : ['One size'],
+      colors: Array.isArray(product.colors) ? product.colors : [],
+      description: product.description || '',
+      tags,
+      badge: product.badge || tags[0] || '',
+      featured: Boolean(product.featured || tags.map(norm).includes('featured')),
+      createdAt: Number(product.createdAt) || Date.now(),
+    };
   }
 
   async function sha256(text) {
@@ -116,11 +157,13 @@
 
   /* ---------- products ---------- */
   function getProducts() {
-    return readLS(KEYS.products, null) || (window.PAVIA_PRODUCTS || []);
+    const stored = readLS(KEYS.products, null);
+    const source = stored || window.PAVIA_DEFAULT_PRODUCTS || [];
+    return source.map(normalizeProduct);
   }
 
   function saveProducts(list) {
-    writeLS(KEYS.products, list);
+    writeLS(KEYS.products, list.map(normalizeProduct));
   }
 
   function parseColors(str) {
@@ -157,22 +200,28 @@
     wrap.innerHTML = list
       .map(
         (p) => `
-      <div class="product-row" data-id="${p.id}">
-        <img src="${p.image || '../assets/logo.svg'}" alt="" onerror="this.src='../assets/logo.svg'" />
+      <div class="product-row" data-id="${escapeHtml(p.id)}">
+        <img src="${escapeHtml(imageSrc(p.image))}" alt="" />
         <div class="info">
           <strong>${escapeHtml(p.name)}</strong>
           <small>${escapeHtml(p.category || '')} · ${fmt(p.price)}${
-          p.comparePrice ? ` <s>${fmt(p.comparePrice)}</s>` : ''
+          p.compareAt ? ` <s>${fmt(p.compareAt)}</s>` : ''
         } · stock ${p.stock ?? 0}</small>
         </div>
         <div class="actions">
-          <button class="btn btn-ghost" data-edit="${p.id}">Edit</button>
-          <button class="btn btn-ghost" data-del="${p.id}">Delete</button>
+          <button class="btn btn-ghost" data-edit="${escapeHtml(p.id)}">Edit</button>
+          <button class="btn btn-ghost" data-del="${escapeHtml(p.id)}">Delete</button>
         </div>
       </div>
     `,
       )
       .join('');
+
+    wrap.querySelectorAll('img').forEach((img) => {
+      img.addEventListener('error', () => {
+        img.src = '../assets/logo.svg';
+      }, { once: true });
+    });
 
     wrap.querySelectorAll('[data-edit]').forEach((b) =>
       b.addEventListener('click', () => loadIntoForm(b.dataset.edit)),
@@ -205,7 +254,7 @@
     $('#prodId').value = p.id;
     $('#prodName').value = p.name || '';
     $('#prodPrice').value = p.price ?? '';
-    $('#prodCompare').value = p.comparePrice ?? '';
+    $('#prodCompare').value = p.compareAt || '';
     $('#prodCategory').value = p.category || '';
     $('#prodStock').value = p.stock ?? 0;
     $('#prodImage').value = p.image || '';
@@ -229,19 +278,19 @@
 
   function handleProductSubmit(e) {
     e.preventDefault();
-    const id = $('#prodId').value || `p${Date.now().toString(36)}`;
+    const id = $('#prodId').value || slugify($('#prodName').value);
     const list = getProducts();
     const existing = list.find((p) => p.id === id);
     const product = {
       id,
       name: $('#prodName').value.trim(),
       price: parseFloat($('#prodPrice').value) || 0,
-      comparePrice: $('#prodCompare').value
+      compareAt: $('#prodCompare').value
         ? parseFloat($('#prodCompare').value)
-        : null,
+        : 0,
       category: $('#prodCategory').value.trim(),
       stock: parseInt($('#prodStock').value, 10) || 0,
-      image: $('#prodImage').value.trim() || 'assets/logo.svg',
+      image: normalizeImagePath($('#prodImage').value),
       sizes: $('#prodSizes').value
         .split(',')
         .map((s) => s.trim())
@@ -252,6 +301,10 @@
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
+      featured: $('#prodTags').value
+        .split(',')
+        .map((s) => norm(s))
+        .includes('featured'),
       createdAt: existing?.createdAt ?? Date.now(),
     };
 
@@ -274,30 +327,30 @@
 
   function renderOrderItem(order) {
     const itemsHtml = (order.items || [])
-      .map(
-        (it) =>
-          `<div>· ${escapeHtml(it.name)} × ${it.qty}${
-            it.size ? ` · ${escapeHtml(it.size)}` : ''
-          }${it.color ? ` · ${escapeHtml(typeof it.color === 'string' ? it.color : it.color.name || '')}` : ''} — ${fmt(
-            (it.price || 0) * (it.qty || 1),
-          )}</div>`,
-      )
+      .map((it) => {
+        const color = typeof it.color === 'string' ? it.color : it.color?.name || '';
+        const options = [it.size, color].filter(Boolean).map(escapeHtml).join(' ? ');
+        return `<div>&middot; ${escapeHtml(it.name)} x ${it.qty || 1}${
+          options ? ` ? ${options}` : ''
+        } - ${fmt((it.price || 0) * (it.qty || 1))}</div>`;
+      })
       .join('');
     const customer = order.customer || {};
+    const when = new Date(order.date || order.createdAt || Date.now()).toLocaleString();
     return `
       <div class="order-item">
         <div class="head">
           <span class="id">#${escapeHtml(order.id || '')}</span>
-          <span class="when">${new Date(order.createdAt || Date.now()).toLocaleString()}</span>
+          <span class="when">${when}</span>
         </div>
         <div class="body">
-          <div><strong>${escapeHtml(customer.name || 'Customer')}</strong> · ${escapeHtml(
+          <div><strong>${escapeHtml(customer.name || 'Customer')}</strong> ? ${escapeHtml(
       customer.phone || '',
     )}</div>
           <div>${escapeHtml(customer.address || '')}${
       customer.city ? `, ${escapeHtml(customer.city)}` : ''
     }</div>
-          <div>Payment: ${escapeHtml(order.payment || 'Cash')}</div>
+          <div>Payment: ${escapeHtml(customer.payment || order.payment || 'Cash on delivery')}</div>
           ${order.promo ? `<div>Promo: <strong>${escapeHtml(order.promo)}</strong></div>` : ''}
           ${itemsHtml}
           <div class="total">Total: ${fmt(order.total || 0)}</div>
@@ -383,14 +436,14 @@
       toast('No subscribers yet');
       return;
     }
-    const rows = [['email', 'subscribedAt']];
+    const rows = [['email', 'date']];
     subs.forEach((s) => {
       const email = typeof s === 'string' ? s : s.email || '';
       const when =
         typeof s === 'string'
           ? ''
-          : s.subscribedAt
-          ? new Date(s.subscribedAt).toISOString()
+          : s.date || s.subscribedAt
+          ? new Date(s.date || s.subscribedAt).toISOString()
           : '';
       rows.push([email, when]);
     });
