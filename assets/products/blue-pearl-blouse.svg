@@ -1,0 +1,13 @@
+<svg width="900" height="1100" viewBox="0 0 600 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title id="title">Blue Pearl product illustration</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dfeefa"/><stop offset="1" stop-color="#fffdfa"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-opacity=".17"/></filter>
+    <radialGradient id="glow" cx="50%" cy="18%" r="62%"><stop stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="600" height="720" rx="34" fill="url(#bg)"/>
+  <circle cx="510" cy="105" r="120" fill="url(#glow)" opacity=".9"/>
+  <path d="M94 612 C198 561 367 563 507 624" stroke="#1a1a1a" stroke-opacity=".08" stroke-width="42" stroke-linecap="round"/>
+  <g filter="url(#shadow)" stroke="#1b1b1b" stroke-opacity=".22" stroke-width="2" stroke-linejoin="round"><path d="M236 124 C258 154 322 154 344 124 L420 180 L384 254 L350 230 V420 H230 V230 L196 254 L160 180 L236 124Z" fill="#85b5da"/><path d="M236 124 L290 202 L344 124" stroke="#fff" stroke-opacity=".36" stroke-width="4" fill="none"/><line x1="290" y1="201" x2="290" y2="420" stroke="#fff" stroke-opacity=".22" stroke-width="3"/><circle cx="290" cy="248" r="4" fill="#fff" opacity=".55"/><circle cx="290" cy="294" r="4" fill="#fff" opacity=".55"/><circle cx="290" cy="340" r="4" fill="#fff" opacity=".55"/></g>
+  <text x="300" y="650" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="30" fill="#222" opacity=".55" letter-spacing="4">PAVIA</text>
+</svg>

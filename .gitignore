@@ -1,0 +1,19 @@
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor folders
+.idea/
+.vscode/
+
+# Logs and local env
+*.log
+.env
+.env.*
+
+# Dependency/build output, if tooling is added later
+node_modules/
+dist/
+build/
+coverage/
