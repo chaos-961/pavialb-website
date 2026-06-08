@@ -1,5 +1,5 @@
 window.PAVIA_CONFIG = {
-  version: '0.0.4',
+  version: '0.0.5',
   siteName: 'Pavia',
   siteTitle: 'Pavia Lebanon',
   location: 'Beirut',

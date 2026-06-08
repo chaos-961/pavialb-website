@@ -1,15 +1,15 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v9';
+const CACHE = 'pavia-v10';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const ASSETS = [
   './',
   './index.html',
-  './js/config.js?v=9',
-  './js/backend-config.js?v=9',
-  './js/backend.js?v=9',
-  './css/styles.css?v=9',
-  './js/products.js?v=9',
-  './js/app.js?v=9',
+  './js/config.js?v=10',
+  './js/backend-config.js?v=10',
+  './js/backend.js?v=10',
+  './css/styles.css?v=10',
+  './js/products.js?v=10',
+  './js/app.js?v=10',
   './manifest.webmanifest',
   './assets/logo.svg',
   './assets/products/azure-coord-set.svg',

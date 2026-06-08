@@ -3,6 +3,8 @@
 
   const config = window.PAVIA_BACKEND_CONFIG || {};
   const namespace = config.namespace || 'pavia';
+  const backendScriptUrl = document.currentScript?.src || new URL('js/backend.js', document.baseURI).href;
+  const siteBaseUrl = new URL('../', backendScriptUrl);
   const keys = {
     products: 'PAVIA_PRODUCTS',
     orders: 'PAVIA_ORDERS',
@@ -194,11 +196,16 @@
     };
   }
 
+  function publicImageUrl(value) {
+    if (/^(data:|blob:|https?:)/i.test(value)) return value;
+    return new URL(value.replace(/^(\.\/)+/, ''), siteBaseUrl).href;
+  }
+
   function versionedUrl(url, version) {
-    if (!version || !/^(https?:|\/|\.\/|\.\.\/)/i.test(url)) return url;
-    if (/[?&]pv=/.test(url)) return url;
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}pv=${encodeURIComponent(version)}`;
+    const resolved = publicImageUrl(url);
+    if (!version || /^(data:|blob:)/i.test(resolved) || /[?&]pv=/.test(resolved)) return resolved;
+    const separator = resolved.includes('?') ? '&' : '?';
+    return `${resolved}${separator}pv=${encodeURIComponent(version)}`;
   }
 
   async function resolveImage(image, version = '') {
@@ -208,7 +215,7 @@
     const id = value.slice('local-media:'.length);
     if (objectUrls.has(id)) return objectUrls.get(id);
     const record = await mediaGet(id);
-    if (!record?.blob) return 'assets/logo.svg';
+    if (!record?.blob) return publicImageUrl('assets/logo.svg');
     const url = URL.createObjectURL(record.blob);
     objectUrls.set(id, url);
     return url;
