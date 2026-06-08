@@ -17,7 +17,9 @@
     promo:       'PAVIA_PROMO'
   };
 
-  const WHATSAPP_NUMBER = '9613017725';
+  const SITE_CONFIG = window.PAVIA_CONFIG || {};
+  const BACKEND = window.PaviaBackend;
+  const WHATSAPP_NUMBER = SITE_CONFIG.whatsappNumber || '9613017725';
   const FREE_DELIVERY_AT = 100;
   const DELIVERY_BEIRUT = 3;
   const DELIVERY_LEBANON = 5;
@@ -76,14 +78,19 @@
       tags,
       stock,
       featured: Boolean(p.featured || tags.map(norm).includes('featured')),
+      active: p.active !== false,
+      sku: p.sku || '',
+      material: p.material || '',
+      fit: p.fit || '',
+      care: p.care || '',
       createdAt: Number(p.createdAt) || 0
     };
   }
 
   // ---------- State ----------
-  let products = readJSON(STORE_KEYS.products, window.PAVIA_DEFAULT_PRODUCTS || []);
-  // Migrate older saved product records into the current storefront shape.
-  products = products.map(normalizeProduct);
+  let products = (window.PAVIA_DEFAULT_PRODUCTS || [])
+    .map(normalizeProduct)
+    .filter(p => p.active);
 
   let cart        = readJSON(STORE_KEYS.cart, []);
   let wishlist    = readJSON(STORE_KEYS.wishlist, []);
@@ -117,10 +124,8 @@
 
     cartDrawer:       $('[data-cart-drawer]'),
     wishlistDrawer:   $('[data-wishlist-drawer]'),
-    ordersDrawer:     $('[data-orders-drawer]'),
     cartItems:        $('[data-cart-items]'),
     wishlistItems:    $('[data-wishlist-items]'),
-    ordersItems:      $('[data-orders-items]'),
 
     cartCounts:       $$('[data-cart-count]'),
     wishCounts:       $$('[data-wishlist-count]'),
@@ -141,7 +146,6 @@
     checkoutForm:     $('[data-checkout-form]'),
 
     toastRegion:      $('[data-toast-region]'),
-    backTop:          $('[data-back-top]'),
     recentSection:    $('[data-recent-section]'),
     recentList:       $('[data-recent-list]')
   };
@@ -168,9 +172,82 @@
   }
 
   // ---------- Boot ----------
-  function init() {
+  function applySiteConfig() {
+    const config = {
+      version: '0.0.4',
+      siteName: 'Pavia',
+      siteTitle: 'Pavia Lebanon',
+      location: 'Beirut',
+      deliveryArea: 'Lebanon',
+      tagline: 'Modern elegant fashion',
+      description: '',
+      phoneDisplay: '03 017 725',
+      phoneNumber: '+9613017725',
+      whatsappNumber: WHATSAPP_NUMBER,
+      instagramHandle: '@pavia.leb',
+      instagramUrl: 'https://instagram.com/pavia.leb',
+      ...SITE_CONFIG
+    };
+
+    const setText = (selector, value) => {
+      if (!value) return;
+      $$(selector).forEach((el) => { el.textContent = value; });
+    };
+
+    setText('[data-site-name]', config.siteName);
+    setText('[data-site-title]', config.siteTitle);
+    setText('[data-site-location]', config.location);
+    setText('[data-delivery-area]', config.deliveryArea);
+    setText('[data-site-tagline]', config.tagline);
+    setText('[data-phone-display]', config.phoneDisplay);
+    setText('[data-instagram-handle]', config.instagramHandle);
+    setText('[data-site-version]', `v${String(config.version).replace(/^v/i, '')}`);
+
+    if (config.description) {
+      $$('[data-site-description]').forEach((el) => {
+        if (el.tagName === 'META') el.setAttribute('content', config.description);
+        else el.textContent = config.description;
+      });
+    }
+
+    $$('[data-phone-link]').forEach((el) => {
+      el.href = `tel:${String(config.phoneNumber).replace(/[^\d+]/g, '')}`;
+    });
+    $$('[data-whatsapp-link]').forEach((el) => {
+      el.href = `https://wa.me/${String(config.whatsappNumber).replace(/\D/g, '')}`;
+    });
+    $$('[data-instagram-link]').forEach((el) => {
+      el.href = config.instagramUrl;
+    });
+
+    document.title = `${config.siteTitle} · ${config.tagline}`;
+  }
+
+  async function loadProducts() {
+    const records = BACKEND
+      ? await BACKEND.products.list()
+      : readJSON(STORE_KEYS.products, window.PAVIA_DEFAULT_PRODUCTS || []);
+    const normalized = records.map(normalizeProduct).filter(product => product.active);
+    products = BACKEND
+      ? await BACKEND.media.resolveProductImages(normalized)
+      : normalized;
+  }
+
+  async function init() {
+    applySiteConfig();
     $('[data-year]').textContent = new Date().getFullYear();
     showSkeletons();
+    if (BACKEND) {
+      await BACKEND.init({ defaultProducts: window.PAVIA_DEFAULT_PRODUCTS || [] });
+      await loadProducts();
+      BACKEND.products.subscribe(async () => {
+        await loadProducts();
+        renderCategories();
+        renderProducts();
+        renderRecent();
+      });
+      void BACKEND.analytics.recordSessionVisit();
+    }
     renderCategories();
     // Stagger the actual product render so the skeletons get a moment to breathe
     setTimeout(() => {
@@ -192,7 +269,6 @@
       const y = window.scrollY;
       n.header.classList.toggle('is-scrolled', y > 8);
       if (n.toolbar) n.toolbar.classList.toggle('is-stuck', y > 280);
-      n.backTop.classList.toggle('is-visible', y > 600);
       lastY = y;
     }, { passive: true });
 
@@ -226,7 +302,6 @@
     // Header / mobile nav buttons (multiple may share data-attr)
     $$('[data-open-cart]').forEach(b => b.addEventListener('click', () => openDrawer(n.cartDrawer)));
     $$('[data-open-wishlist]').forEach(b => b.addEventListener('click', () => openDrawer(n.wishlistDrawer)));
-    $$('[data-open-orders]').forEach(b => b.addEventListener('click', () => { renderOrders(); openDrawer(n.ordersDrawer); }));
     $$('[data-open-search]').forEach(b => b.addEventListener('click', () => {
       document.location.hash = '#shop';
       setTimeout(() => n.productSearch?.focus(), 280);
@@ -234,10 +309,9 @@
 
     $('[data-close-cart]')?.addEventListener('click', () => closeDrawer(n.cartDrawer));
     $('[data-close-wishlist]')?.addEventListener('click', () => closeDrawer(n.wishlistDrawer));
-    $('[data-close-orders]')?.addEventListener('click', () => closeDrawer(n.ordersDrawer));
     $('[data-continue-shopping]')?.addEventListener('click', () => closeDrawer(n.cartDrawer));
 
-    [n.cartDrawer, n.wishlistDrawer, n.ordersDrawer].forEach(d => {
+    [n.cartDrawer, n.wishlistDrawer].forEach(d => {
       d?.addEventListener('click', e => { if (e.target === d) closeDrawer(d); });
     });
 
@@ -256,19 +330,6 @@
     n.promoApply?.addEventListener('click', applyPromo);
     n.promoInput?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyPromo(); } });
 
-    // Collection jumps + featured product
-    $$('[data-category-jump]').forEach(b => {
-      b.addEventListener('click', () => {
-        activeCategory = b.dataset.categoryJump;
-        document.location.hash = '#shop';
-        renderCategories();
-        renderProducts();
-      });
-    });
-    $$('[data-featured-product]').forEach(b => {
-      b.addEventListener('click', () => openProductModal(b.dataset.featuredProduct));
-    });
-
     // Newsletter
     $('[data-newsletter]')?.addEventListener('submit', e => {
       e.preventDefault();
@@ -280,14 +341,11 @@
       toast('Subscribed. We\'ll keep you posted.');
     });
 
-    // Back to top
-    n.backTop?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-
     // ESC closes things
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         closeProductModal(); closeCheckout();
-        closeDrawer(n.cartDrawer); closeDrawer(n.wishlistDrawer); closeDrawer(n.ordersDrawer);
+        closeDrawer(n.cartDrawer); closeDrawer(n.wishlistDrawer);
       }
     });
 
@@ -496,6 +554,7 @@
     selectedColor = (p.colors[0] && p.colors[0].name) || '';
     selectedQty = 1;
     addToRecent(id);
+    void BACKEND?.analytics.recordEvent('product_view');
     renderProductModal();
     n.modal.classList.add('is-open');
     n.modal.setAttribute('aria-hidden', 'false');
@@ -517,6 +576,13 @@
           <span class="eyebrow">${p.category} · ${p.badge || ''}</span>
           <h2 id="modalTitle">${p.name}</h2>
           <p class="muted">${p.description}</p>
+          ${(p.material || p.fit || p.care) ? `
+            <dl class="product-extra-details">
+              ${p.material ? `<div><dt>Material</dt><dd>${p.material}</dd></div>` : ''}
+              ${p.fit ? `<div><dt>Fit</dt><dd>${p.fit}</dd></div>` : ''}
+              ${p.care ? `<div><dt>Care</dt><dd>${p.care}</dd></div>` : ''}
+            </dl>
+          ` : ''}
           <div class="modal-price-row">
             <span class="now">${money(p.price)}</span>
             ${onSale ? `<span class="was">${money(p.compareAt)}</span><span class="save">Save ${savePct}%</span>` : ''}
@@ -604,10 +670,18 @@
     const existing = cart.find(i => i.key === key);
     if (existing) existing.qty = Math.min(product.stock, existing.qty + qty);
     else cart.push({
-      key, id: product.id, name: product.name, price: product.price, image: product.image,
-      size, color, qty
+      key,
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      image: product.imageSource || product.image,
+      imageVersion: product.imageVersion || '',
+      size,
+      color,
+      qty
     });
     saveCart();
+    void BACKEND?.analytics.recordEvent('add_to_cart');
     bumpCounter('[data-cart-count]');
     toast(`${product.name} added to bag.`);
   }
@@ -662,7 +736,7 @@
 
     n.cartItems.innerHTML = cart.map(i => `
       <article class="cart-row" data-key="${i.key}">
-        <img src="${i.image}" alt="${i.name}" />
+        <img src="${getProduct(i.id)?.image || i.image}" alt="${i.name}" />
         <div class="cart-row-content">
           <h3>${i.name}</h3>
           <div class="meta">${i.size} · ${i.color}</div>
@@ -780,33 +854,6 @@
     $$('[data-recent-view]').forEach(c => c.addEventListener('click', () => openProductModal(c.dataset.recentView)));
   }
 
-  // ---------- Orders drawer ----------
-  function renderOrders() {
-    const orders = readJSON(STORE_KEYS.orders, []);
-    if (!orders.length) {
-      n.ordersItems.innerHTML = `
-        <div class="empty-drawer">
-          <svg viewBox="0 0 48 48"><path d="M10 14h28l-2.5 24a3 3 0 0 1-3 2.7H15.5a3 3 0 0 1-3-2.7L10 14z"/><path d="M18 14V9a6 6 0 0 1 12 0v5"/></svg>
-          <h3>No orders yet</h3>
-          <p>Your past orders will be listed here.</p>
-        </div>`;
-      return;
-    }
-    n.ordersItems.innerHTML = orders.slice().reverse().map(o => `
-      <article class="cart-row" style="grid-template-columns:1fr">
-        <div class="cart-row-content">
-          <h3>${o.id}</h3>
-          <div class="meta">${new Date(o.date).toLocaleString()}</div>
-          <div class="meta">${o.items.length} item(s) · ${o.customer.payment || 'Cash on delivery'}</div>
-          <div class="price-row">
-            <strong>${money(o.total)}</strong>
-            <span class="meta">${o.customer.city || ''}</span>
-          </div>
-        </div>
-      </article>
-    `).join('');
-  }
-
   // ---------- Drawers ----------
   function openDrawer(d) {
     if (!d) return;
@@ -851,6 +898,7 @@
 
   function openCheckout() {
     if (!cart.length) { toast('Your bag is empty. Add an item first.'); return; }
+    void BACKEND?.analytics.recordEvent('checkout_started');
     closeDrawer(n.cartDrawer);
     renderCheckoutSummary();
     n.checkoutModal.classList.add('is-open');
@@ -889,7 +937,7 @@
     const delivery = deliveryFee(v.city || '');
     const total = Math.max(0, subtotal - discount) + delivery;
     const lines = [
-      'Hello Pavia, I would like to place this order:',
+      `Hello ${SITE_CONFIG.siteName || 'Pavia'}, I would like to place this order:`,
       '',
       ...cart.map(i => `• ${i.qty}× ${i.name} — ${i.size}, ${i.color} — ${money(i.price * i.qty)}`),
       '',
@@ -908,7 +956,7 @@
     return lines.join('\n');
   }
 
-  function submitCheckout(e) {
+  async function submitCheckout(e) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const txt = orderText(formData);
@@ -919,11 +967,16 @@
       customer: Object.fromEntries(formData.entries()),
       promo: appliedPromo,
       discount: discountAmount(),
+      status: 'available',
       total: Math.max(0, cartSubtotal() - discountAmount()) + deliveryFee(formData.get('city'))
     };
-    const orders = readJSON(STORE_KEYS.orders, []);
-    orders.push(order);
-    writeJSON(STORE_KEYS.orders, orders);
+    if (BACKEND) await BACKEND.orders.create(order);
+    else {
+      const orders = readJSON(STORE_KEYS.orders, []);
+      orders.push(order);
+      writeJSON(STORE_KEYS.orders, orders);
+    }
+    void BACKEND?.analytics.recordEvent('order_created');
 
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(txt)}`, '_blank', 'noopener,noreferrer');
     toast('Order prepared. Sending on WhatsApp.');
@@ -971,10 +1024,31 @@
 
   // ---------- Service worker ----------
   function registerServiceWorker() {
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('service-worker.js').catch(() => null);
+    if (!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
+
+    const isLocal = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
+    if (isLocal) {
+      navigator.serviceWorker.getRegistrations()
+        .then(registrations => Promise.all(registrations.map(registration => registration.unregister())))
+        .catch(() => null);
+      if ('caches' in window) {
+        caches.keys()
+          .then(keys => Promise.all(keys.filter(key => key.startsWith('pavia-')).map(key => caches.delete(key))))
+          .catch(() => null);
+      }
+      return;
     }
+
+    navigator.serviceWorker.register('service-worker.js').catch(() => null);
   }
 
-  init();
+  init().catch((error) => {
+    console.error('Storefront initialization failed.', error);
+    products = (window.PAVIA_DEFAULT_PRODUCTS || []).map(normalizeProduct).filter(product => product.active);
+    renderCategories();
+    renderProducts();
+    renderCart();
+    renderWishlist();
+    bindEvents();
+  });
 })();
