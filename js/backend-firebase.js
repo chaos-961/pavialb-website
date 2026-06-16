@@ -383,6 +383,8 @@
         return backend;
       }
 
+      await localBackend.init(options);
+
       try {
         await initializeFirebase();
         activeProvider = 'firebase';
@@ -391,7 +393,6 @@
         initializationError = error;
         if (!fallbackEnabled) throw error;
         console.warn('Firebase is unavailable; Pavia is using the local fallback.', error);
-        await localBackend.init(options);
         activeProvider = 'local';
       }
       return backend;
