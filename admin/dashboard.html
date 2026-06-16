@@ -1,0 +1,507 @@
+<section id="dashboard" hidden>
+  <header class="admin-header">
+    <div class="admin-brand">
+      <img src="../assets/logo.svg" alt="Pavia" />
+      <div>
+        <div class="name">Pavia Studio</div>
+        <div class="role">Store operations</div>
+      </div>
+    </div>
+    <div class="admin-actions">
+      <a href="../index.html" class="btn btn-ghost">View store</a>
+      <button id="logoutBtn" class="btn btn-secondary">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="admin-tabs" role="tablist" aria-label="Admin sections">
+    <button class="admin-tab active" data-tab="dashboard">Overview</button>
+    <button class="admin-tab" data-tab="orders">Orders</button>
+    <button class="admin-tab" data-tab="products">Products</button>
+    <button class="admin-tab" data-tab="settings">Settings</button>
+    <button class="admin-tab" data-tab="promos">Promos</button>
+    <button class="admin-tab" data-tab="security">Security</button>
+  </nav>
+
+  <div class="admin-panel active" data-panel="dashboard">
+    <div class="metrics-grid" id="metricsGrid"></div>
+    <div class="ops-grid">
+      <div class="panel-card">
+        <div class="panel-heading">
+          <div>
+            <p class="admin-kicker">Latest activity</p>
+            <h2>Latest orders</h2>
+            <p class="desc">Newest customer requests and payment confirmations to review.</p>
+          </div>
+        </div>
+        <div id="latestOrders" class="compact-list"></div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-heading">
+          <div>
+            <p class="admin-kicker">Inventory watch</p>
+            <h2>Low stock</h2>
+            <p class="desc">Product-level stock remains the Phase 05 inventory model.</p>
+          </div>
+        </div>
+        <div id="lowStockList" class="compact-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-panel" data-panel="orders">
+    <div class="panel-card orders-card">
+      <div class="panel-heading">
+        <div>
+          <p class="admin-kicker">Store operations</p>
+          <h2>Orders</h2>
+          <p class="desc">Search, inspect, contact, print, and update order/payment status.</p>
+        </div>
+        <span class="count-badge" id="availableOrderCount">0</span>
+      </div>
+      <div class="admin-toolbar">
+        <label>
+          Search
+          <input id="orderSearch" type="search" placeholder="Customer, phone, order ID" />
+        </label>
+        <label>
+          Status
+          <select id="orderStatusFilter">
+            <option value="">All statuses</option>
+            <option value="new">New</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="preparing">Preparing</option>
+            <option value="out_for_delivery">Out for delivery</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+        <label>
+          Payment
+          <select id="paymentStatusFilter">
+            <option value="">All payments</option>
+            <option value="pending">Pending</option>
+            <option value="awaiting_confirmation">Awaiting confirmation</option>
+            <option value="paid">Paid</option>
+            <option value="failed">Failed</option>
+            <option value="refunded">Refunded</option>
+          </select>
+        </label>
+        <label>
+          Date
+          <input id="orderDateFilter" type="date" />
+        </label>
+      </div>
+      <div id="availableOrders" class="order-list"></div>
+    </div>
+  </div>
+
+  <div class="admin-panel" data-panel="products">
+    <div class="product-editor-layout">
+      <div class="panel-card">
+        <div class="panel-heading">
+          <div>
+            <p class="admin-kicker">Catalog editor</p>
+            <h2 id="formTitle">Add a product</h2>
+            <p class="desc">Inline checks keep IDs, SKUs, stock, and storefront projection clean.</p>
+          </div>
+          <button type="button" class="btn btn-ghost" id="formReset">New product</button>
+        </div>
+
+        <form id="productForm" class="product-form" autocomplete="off" novalidate>
+          <input type="hidden" id="prodId" />
+
+          <fieldset class="form-section">
+            <legend>Storefront information</legend>
+            <div class="form-grid">
+              <label class="span-2">
+                Product name
+                <input id="prodName" type="text" required placeholder="e.g. Ivory Oversized Shirt" />
+                <small class="field-error" data-error-for="prodName"></small>
+              </label>
+              <label>
+                Slug / ID
+                <input id="prodSlug" type="text" placeholder="auto-created-from-name" />
+                <small class="field-error" data-error-for="prodSlug"></small>
+              </label>
+              <label>
+                Category
+                <input id="prodCategory" type="text" required list="categoryOptions" placeholder="Tops" />
+                <small class="field-error" data-error-for="prodCategory"></small>
+              </label>
+              <label>
+                Product badge
+                <input id="prodBadge" type="text" placeholder="New, Best Seller, Limited" />
+              </label>
+              <label>
+                SKU
+                <input id="prodSku" type="text" placeholder="PVA-TOP-001" />
+                <small class="field-error" data-error-for="prodSku"></small>
+              </label>
+              <label>
+                Visibility
+                <select id="prodStatus">
+                  <option value="published">Published</option>
+                  <option value="draft">Draft</option>
+                </select>
+                <small>Drafts stay out of the public storefront projection.</small>
+              </label>
+              <label>
+                Sort order
+                <input id="prodSortOrder" type="number" min="0" step="1" placeholder="Lower appears first" />
+              </label>
+              <label class="toggle-field span-2">
+                <input id="prodFeatured" type="checkbox" />
+                <span>
+                  <strong>Feature this product</strong>
+                  Prioritize it when customers use the Featured sort.
+                </span>
+              </label>
+              <label class="span-2">
+                Description
+                <textarea id="prodDesc" rows="5" required placeholder="Describe the piece, silhouette, and styling possibilities."></textarea>
+                <small class="field-error" data-error-for="prodDesc"></small>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>Pricing and inventory</legend>
+            <div class="form-grid">
+              <label>
+                Price ($)
+                <input id="prodPrice" type="number" step="0.01" min="0" required />
+                <small class="field-error" data-error-for="prodPrice"></small>
+              </label>
+              <label>
+                Compare-at price ($)
+                <input id="prodCompare" type="number" step="0.01" min="0" placeholder="Optional sale reference" />
+                <small class="field-error" data-error-for="prodCompare"></small>
+              </label>
+              <label>
+                Stock quantity
+                <input id="prodStock" type="number" min="0" value="10" required />
+                <small class="field-error" data-error-for="prodStock"></small>
+              </label>
+              <label>
+                Tags
+                <input id="prodTags" type="text" placeholder="summer, modest, occasion" />
+                <small>Separate tags with commas.</small>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>Media and variants</legend>
+            <div class="form-grid">
+              <div class="image-uploader span-2">
+                <div class="variant-heading">
+                  <div>
+                    <strong>Product image</strong>
+                    <small>Use a local preset image ID now, or an approved external HTTPS URL later.</small>
+                  </div>
+                  <label class="optimization-select">
+                    Image size
+                    <select id="imageOptimization">
+                      <option value="compact">Compact - 1200px</option>
+                      <option value="balanced" selected>Balanced - 1600px</option>
+                      <option value="detail">High detail - 2000px</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="image-dropzone" id="imageDropzone">
+                  <input id="prodImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/avif" />
+                  <span class="upload-icon" aria-hidden="true">+</span>
+                  <strong>Choose a product image</strong>
+                  <small>Local browser images work for local fallback only; Firebase rules accept preset IDs or HTTPS URLs.</small>
+                </label>
+                <div id="imageOptimizationResult" class="image-result" hidden></div>
+                <details class="image-advanced" open>
+                  <summary>Image reference</summary>
+                  <div class="form-grid">
+                    <label>
+                      Preset image ID
+                      <input id="prodImageId" type="text" list="imageIdOptions" placeholder="pavia-look-01" />
+                      <small class="field-error" data-error-for="prodImageId"></small>
+                    </label>
+                    <label>
+                      External HTTPS image URL
+                      <input id="prodImageUrl" type="url" placeholder="https://example.com/product.webp" />
+                      <small class="field-error" data-error-for="prodImageUrl"></small>
+                    </label>
+                  </div>
+                  <input id="prodImage" type="hidden" />
+                </details>
+                <input id="prodImageVersion" type="hidden" />
+                <input id="prodImageMeta" type="hidden" />
+              </div>
+              <div class="variant-builder span-2">
+                <div class="variant-heading">
+                  <div>
+                    <strong>Available sizes</strong>
+                    <small>Phase 05 keeps inventory product-level; variant stock can be introduced later if needed.</small>
+                  </div>
+                </div>
+                <div class="size-picker" id="sizePicker">
+                  <button type="button" data-size-option="One size">One size</button>
+                  <button type="button" data-size-option="XS">XS</button>
+                  <button type="button" data-size-option="S">S</button>
+                  <button type="button" data-size-option="M">M</button>
+                  <button type="button" data-size-option="L">L</button>
+                  <button type="button" data-size-option="XL">XL</button>
+                  <button type="button" data-size-option="XXL">XXL</button>
+                </div>
+                <div class="inline-builder">
+                  <input id="customSize" type="text" placeholder="Custom size, e.g. 38 or 2XL" />
+                  <button id="addCustomSize" type="button" class="btn btn-secondary">Add size</button>
+                </div>
+                <div id="customSizeList" class="selection-chips"></div>
+                <input id="prodSizes" type="hidden" />
+              </div>
+
+              <div class="variant-builder span-2">
+                <div class="variant-heading">
+                  <div>
+                    <strong>Available colors</strong>
+                    <small>Choose a color, give it a customer-friendly name, then add more as needed.</small>
+                  </div>
+                  <button id="addColor" type="button" class="btn btn-secondary">Add color</button>
+                </div>
+                <div id="colorBuilder" class="color-builder"></div>
+                <input id="prodColors" type="hidden" />
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>Product details</legend>
+            <div class="form-grid">
+              <label>
+                Material
+                <input id="prodMaterial" type="text" placeholder="100% cotton" />
+              </label>
+              <label>
+                Fit
+                <input id="prodFit" type="text" placeholder="Relaxed fit; true to size" />
+              </label>
+              <label class="span-2">
+                Care instructions
+                <textarea id="prodCare" rows="3" placeholder="Cold wash, hang dry, do not bleach."></textarea>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="form-actions sticky-actions">
+            <button type="submit" class="btn btn-primary" id="formSubmit">Add product</button>
+            <button type="button" class="btn btn-ghost" id="formCancel">Clear form</button>
+          </div>
+        </form>
+      </div>
+
+      <aside class="panel-card preview-card" aria-label="Product preview">
+        <p class="admin-kicker">Live preview</p>
+        <div class="preview-media">
+          <img id="productPreviewImage" src="../assets/logo.svg" alt="" />
+          <span id="productPreviewBadge" class="preview-badge" hidden></span>
+        </div>
+        <div class="preview-content">
+          <span id="productPreviewCategory" class="preview-category">Category</span>
+          <h3 id="productPreviewName">Product name</h3>
+          <p id="productPreviewDescription">Your product description will appear here.</p>
+          <div class="preview-price">
+            <strong id="productPreviewPrice">$0.00</strong>
+            <s id="productPreviewCompare" hidden></s>
+          </div>
+          <div id="productPreviewStatus" class="status-pill published">Published</div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="panel-card catalog-card">
+      <div class="panel-heading">
+        <div>
+          <p class="admin-kicker">Inventory</p>
+          <h2>Catalog</h2>
+          <p class="desc">Edit, publish, draft, reorder, or remove products.</p>
+        </div>
+        <span class="count-badge" id="catalogCount">0</span>
+      </div>
+      <div class="admin-toolbar">
+        <label>
+          Product search
+          <input id="productSearch" type="search" placeholder="Name, SKU, category" />
+        </label>
+        <label>
+          Stock filter
+          <select id="stockFilter">
+            <option value="">All stock</option>
+            <option value="low">Low stock</option>
+            <option value="out">Out of stock</option>
+          </select>
+        </label>
+      </div>
+      <div id="productList" class="product-list"></div>
+    </div>
+  </div>
+
+  <div class="admin-panel" data-panel="settings">
+    <div class="panel-card settings-card">
+      <div class="panel-heading">
+        <div>
+          <p class="admin-kicker">Store controls</p>
+          <h2>Settings</h2>
+          <p class="desc">Keep private settings and public storefront settings synchronized.</p>
+        </div>
+      </div>
+      <form id="settingsForm" class="product-form compact-form" autocomplete="off">
+        <label>
+          Store title
+          <input id="settingSiteTitle" type="text" required />
+        </label>
+        <label>
+          Display phone
+          <input id="settingPhoneDisplay" type="text" />
+        </label>
+        <label>
+          Phone number
+          <input id="settingPhoneNumber" type="tel" />
+        </label>
+        <label>
+          WhatsApp number
+          <input id="settingWhatsapp" type="tel" />
+        </label>
+        <label>
+          Instagram handle
+          <input id="settingInstagramHandle" type="text" />
+        </label>
+        <label>
+          Instagram URL
+          <input id="settingInstagramUrl" type="url" />
+        </label>
+        <label>
+          Location
+          <input id="settingLocation" type="text" />
+        </label>
+        <label>
+          Delivery area
+          <input id="settingDeliveryArea" type="text" />
+        </label>
+        <label>
+          Beirut delivery ($)
+          <input id="settingDeliveryBeirut" type="number" min="0" step="0.01" />
+        </label>
+        <label>
+          Lebanon delivery ($)
+          <input id="settingDeliveryLebanon" type="number" min="0" step="0.01" />
+        </label>
+        <label>
+          Free delivery threshold ($)
+          <input id="settingFreeDeliveryAt" type="number" min="0" step="0.01" />
+        </label>
+        <label class="toggle-field">
+          <input id="settingCheckoutEnabled" type="checkbox" />
+          <span><strong>Checkout enabled</strong> Allow customers to start checkout.</span>
+        </label>
+        <label class="toggle-field">
+          <input id="settingWhatsappCheckout" type="checkbox" />
+          <span><strong>WhatsApp checkout</strong> Keep WhatsApp as the handoff/fallback.</span>
+        </label>
+        <label class="toggle-field">
+          <input id="settingCash" type="checkbox" />
+          <span><strong>Cash on delivery</strong> Show as an available payment method.</span>
+        </label>
+        <label class="toggle-field">
+          <input id="settingWhish" type="checkbox" />
+          <span><strong>Whish Money</strong> Show as manual confirmation only.</span>
+        </label>
+        <div class="form-actions span-2">
+          <button type="submit" class="btn btn-primary">Save settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="admin-panel" data-panel="promos">
+    <div class="panel-card">
+      <div class="panel-heading">
+        <div>
+          <p class="admin-kicker">Offers</p>
+          <h2>Promo codes</h2>
+          <p class="desc">Create, edit, and deactivate public promo projections.</p>
+        </div>
+        <button id="promoReset" type="button" class="btn btn-ghost">New promo</button>
+      </div>
+      <form id="promoForm" class="product-form compact-form" autocomplete="off" novalidate>
+        <input id="promoOriginalCode" type="hidden" />
+        <label>
+          Code
+          <input id="promoCode" type="text" required placeholder="PAVIA10" />
+          <small class="field-error" data-error-for="promoCode"></small>
+        </label>
+        <label>
+          Label
+          <input id="promoLabel" type="text" required placeholder="10% off" />
+        </label>
+        <label>
+          Type
+          <select id="promoType">
+            <option value="percent">Percent</option>
+            <option value="fixed">Fixed amount</option>
+            <option value="freeship">Free shipping</option>
+          </select>
+        </label>
+        <label>
+          Value
+          <input id="promoValue" type="number" min="0" step="0.01" />
+        </label>
+        <label>
+          Minimum subtotal
+          <input id="promoMinSubtotal" type="number" min="0" step="0.01" />
+        </label>
+        <label>
+          Usage limit
+          <input id="promoUsageLimit" type="number" min="0" step="1" />
+        </label>
+        <label>
+          Starts at
+          <input id="promoStartsAt" type="date" />
+        </label>
+        <label>
+          Ends at
+          <input id="promoEndsAt" type="date" />
+        </label>
+        <label class="toggle-field span-2">
+          <input id="promoActive" type="checkbox" checked />
+          <span><strong>Active</strong> Active promos are exposed in /publicPromoCodes.</span>
+        </label>
+        <div class="form-actions span-2">
+          <button type="submit" class="btn btn-primary" id="promoSubmit">Save promo</button>
+        </div>
+      </form>
+    </div>
+    <div class="panel-card">
+      <div class="panel-heading">
+        <div>
+          <p class="admin-kicker">Promo library</p>
+          <h2>Codes</h2>
+        </div>
+      </div>
+      <div id="promoList" class="product-list"></div>
+    </div>
+  </div>
+
+  <div class="admin-panel" data-panel="security">
+    <div class="panel-card settings-card">
+      <p class="admin-kicker">Security</p>
+      <h2>Password changes</h2>
+      <p class="desc">The admin password is not stored in the browser. To change it, regenerate the encrypted admin payload with the documented build command and redeploy the site.</p>
+      <div class="auth-warning">
+        <strong>Defense in depth, not server authentication.</strong>
+        <p>The encrypted payload can be downloaded and attacked offline. Use a strong unique password and keep Realtime Database UID allowlisting active.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<datalist id="categoryOptions"></datalist>
+<datalist id="imageIdOptions"></datalist>
+<div id="toastWrap" class="toast-wrap" aria-live="polite"></div>

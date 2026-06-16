@@ -569,6 +569,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .badge.sale { background: var(--cocoa); color: var(--paper); border-color: var(--cocoa); }
 .badge.new { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .badge.low { background: #b34d3a; color: var(--paper); border-color: #b34d3a; }
+.badge.sold { background: #6f6a64; color: var(--paper); border-color: #6f6a64; }
 
 /* Wishlist heart */
 .wish-btn {
@@ -608,8 +609,13 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .quick-add svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none; }
 .quick-add:hover { background: var(--cocoa); }
+.quick-add:disabled {
+  cursor: not-allowed;
+  background: rgba(26, 22, 18, 0.64);
+}
 .product-card:hover .quick-add,
 .product-card:focus-within .quick-add { opacity: 1; transform: translateY(0); }
+.product-card[data-sold-out="true"] .product-media img { filter: grayscale(0.35); opacity: 0.72; }
 
 @media (hover: none) {
   .quick-add { opacity: 1; transform: none; }
@@ -689,6 +695,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   display: none;
 }
 .product-card[data-low-stock="true"] .stock-bar { display: block; }
+.product-card[data-sold-out="true"] .stock-bar { display: block; color: #6f6a64; }
 
 /* Empty state */
 .empty-state {
@@ -786,6 +793,34 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 
 /* =========================================================
+   Trust strip
+   ========================================================= */
+.trust-strip {
+  background: var(--paper);
+  border-block: 1px solid var(--line-soft);
+  padding: 14px 0;
+}
+.trust-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.trust-grid div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+}
+.trust-grid strong {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.trust-grid span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* =========================================================
    Visit / contact section
    ========================================================= */
 .visit {
@@ -850,6 +885,24 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .newsletter input::placeholder { color: var(--muted-soft); }
 .newsletter input:focus { border-color: var(--champagne); }
+.newsletter-consent {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: flex-start;
+  gap: 10px !important;
+  margin: 0 0 18px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+.newsletter-consent input {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin-top: 1px;
+  padding: 0;
+}
 
 /* =========================================================
    Footer
@@ -1223,6 +1276,31 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   width: 100%; height: 100%;
   object-fit: cover;
 }
+.modal-gallery {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px;
+}
+.modal-gallery button {
+  width: 54px;
+  height: 68px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  border: 2px solid rgba(250, 246, 239, 0.74);
+  background: var(--paper);
+  flex: 0 0 auto;
+}
+.modal-gallery button.is-selected { border-color: var(--ink); }
+.modal-gallery img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .modal-details {
   padding: 22px 20px 28px;
   display: flex; flex-direction: column; gap: 14px;
@@ -1334,6 +1412,16 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .qty-add-row .qty-control button { width: 38px; height: 100%; font-size: 18px; }
 .qty-add-row .qty-control span { min-width: 30px; font-size: 15px; }
 .qty-add-row .btn { height: 48px; }
+.qty-control button:disabled,
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.stock-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: -4px;
+}
 
 .modal-meta {
   display: flex; flex-direction: column; gap: 6px;
@@ -1402,6 +1490,19 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   border-color: var(--cocoa);
   box-shadow: 0 0 0 3px rgba(90, 62, 48, 0.08);
 }
+.review-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+.review-confirm input {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
 
 .payment-options {
   display: grid;
@@ -1454,6 +1555,19 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   border-bottom: 1px solid var(--line-soft);
 }
 .order-preview .summary-line.total { padding-top: 10px; }
+.checkout-success {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(46, 125, 79, 0.24);
+  border-radius: var(--r-md);
+  background: rgba(46, 125, 79, 0.08);
+  color: #2e7d4f;
+  font-size: 13px;
+  font-weight: 600;
+}
+.checkout-submit.is-loading {
+  pointer-events: none;
+}
 
 /* =========================================================
    Toasts
@@ -1574,6 +1688,8 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   .hero-grid { grid-template-columns: 1fr 1fr; gap: 36px; }
   .filter-row { grid-template-columns: repeat(3, 1fr); }
   .visit-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
+  .trust-grid { grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .trust-grid div { padding: 6px 0; }
   .modal-product { flex-direction: row; min-height: 540px; }
   .modal-product .image-wrap { width: 50%; aspect-ratio: auto; }
   .modal-details { width: 50%; padding: 32px 28px; overflow-y: auto; }

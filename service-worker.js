@@ -1,29 +1,30 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v10';
+const CACHE = 'pavia-v16';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const ASSETS = [
   './',
   './index.html',
   './js/config.js?v=10',
+  './js/firebase-config.js?v=10',
   './js/backend-config.js?v=10',
-  './js/backend.js?v=10',
+  './js/image-catalog.js?v=10',
+  './js/backend.js?v=14',
+  './js/backend-firebase.js?v=14',
   './css/styles.css?v=10',
   './js/products.js?v=10',
-  './js/app.js?v=10',
+  './js/app.js?v=12',
   './manifest.webmanifest',
   './assets/logo.svg',
-  './assets/products/azure-coord-set.svg',
-  './assets/products/beige-trench-coat.svg',
-  './assets/products/black-satin-skirt.svg',
-  './assets/products/blue-pearl-blouse.svg',
-  './assets/products/chocolate-mini-dress.svg',
-  './assets/products/cocoa-pleated-pants.svg',
-  './assets/products/cream-wide-leg-pants.svg',
-  './assets/products/denim-maxi-skirt.svg',
-  './assets/products/ivory-oversized-shirt.svg',
-  './assets/products/leather-belted-coat.svg',
-  './assets/products/mocha-knit-set.svg',
-  './assets/products/olive-longline-coat.svg',
+  './assets/placeholders/pavia-look-01.svg',
+  './assets/placeholders/pavia-look-02.svg',
+  './assets/placeholders/pavia-look-03.svg',
+  './assets/placeholders/pavia-look-04.svg',
+  './assets/placeholders/pavia-look-05.svg',
+  './assets/placeholders/pavia-look-06.svg',
+  './assets/placeholders/pavia-look-07.svg',
+  './assets/placeholders/pavia-look-08.svg',
+  './assets/placeholders/pavia-look-09.svg',
+  './assets/placeholders/pavia-look-10.svg',
 ];
 
 self.addEventListener('install', (event) => {

@@ -8,11 +8,17 @@
   const keys = {
     products: 'PAVIA_PRODUCTS',
     orders: 'PAVIA_ORDERS',
+    settings: 'PAVIA_SETTINGS',
+    promoCodes: 'PAVIA_PROMO_CODES',
     statistics: 'PAVIA_STATISTICS',
+    subscribers: 'PAVIA_SUBSCRIBERS',
+    orderRequests: 'PAVIA_ORDER_REQUESTS',
   };
   const listeners = {
     products: new Set(),
     orders: new Set(),
+    settings: new Set(),
+    promoCodes: new Set(),
   };
   const objectUrls = new Map();
   const channel = 'BroadcastChannel' in window
@@ -59,6 +65,12 @@
     }
     if (event.key === keys.orders) {
       listeners.orders.forEach((listener) => listener());
+    }
+    if (event.key === keys.settings) {
+      listeners.settings.forEach((listener) => listener());
+    }
+    if (event.key === keys.promoCodes) {
+      listeners.promoCodes.forEach((listener) => listener());
     }
   });
 
@@ -201,6 +213,13 @@
     return new URL(value.replace(/^(\.\/)+/, ''), siteBaseUrl).href;
   }
 
+  function catalogImageUrl(value) {
+    const raw = String(value || '').trim();
+    const resolved = window.PaviaImages?.resolve?.(raw);
+    if (!resolved || resolved === raw) return null;
+    return resolved;
+  }
+
   function versionedUrl(url, version) {
     const resolved = publicImageUrl(url);
     if (!version || /^(data:|blob:)/i.test(resolved) || /[?&]pv=/.test(resolved)) return resolved;
@@ -210,6 +229,9 @@
 
   async function resolveImage(image, version = '') {
     const value = String(image || '');
+    const catalogUrl = catalogImageUrl(value);
+    if (catalogUrl) return versionedUrl(catalogUrl, version);
+
     if (!value.startsWith('local-media:')) return versionedUrl(value, version);
 
     const id = value.slice('local-media:'.length);
@@ -252,6 +274,18 @@
       if (localStorage.getItem(keys.orders) === null) {
         write(keys.orders, []);
       }
+      if (localStorage.getItem(keys.settings) === null) {
+        write(keys.settings, clone(window.PAVIA_CONFIG || {}));
+      }
+      if (localStorage.getItem(keys.promoCodes) === null) {
+        write(keys.promoCodes, clone(window.PAVIA_PROMO_CODES || {}));
+      }
+      if (localStorage.getItem(keys.subscribers) === null) {
+        write(keys.subscribers, []);
+      }
+      if (localStorage.getItem(keys.orderRequests) === null) {
+        write(keys.orderRequests, {});
+      }
       return backend;
     },
 
@@ -287,24 +321,153 @@
         return clone(read(keys.orders, []));
       },
       async create(order) {
+        const requestId = String(order.requestId || '').trim();
+        const requests = read(keys.orderRequests, {});
+        if (requestId && requests[requestId]?.orderId) {
+          const existing = read(keys.orders, []).find((item) => String(item.id) === String(requests[requestId].orderId));
+          if (existing) return clone(existing);
+        }
+        const products = read(keys.products, []);
+        const items = Array.isArray(order.items) ? order.items : Object.values(order.items || {});
+        const normalizedItems = items.map((item) => {
+          const product = products.find((entry) => String(entry.id) === String(item.id));
+          const qty = Math.max(1, Number(item.qty) || 1);
+          if (!product) throw new Error(`${item.name || item.id || 'Item'} is no longer available.`);
+          if (Number(product.stock || 0) < qty) throw new Error(`${product.name} has only ${product.stock || 0} left.`);
+          product.stock = Number(product.stock || 0) - qty;
+          return {
+            ...clone(item),
+            name: product.name,
+            price: Number(product.price || item.price || 0),
+            qty,
+          };
+        });
+        write(keys.products, products);
+        emit('products');
         const orders = read(keys.orders, []);
-        orders.push(clone(order));
+        const created = {
+          ...clone(order),
+          items: normalizedItems,
+          stockReserved: true,
+          stockRestored: false,
+        };
+        orders.push(created);
         write(keys.orders, orders);
+        if (requestId) {
+          requests[requestId] = {
+            uid: 'local',
+            orderId: created.id,
+            status: 'created',
+            createdAt: created.createdAt || new Date().toISOString(),
+          };
+          write(keys.orderRequests, requests);
+        }
         emit('orders');
-        return clone(order);
+        return clone(created);
       },
       async complete(id) {
         const orders = read(keys.orders, []);
         const order = orders.find((item) => String(item.id) === String(id));
         if (!order) return null;
         order.status = 'completed';
+        order.paymentStatus ||= 'paid';
         order.completedAt = new Date().toISOString();
+        order.updatedAt = order.completedAt;
+        write(keys.orders, orders);
+        emit('orders');
+        return clone(order);
+      },
+      async update(id, changes = {}) {
+        const orders = read(keys.orders, []);
+        const order = orders.find((item) => String(item.id) === String(id));
+        if (!order) return null;
+        const previousStatus = order.status;
+        Object.assign(order, clone(changes), { updatedAt: new Date().toISOString() });
+        if (order.status === 'completed' && !order.completedAt) order.completedAt = order.updatedAt;
+        if (order.status === 'cancelled' && !order.cancelledAt) order.cancelledAt = order.updatedAt;
+        if (order.status === 'cancelled' && previousStatus !== 'cancelled' && order.stockReserved && !order.stockRestored) {
+          const products = read(keys.products, []);
+          (Array.isArray(order.items) ? order.items : Object.values(order.items || {})).forEach((item) => {
+            const product = products.find((entry) => String(entry.id) === String(item.id));
+            if (product) product.stock = Math.max(0, Number(product.stock || 0)) + Math.max(0, Number(item.qty || 0));
+          });
+          order.stockRestored = true;
+          order.stockRestoredAt = order.updatedAt;
+          write(keys.products, products);
+          emit('products');
+        }
         write(keys.orders, orders);
         emit('orders');
         return clone(order);
       },
       subscribe(listener) {
         return subscribe('orders', listener);
+      },
+    },
+
+    settings: {
+      async get() {
+        return clone(read(keys.settings, window.PAVIA_CONFIG || {}));
+      },
+      async update(settings) {
+        const record = {
+          ...read(keys.settings, window.PAVIA_CONFIG || {}),
+          ...clone(settings || {}),
+          updatedAt: new Date().toISOString(),
+        };
+        write(keys.settings, record);
+        emit('settings');
+        return clone(record);
+      },
+      subscribe(listener) {
+        return subscribe('settings', listener);
+      },
+    },
+
+    promoCodes: {
+      async list() {
+        return clone(read(keys.promoCodes, window.PAVIA_PROMO_CODES || {}));
+      },
+      async upsert(code, promo) {
+        const promos = read(keys.promoCodes, window.PAVIA_PROMO_CODES || {});
+        const normalizedCode = String(code || promo?.code || '').trim().toUpperCase();
+        if (!normalizedCode) throw new Error('Promo code is required.');
+        promos[normalizedCode] = {
+          ...promos[normalizedCode],
+          ...clone(promo || {}),
+          code: normalizedCode,
+          updatedAt: new Date().toISOString(),
+          createdAt: promos[normalizedCode]?.createdAt || new Date().toISOString(),
+        };
+        write(keys.promoCodes, promos);
+        emit('promoCodes');
+        return clone(promos[normalizedCode]);
+      },
+      async remove(code) {
+        const promos = read(keys.promoCodes, window.PAVIA_PROMO_CODES || {});
+        delete promos[String(code || '').trim().toUpperCase()];
+        write(keys.promoCodes, promos);
+        emit('promoCodes');
+      },
+      subscribe(listener) {
+        return subscribe('promoCodes', listener);
+      },
+    },
+
+    subscribers: {
+      async create(record) {
+        const subscribers = read(keys.subscribers, []);
+        const entry = {
+          id: record.id || `sub-${Date.now()}`,
+          email: String(record.email || '').trim().toLowerCase(),
+          consent: record.consent === true,
+          source: record.source || 'storefront',
+          createdAt: record.createdAt || new Date().toISOString(),
+        };
+        if (!entry.email || !entry.consent) throw new Error('Subscriber email and consent are required.');
+        subscribers.push(entry);
+        write(keys.subscribers, subscribers);
+        return clone(entry);
       },
     },
 

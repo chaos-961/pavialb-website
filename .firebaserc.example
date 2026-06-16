@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "demo-pavia-local",
+    "dev": "replace-with-pavia-dev-project-id",
+    "staging": "replace-with-pavia-staging-project-id",
+    "prod": "replace-with-pavia-production-project-id"
+  }
+}

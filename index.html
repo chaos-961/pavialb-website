@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#1a1612" />
   <meta name="description" content="Pavia Lebanon — modern elegant fashion. Crafted for everyday refinement, delivered all over Lebanon." data-site-description />
+  <meta property="og:title" content="Pavia Lebanon" />
+  <meta property="og:description" content="Modern elegant fashion boutique with delivery across Lebanon." data-site-description />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="assets/placeholders/pavia-look-08.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="format-detection" content="telephone=no" />
   <title>Pavia Lebanon · Modern Elegant Fashion</title>
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
@@ -67,19 +72,36 @@
         <div class="hero-visual reveal reveal-delay-150">
           <span class="hero-tag">Eid Collection</span>
           <div class="hero-card main">
-            <img src="assets/products/beige-trench-coat.svg" alt="Beige trench coat" />
+            <img src="assets/placeholders/pavia-look-08.svg" alt="Pavia featured outerwear look" />
           </div>
           <div class="hero-card float-1">
-            <img src="assets/products/blue-pearl-blouse.svg" alt="Blue ruffle blouse" />
+            <img src="assets/placeholders/pavia-look-01.svg" alt="Pavia blue blouse look" />
           </div>
           <div class="hero-card float-2">
-            <img src="assets/products/black-satin-skirt.svg" alt="Black satin skirt" />
+            <img src="assets/placeholders/pavia-look-09.svg" alt="Pavia satin skirt look" />
           </div>
         </div>
       </div>
     </section>
 
     <!-- ========== SHOP — the centerpiece ========== -->
+    <section class="trust-strip" aria-label="Shopping information">
+      <div class="container trust-grid">
+        <div>
+          <strong>Lebanon delivery</strong>
+          <span>Beirut and nationwide handoff options</span>
+        </div>
+        <div>
+          <strong>Manual payment</strong>
+          <span>Cash on delivery or confirmed Whish Money</span>
+        </div>
+        <div>
+          <strong>Order review</strong>
+          <span>Every request is checked before fulfillment</span>
+        </div>
+      </div>
+    </section>
+
     <section id="shop" class="shop-section">
       <div class="container">
         <div class="shop-header reveal">
@@ -184,7 +206,11 @@
           <h3>Get collection alerts</h3>
           <p class="newsletter-note">Be first to see new arrivals, restocks, and quiet sales.</p>
           <label>Email
-            <input type="email" required placeholder="you@example.com" />
+            <input type="email" name="email" required placeholder="you@example.com" />
+          </label>
+          <label class="newsletter-consent">
+            <input type="checkbox" name="consent" required />
+            <span>I agree to receive Pavia collection and restock updates.</span>
           </label>
           <button class="btn btn-primary full" type="submit">Notify me</button>
         </form>
@@ -321,6 +347,13 @@
               <input name="city" required placeholder="Beirut, Tripoli, Saida..." />
             </div>
             <div class="field">
+              <label>Delivery area</label>
+              <select name="deliveryArea" required>
+                <option value="beirut">Beirut</option>
+                <option value="lebanon">Outside Beirut</option>
+              </select>
+            </div>
+            <div class="field">
               <label>Detailed address</label>
               <textarea name="address" required placeholder="Street, building, floor"></textarea>
             </div>
@@ -349,14 +382,19 @@
               <label>Delivery notes</label>
               <textarea name="notes" placeholder="Preferred delivery time, sizing notes..."></textarea>
             </div>
+            <label class="review-confirm">
+              <input type="checkbox" name="reviewConfirmed" required />
+              <span>I reviewed sizes, colors, delivery area, and payment method.</span>
+            </label>
           </div>
 
           <div class="order-preview">
             <h3>Order summary</h3>
             <div data-checkout-summary></div>
+            <div class="checkout-success is-hidden" data-checkout-success role="status"></div>
             <button class="btn btn-primary full btn-lg checkout-submit" type="submit">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.2-5.6A8.4 8.4 0 1 1 21 11.5Z"/></svg>
-              Place order via WhatsApp
+              Review and place order
             </button>
             <button class="btn btn-ghost full btn-sm stack-gap-sm" type="button" data-copy-order>Copy order text</button>
           </div>
@@ -369,9 +407,12 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <script src="js/config.js?v=10"></script>
+  <script src="js/firebase-config.js?v=10"></script>
   <script src="js/backend-config.js?v=10"></script>
-  <script src="js/backend.js?v=10"></script>
+  <script src="js/image-catalog.js?v=10"></script>
+  <script src="js/backend.js?v=14"></script>
+  <script src="js/backend-firebase.js?v=14"></script>
   <script src="js/products.js?v=10"></script>
-  <script src="js/app.js?v=10"></script>
+  <script src="js/app.js?v=12"></script>
 </body>
 </html>

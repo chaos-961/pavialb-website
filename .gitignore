@@ -11,6 +11,9 @@ Desktop.ini
 *.log
 .env
 .env.*
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
 
 # Dependency/build output, if tooling is added later
 node_modules/
@@ -18,3 +21,7 @@ dist/
 build/
 coverage/
 _site/
+.firebase/
+
+# Local Firebase project selection
+.firebaserc

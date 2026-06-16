@@ -20,9 +20,9 @@
   const SITE_CONFIG = window.PAVIA_CONFIG || {};
   const BACKEND = window.PaviaBackend;
   const WHATSAPP_NUMBER = SITE_CONFIG.whatsappNumber || '9613017725';
-  const FREE_DELIVERY_AT = 100;
-  const DELIVERY_BEIRUT = 3;
-  const DELIVERY_LEBANON = 5;
+  let FREE_DELIVERY_AT = 100;
+  let DELIVERY_BEIRUT = 3;
+  let DELIVERY_LEBANON = 5;
   const RECENT_LIMIT = 8;
 
   // ---------- Helpers ----------
@@ -44,6 +44,10 @@
   const debounce = (fn, ms = 200) => {
     let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
   };
+  const makeRequestId = () => {
+    if (window.crypto?.randomUUID) return `req-${window.crypto.randomUUID()}`;
+    return `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  };
 
   // Color helpers — products may store strings or {name, hex}
   const colorObj = (c) => typeof c === 'string'
@@ -63,6 +67,7 @@
     const tags = Array.isArray(p.tags) ? p.tags : [];
     const compareAt = Number(p.compareAt ?? p.comparePrice ?? 0) || 0;
     const stock = Number.isFinite(Number(p.stock)) ? Number(p.stock) : 0;
+    const imageSource = p.image || p.imageId || '';
     return {
       ...p,
       id: p.id || `product-${Date.now()}`,
@@ -71,7 +76,8 @@
       price: Number(p.price) || 0,
       compareAt,
       badge: p.badge || (tags[0] || ''),
-      image: p.image || 'assets/logo.svg',
+      imageId: p.imageId || window.PaviaImages?.idFor?.(p.image) || '',
+      image: window.PaviaImages?.resolve?.(imageSource) || p.image || 'assets/logo.svg',
       description: p.description || '',
       sizes: Array.isArray(p.sizes) && p.sizes.length ? p.sizes : ['One size'],
       colors: (Array.isArray(p.colors) && p.colors.length ? p.colors : ['Default']).map(colorObj),
@@ -104,6 +110,8 @@
   let selectedSize = '';
   let selectedColor = '';
   let selectedQty = 1;
+  let selectedImage = '';
+  let lastFocusedElement = null;
 
   // ---------- Node references ----------
   const n = {
@@ -144,6 +152,7 @@
     checkoutModal:    $('[data-checkout-modal]'),
     checkoutSummary:  $('[data-checkout-summary]'),
     checkoutForm:     $('[data-checkout-form]'),
+    checkoutSuccess:  $('[data-checkout-success]'),
 
     toastRegion:      $('[data-toast-region]'),
     recentSection:    $('[data-recent-section]'),
@@ -155,6 +164,87 @@
   const cartSubtotal = () => cart.reduce((s, i) => s + i.price * i.qty, 0);
   const cartQty = () => cart.reduce((s, i) => s + i.qty, 0);
   const getProduct = (id) => products.find(p => p.id === id);
+  const cartLineQty = (productId, size = '', color = '') => cart
+    .filter((item) => String(item.id) === String(productId)
+      && String(item.size || '') === String(size || '')
+      && String(item.color || '') === String(color || ''))
+    .reduce((sum, item) => sum + Number(item.qty || 0), 0);
+
+  function stockMessage(product) {
+    const stock = Number(product?.stock || 0);
+    if (stock <= 0) return 'Sold out';
+    if (stock <= 3) return `Only ${stock} left`;
+    if (stock <= 6) return 'Limited stock';
+    return 'In stock';
+  }
+
+  function productGallery(product) {
+    const entries = [
+      product?.image,
+      ...(Array.isArray(product?.gallery) ? product.gallery : []),
+    ].filter(Boolean);
+    return [...new Set(entries.map((entry) => window.PaviaImages?.resolve?.(entry) || entry))];
+  }
+
+  function normalizeLebanonPhone(value) {
+    const raw = String(value || '').trim();
+    const digits = raw.replace(/\D/g, '');
+    if (/^\+961\d{7,8}$/.test(raw.replace(/\s/g, ''))) return raw.replace(/\s/g, '');
+    if (/^961\d{7,8}$/.test(digits)) return `+${digits}`;
+    if (/^0\d{7,8}$/.test(digits)) return `+961${digits.slice(1)}`;
+    return '';
+  }
+
+  function revalidateCart({ notify = false } = {}) {
+    let changed = false;
+    cart = cart
+      .map((item) => {
+        const product = getProduct(item.id);
+        if (!product || product.stock <= 0) {
+          changed = true;
+          return null;
+        }
+        const nextQty = Math.min(Number(item.qty || 1), product.stock);
+        const nextPrice = Number(product.price || item.price || 0);
+        const nextImage = product.imageSource || product.image || item.image;
+        if (nextQty !== item.qty || nextPrice !== item.price || nextImage !== item.image) changed = true;
+        return {
+          ...item,
+          name: product.name,
+          price: nextPrice,
+          image: nextImage,
+          imageVersion: product.imageVersion || item.imageVersion || '',
+          qty: nextQty,
+        };
+      })
+      .filter(Boolean);
+    if (changed) {
+      writeJSON(STORE_KEYS.cart, cart);
+      renderCart();
+      if (notify) toast('Bag updated with current stock and prices.');
+    }
+    return !changed;
+  }
+
+  function focusableElements(container) {
+    return $$('a[href], button:not([disabled]), textarea, input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])', container)
+      .filter((el) => el.offsetParent !== null);
+  }
+
+  function trapFocus(event, container) {
+    if (event.key !== 'Tab' || !container?.classList.contains('is-open')) return;
+    const focusable = focusableElements(container);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   // Promo / discount
   function discountAmount() {
@@ -233,12 +323,25 @@
       : normalized;
   }
 
+  async function loadBackendPublicConfig() {
+    if (!BACKEND) return;
+    const [settings, promoCodes] = await Promise.all([
+      BACKEND.settings?.get?.() || {},
+      BACKEND.promoCodes?.list?.() || {},
+    ]);
+    Object.assign(SITE_CONFIG, settings || {});
+    window.PAVIA_PROMO_CODES = { ...(promoCodes || {}) };
+    FREE_DELIVERY_AT = Number(SITE_CONFIG.freeDeliveryAt) || 100;
+    DELIVERY_BEIRUT = Number(SITE_CONFIG.deliveryBeirut) || 3;
+    DELIVERY_LEBANON = Number(SITE_CONFIG.deliveryLebanon) || 5;
+  }
+
   async function init() {
-    applySiteConfig();
     $('[data-year]').textContent = new Date().getFullYear();
     showSkeletons();
     if (BACKEND) {
       await BACKEND.init({ defaultProducts: window.PAVIA_DEFAULT_PRODUCTS || [] });
+      await loadBackendPublicConfig();
       await loadProducts();
       BACKEND.products.subscribe(async () => {
         await loadProducts();
@@ -246,8 +349,18 @@
         renderProducts();
         renderRecent();
       });
+      BACKEND.settings?.subscribe?.(async () => {
+        await loadBackendPublicConfig();
+        applySiteConfig();
+        renderCart();
+      });
+      BACKEND.promoCodes?.subscribe?.(async () => {
+        await loadBackendPublicConfig();
+        renderCart();
+      });
       void BACKEND.analytics.recordSessionVisit();
     }
+    applySiteConfig();
     renderCategories();
     // Stagger the actual product render so the skeletons get a moment to breathe
     setTimeout(() => {
@@ -324,6 +437,11 @@
     $('[data-checkout]')?.addEventListener('click', openCheckout);
     n.checkoutForm?.addEventListener('submit', submitCheckout);
     n.checkoutForm?.querySelector('[name="city"]')?.addEventListener('input', e => renderCheckoutSummary(e.target.value));
+    n.checkoutForm?.querySelector('[name="deliveryArea"]')?.addEventListener('change', () => renderCheckoutSummary());
+    n.checkoutForm?.querySelector('[name="phone"]')?.addEventListener('blur', e => {
+      const normalized = normalizeLebanonPhone(e.target.value);
+      if (normalized) e.target.value = normalized;
+    });
     $('[data-copy-order]')?.addEventListener('click', copyOrderText);
 
     // Promo
@@ -333,12 +451,7 @@
     // Newsletter
     $('[data-newsletter]')?.addEventListener('submit', e => {
       e.preventDefault();
-      const inp = e.currentTarget.querySelector('input');
-      const subs = readJSON(STORE_KEYS.subscribers, []);
-      subs.push({ email: inp.value, date: new Date().toISOString() });
-      writeJSON(STORE_KEYS.subscribers, subs);
-      inp.value = '';
-      toast('Subscribed. We\'ll keep you posted.');
+      subscribeNewsletter(e.currentTarget);
     });
 
     // ESC closes things
@@ -347,6 +460,8 @@
         closeProductModal(); closeCheckout();
         closeDrawer(n.cartDrawer); closeDrawer(n.wishlistDrawer);
       }
+      trapFocus(e, n.modal);
+      trapFocus(e, n.checkoutModal);
     });
 
     // Smooth-scroll fallback for anchor links (some browsers don't honor hash with sticky header)
@@ -455,24 +570,28 @@
     const moreCount = colors.length > 4 ? `<span class="color-mini-count">+${colors.length - 4}</span>` : '';
     const onSale = p.compareAt && p.compareAt > p.price;
     const savePct = onSale ? Math.round((1 - p.price / p.compareAt) * 100) : 0;
+    const soldOut = p.stock <= 0;
+    const lowStock = p.stock > 0 && p.stock <= 4;
+    const stockCopy = stockMessage(p);
 
     const badges = [];
     if (norm(p.badge) === 'new') badges.push(`<span class="badge new">${p.badge}</span>`);
     else if (onSale) badges.push(`<span class="badge sale">-${savePct}%</span>`);
-    if (p.stock <= 4) badges.push(`<span class="badge low">Only ${p.stock} left</span>`);
+    if (soldOut) badges.push('<span class="badge sold">Sold out</span>');
+    else if (lowStock) badges.push(`<span class="badge low">Only ${p.stock} left</span>`);
     if (!badges.length && p.badge) badges.push(`<span class="badge">${p.badge}</span>`);
 
     return `
-      <article class="product-card reveal" data-low-stock="${p.stock <= 4}" data-product-id="${p.id}">
+      <article class="product-card reveal" data-low-stock="${lowStock}" data-sold-out="${soldOut}" data-product-id="${p.id}">
         <div class="product-media">
-          <img src="${p.image}" alt="${p.name}" loading="lazy" />
+          <img src="${p.image}" alt="${p.name}" loading="lazy" width="640" height="800" />
           <div class="badge-stack">${badges.join('')}</div>
           <button class="wish-btn ${wishlist.includes(p.id) ? 'is-active' : ''}" data-wish="${p.id}" aria-label="Save ${p.name}">
             <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>
           </button>
-          <button class="quick-add" data-fast-add="${p.id}" aria-label="Quick add ${p.name}">
+          <button class="quick-add" data-fast-add="${p.id}" aria-label="${soldOut ? `${p.name} is sold out` : `Quick add ${p.name}`}" ${soldOut ? 'disabled' : ''}>
             <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            Quick add
+            ${soldOut ? 'Sold out' : 'Quick add'}
           </button>
         </div>
         <div class="product-info">
@@ -483,7 +602,7 @@
             ${onSale ? `<span class="was">${money(p.compareAt)}</span><span class="save">Save ${savePct}%</span>` : ''}
           </div>
           <div class="color-mini">${swatches}${moreCount}</div>
-          <div class="stock-bar">Only ${p.stock} left in stock</div>
+          <div class="stock-bar">${stockCopy}</div>
         </div>
       </article>
     `;
@@ -553,12 +672,15 @@
     selectedSize = p.sizes[0] || '';
     selectedColor = (p.colors[0] && p.colors[0].name) || '';
     selectedQty = 1;
+    selectedImage = productGallery(p)[0] || p.image;
+    lastFocusedElement = document.activeElement;
     addToRecent(id);
     void BACKEND?.analytics.recordEvent('product_view');
     renderProductModal();
     n.modal.classList.add('is-open');
     n.modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('no-scroll');
+    requestAnimationFrame(() => $('[data-modal-add]', n.modalContent)?.focus());
   }
 
   function renderProductModal() {
@@ -566,11 +688,25 @@
     const colors = (p.colors || []).map(colorObj);
     const onSale = p.compareAt && p.compareAt > p.price;
     const savePct = onSale ? Math.round((1 - p.price / p.compareAt) * 100) : 0;
+    const soldOut = p.stock <= 0;
+    const inBag = cartLineQty(p.id, selectedSize, selectedColor);
+    const maxQty = Math.max(0, p.stock - inBag);
+    const gallery = productGallery(p);
+    selectedQty = Math.min(Math.max(1, selectedQty), Math.max(1, maxQty));
 
     n.modalContent.innerHTML = `
       <div class="modal-product">
         <div class="image-wrap">
-          <img src="${p.image}" alt="${p.name}" />
+          <img src="${selectedImage || p.image}" alt="${p.name}" width="720" height="780" />
+          ${gallery.length > 1 ? `
+            <div class="modal-gallery" aria-label="Product images">
+              ${gallery.map((src, index) => `
+                <button type="button" class="${src === selectedImage ? 'is-selected' : ''}" data-gallery-src="${src}" aria-label="View image ${index + 1}">
+                  <img src="${src}" alt="" width="64" height="80" loading="lazy" />
+                </button>
+              `).join('')}
+            </div>
+          ` : ''}
         </div>
         <div class="modal-details">
           <span class="eyebrow">${p.category} · ${p.badge || ''}</span>
@@ -610,12 +746,14 @@
             <div class="qty-control" aria-label="Quantity">
               <button type="button" data-modal-qty="minus" aria-label="Decrease quantity">−</button>
               <span>${selectedQty}</span>
-              <button type="button" data-modal-qty="plus" aria-label="Increase quantity">+</button>
+              <button type="button" data-modal-qty="plus" aria-label="Increase quantity" ${soldOut || selectedQty >= maxQty ? 'disabled' : ''}>+</button>
             </div>
-            <button class="btn btn-primary" data-modal-add>
+            <button class="btn btn-primary" data-modal-add ${soldOut || maxQty <= 0 ? 'disabled' : ''}>
               Add to bag · ${money(p.price * selectedQty)}
             </button>
           </div>
+
+          <p class="stock-note">${soldOut ? 'This style is currently sold out.' : `${stockMessage(p)}. ${inBag ? `${inBag} already in your bag.` : 'Ready to add.'}`}</p>
 
           <div class="modal-meta">
             <div>
@@ -635,15 +773,25 @@
       </div>
     `;
 
+    const modalAddButton = $('[data-modal-add]', n.modalContent);
+    if (modalAddButton) {
+      modalAddButton.textContent = soldOut
+        ? 'Sold out'
+        : maxQty <= 0
+          ? 'Already in bag'
+          : `Add to bag - ${money(p.price * selectedQty)}`;
+    }
+    $$('[data-gallery-src]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedImage = b.dataset.gallerySrc; renderProductModal(); }));
     $$('[data-size]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedSize = b.dataset.size; renderProductModal(); }));
     $$('[data-color]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedColor = b.dataset.color; renderProductModal(); }));
     $$('[data-modal-qty]', n.modalContent).forEach(b => b.addEventListener('click', () => {
+      const available = Math.max(0, modalProduct.stock - cartLineQty(modalProduct.id, selectedSize, selectedColor));
       selectedQty = b.dataset.modalQty === 'plus'
-        ? Math.min(modalProduct.stock, selectedQty + 1)
+        ? Math.min(available, selectedQty + 1)
         : Math.max(1, selectedQty - 1);
       renderProductModal();
     }));
-    $('[data-modal-add]', n.modalContent).addEventListener('click', () => {
+    modalAddButton?.addEventListener('click', () => {
       addToCart(modalProduct, selectedSize, selectedColor, selectedQty);
       closeProductModal();
       openDrawer(n.cartDrawer);
@@ -655,20 +803,40 @@
     n.modal.classList.remove('is-open');
     n.modal.setAttribute('aria-hidden', 'true');
     if (!n.checkoutModal.classList.contains('is-open')) document.body.classList.remove('no-scroll');
+    lastFocusedElement?.focus?.();
   }
 
   // ---------- Cart ----------
   function fastAdd(id) {
     const p = getProduct(id);
     if (!p) return;
+    if (p.stock <= 0) {
+      toast(`${p.name} is sold out.`);
+      return;
+    }
     const firstColor = (p.colors[0] && p.colors[0].name) || '';
     addToCart(p, p.sizes[0], firstColor, 1);
   }
 
   function addToCart(product, size, color, qty) {
+    if (!product || product.stock <= 0) {
+      toast('This style is sold out.');
+      return;
+    }
     const key = `${product.id}-${size}-${color}`;
     const existing = cart.find(i => i.key === key);
-    if (existing) existing.qty = Math.min(product.stock, existing.qty + qty);
+    const currentQty = existing ? Number(existing.qty || 0) : 0;
+    const nextQty = Math.min(product.stock, currentQty + qty);
+    if (nextQty <= currentQty) {
+      toast(`Only ${product.stock} available in that option.`);
+      return;
+    }
+    if (existing) {
+      existing.qty = nextQty;
+      existing.price = product.price;
+      existing.image = product.imageSource || product.image;
+      existing.imageVersion = product.imageVersion || '';
+    }
     else cart.push({
       key,
       id: product.id,
@@ -699,10 +867,11 @@
     const discount = discountAmount();
     const freeShip = isFreeShipPromo() || (subtotal - discount) >= FREE_DELIVERY_AT;
     const total = Math.max(0, subtotal - discount);
+    const freeShipGap = Math.max(0, FREE_DELIVERY_AT - (subtotal - discount));
 
     n.subtotalEl.textContent = money(subtotal);
     n.totalEl.textContent = money(total);
-    n.deliveryEl.textContent = freeShip ? 'Free' : 'Calculated at checkout';
+    n.deliveryEl.textContent = freeShip ? 'Free' : `Add ${money(freeShipGap)} for free delivery`;
 
     if (discount > 0) {
       n.discountLine.classList.remove('is-hidden');
@@ -740,7 +909,7 @@
         <div class="cart-row-content">
           <h3>${i.name}</h3>
           <div class="meta">${i.size} · ${i.color}</div>
-          <div class="meta">${money(i.price)} each</div>
+          <div class="meta">${money(i.price)} each - ${stockMessage(getProduct(i.id))}</div>
           <div class="price-row">
             <div class="qty-control">
               <button type="button" data-cart-change="${i.key}" data-direction="minus" aria-label="Decrease">−</button>
@@ -766,6 +935,10 @@
     const item = cart.find(r => r.key === key);
     const product = getProduct(item?.id);
     if (!item || !product) return;
+    if (dir === 'plus' && item.qty >= product.stock) {
+      toast(`Only ${product.stock} available in that option.`);
+      return;
+    }
     item.qty = dir === 'plus' ? Math.min(product.stock, item.qty + 1) : item.qty - 1;
     if (item.qty <= 0) cart = cart.filter(r => r.key !== key);
     saveCart();
@@ -812,7 +985,7 @@
             <strong>${money(p.price)}</strong>
             <div style="display:flex;gap:6px">
               <button class="btn btn-soft btn-sm" data-wish-quick="${p.id}">View</button>
-              <button class="btn btn-soft btn-sm" data-wish-add="${p.id}">+ Bag</button>
+              <button class="btn btn-soft btn-sm" data-wish-add="${p.id}" ${p.stock <= 0 ? 'disabled' : ''}>${p.stock <= 0 ? 'Sold out' : '+ Bag'}</button>
             </div>
           </div>
         </div>
@@ -890,32 +1063,42 @@
   }
 
   // ---------- Checkout ----------
-  function deliveryFee(city = '') {
+  function deliveryFee(city = '', area = '') {
     if (isFreeShipPromo()) return 0;
     if (cartSubtotal() - discountAmount() >= FREE_DELIVERY_AT) return 0;
+    if (area === 'beirut') return DELIVERY_BEIRUT;
+    if (area === 'lebanon') return DELIVERY_LEBANON;
     return norm(city).includes('beirut') ? DELIVERY_BEIRUT : DELIVERY_LEBANON;
   }
 
   function openCheckout() {
     if (!cart.length) { toast('Your bag is empty. Add an item first.'); return; }
+    revalidateCart({ notify: true });
+    if (!cart.length) { toast('Your bag is empty after stock refresh.'); return; }
     void BACKEND?.analytics.recordEvent('checkout_started');
     closeDrawer(n.cartDrawer);
     renderCheckoutSummary();
+    n.checkoutSuccess?.classList.add('is-hidden');
     n.checkoutModal.classList.add('is-open');
     n.checkoutModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('no-scroll');
+    lastFocusedElement = document.activeElement;
+    requestAnimationFrame(() => n.checkoutForm?.querySelector('[name="name"]')?.focus());
   }
   function closeCheckout() {
     if (!n.checkoutModal.classList.contains('is-open')) return;
     n.checkoutModal.classList.remove('is-open');
     n.checkoutModal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('no-scroll');
+    lastFocusedElement?.focus?.();
   }
 
-  function renderCheckoutSummary(city = '') {
+  function renderCheckoutSummary(city = '', area = '') {
+    const formCity = city || n.checkoutForm?.querySelector('[name="city"]')?.value || '';
+    const deliveryArea = area || n.checkoutForm?.querySelector('[name="deliveryArea"]')?.value || '';
     const subtotal = cartSubtotal();
     const discount = discountAmount();
-    const delivery = deliveryFee(city);
+    const delivery = deliveryFee(formCity, deliveryArea);
     const total = Math.max(0, subtotal - discount) + delivery;
     n.checkoutSummary.innerHTML = `
       ${cart.map(i => `
@@ -934,7 +1117,7 @@
     const v = formData ? Object.fromEntries(formData.entries()) : {};
     const subtotal = cartSubtotal();
     const discount = discountAmount();
-    const delivery = deliveryFee(v.city || '');
+    const delivery = deliveryFee(v.city || '', v.deliveryArea || '');
     const total = Math.max(0, subtotal - discount) + delivery;
     const lines = [
       `Hello ${SITE_CONFIG.siteName || 'Pavia'}, I would like to place this order:`,
@@ -947,8 +1130,9 @@
       `Total: ${money(total)}`,
       '',
       v.name ? `Name: ${v.name}` : '',
-      v.phone ? `Phone: ${v.phone}` : '',
+      v.phone ? `Phone: ${normalizeLebanonPhone(v.phone) || v.phone}` : '',
       v.city ? `City/Area: ${v.city}` : '',
+      v.deliveryArea ? `Delivery area: ${v.deliveryArea === 'beirut' ? 'Beirut' : 'Outside Beirut'}` : '',
       v.address ? `Address: ${v.address}` : '',
       v.payment ? `Payment: ${v.payment}` : '',
       v.notes ? `Notes: ${v.notes}` : ''
@@ -959,27 +1143,89 @@
   async function submitCheckout(e) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const phoneInput = e.currentTarget.querySelector('[name="phone"]');
+    const normalizedPhone = normalizeLebanonPhone(formData.get('phone'));
+    if (!normalizedPhone) {
+      phoneInput?.focus();
+      toast('Enter a valid Lebanese phone number.');
+      return;
+    }
+    phoneInput.value = normalizedPhone;
+    formData.set('phone', normalizedPhone);
+    if (!revalidateCart({ notify: true })) {
+      renderCheckoutSummary(formData.get('city'), formData.get('deliveryArea'));
+      return;
+    }
     const txt = orderText(formData);
+    const subtotal = cartSubtotal();
+    const discount = discountAmount();
+    const delivery = deliveryFee(formData.get('city'), formData.get('deliveryArea'));
+    const total = Math.max(0, subtotal - discount) + delivery;
+    const requestId = makeRequestId();
+    const orderNumber = `PAV-${Date.now().toString().slice(-6)}`;
     const order = {
-      id: `PAVIA-${Date.now().toString().slice(-7)}`,
+      id: `order-${Date.now()}`,
+      requestId,
+      orderNumber,
       date: new Date().toISOString(),
-      items: cart.slice(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      items: cart.map((item) => ({
+        id: item.id,
+        name: item.name,
+        qty: Number(item.qty || 1),
+        price: Number(item.price || 0),
+        size: item.size || '',
+        color: item.color || '',
+      })),
       customer: Object.fromEntries(formData.entries()),
+      subtotal,
       promo: appliedPromo,
-      discount: discountAmount(),
-      status: 'available',
-      total: Math.max(0, cartSubtotal() - discountAmount()) + deliveryFee(formData.get('city'))
+      promoCode: appliedPromo,
+      discount,
+      delivery,
+      status: 'new',
+      paymentStatus: 'awaiting_confirmation',
+      paymentMethod: formData.get('payment') === 'Whish Money' ? 'whish_money' : 'cash_on_delivery',
+      source: 'web',
+      whatsappText: txt,
+      total
     };
-    if (BACKEND) await BACKEND.orders.create(order);
-    else {
-      const orders = readJSON(STORE_KEYS.orders, []);
-      orders.push(order);
-      writeJSON(STORE_KEYS.orders, orders);
+    const submitButton = e.currentTarget.querySelector('[type="submit"]');
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.classList.add('is-loading');
+      submitButton.dataset.originalText = submitButton.textContent.trim();
+      submitButton.textContent = 'Checking stock...';
+    }
+    try {
+      if (submitButton) submitButton.textContent = 'Placing order...';
+      if (BACKEND) {
+        const createdOrder = await BACKEND.orders.create(order);
+        if (createdOrder?.orderNumber) order.orderNumber = createdOrder.orderNumber;
+      } else {
+        const orders = readJSON(STORE_KEYS.orders, []);
+        orders.push(order);
+        writeJSON(STORE_KEYS.orders, orders);
+      }
+    } catch (error) {
+      console.warn('Order creation is unavailable.', error);
+      toast('Online order saving is not enabled yet. Your cart is unchanged.');
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.classList.remove('is-loading');
+        submitButton.textContent = submitButton.dataset.originalText || 'Review and place order';
+      }
+      return;
     }
     void BACKEND?.analytics.recordEvent('order_created');
 
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(txt)}`, '_blank', 'noopener,noreferrer');
-    toast('Order prepared. Sending on WhatsApp.');
+    toast(`Order ${order.orderNumber || orderNumber} prepared.`);
+    if (n.checkoutSuccess) {
+      n.checkoutSuccess.textContent = `Order ${order.orderNumber || orderNumber} is saved. Send the WhatsApp message to confirm with Pavia.`;
+      n.checkoutSuccess.classList.remove('is-hidden');
+    }
 
     // Clear cart + promo after a successful submission
     setTimeout(() => {
@@ -990,6 +1236,11 @@
       renderCart();
       closeCheckout();
     }, 800);
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.classList.remove('is-loading');
+      submitButton.textContent = submitButton.dataset.originalText || 'Review and place order';
+    }
   }
 
   async function copyOrderText() {
@@ -998,6 +1249,35 @@
       toast('Order text copied.');
     } catch {
       toast('Could not copy automatically.');
+    }
+  }
+
+  async function subscribeNewsletter(form) {
+    const formData = new FormData(form);
+    const email = String(formData.get('email') || '').trim().toLowerCase();
+    const consent = formData.get('consent') === 'on';
+    if (!email || !consent) {
+      toast('Email and consent are required.');
+      return;
+    }
+    const record = {
+      email,
+      consent: true,
+      source: 'storefront',
+      createdAt: new Date().toISOString(),
+    };
+    try {
+      if (BACKEND?.subscribers?.create) await BACKEND.subscribers.create(record);
+      else {
+        const subs = readJSON(STORE_KEYS.subscribers, []);
+        subs.push(record);
+        writeJSON(STORE_KEYS.subscribers, subs);
+      }
+      form.reset();
+      toast('Subscribed. We\'ll keep you posted.');
+    } catch (error) {
+      console.warn('Newsletter subscription failed.', error);
+      toast('Subscription could not be saved. Please try again.');
     }
   }
 

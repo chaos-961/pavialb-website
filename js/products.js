@@ -1,5 +1,7 @@
 // Pavia product catalog
 // Each product has color objects with hex values for proper swatches.
+const PAVIA_PRESET_IMAGE = (id) => window.PaviaImages?.resolve(id) || `assets/placeholders/${id}.svg`;
+
 window.PAVIA_DEFAULT_PRODUCTS = [
   {
     id: 'blue-pearl-blouse',
@@ -8,7 +10,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 42,
     compareAt: 52,
     badge: 'New',
-    image: 'assets/products/blue-pearl-blouse.svg',
+    imageId: 'pavia-look-01',
+    image: PAVIA_PRESET_IMAGE('pavia-look-01'),
     description: 'Airy ruffle blouse with a polished feminine silhouette. Perfect with denim or tailored pants.',
     sizes: ['S', 'M', 'L', 'XL'],
     colors: [
@@ -26,7 +29,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 48,
     compareAt: 0,
     badge: 'Best Seller',
-    image: 'assets/products/denim-maxi-skirt.svg',
+    imageId: 'pavia-look-02',
+    image: PAVIA_PRESET_IMAGE('pavia-look-02'),
     description: 'High-waist denim maxi skirt with front buttons and an elegant everyday drape.',
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     colors: [
@@ -43,7 +47,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 68,
     compareAt: 79,
     badge: 'Limited',
-    image: 'assets/products/azure-coord-set.svg',
+    imageId: 'pavia-look-03',
+    image: PAVIA_PRESET_IMAGE('pavia-look-03'),
     description: 'An effortless matching set designed for modern elegance and breathable comfort.',
     sizes: ['S', 'M', 'L'],
     colors: [
@@ -60,7 +65,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 46,
     compareAt: 0,
     badge: 'Low Stock',
-    image: 'assets/products/cocoa-pleated-pants.svg',
+    imageId: 'pavia-look-04',
+    image: PAVIA_PRESET_IMAGE('pavia-look-04'),
     description: 'Soft pleated pants in a rich cocoa tone with a wide-leg fit and clean movement.',
     sizes: ['S', 'M', 'L', 'XL'],
     colors: [
@@ -78,7 +84,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 39,
     compareAt: 46,
     badge: 'Essential',
-    image: 'assets/products/ivory-oversized-shirt.svg',
+    imageId: 'pavia-look-05',
+    image: PAVIA_PRESET_IMAGE('pavia-look-05'),
     description: 'Crisp ivory oversized shirt that works tucked, layered, or styled open.',
     sizes: ['S', 'M', 'L', 'XL'],
     colors: [
@@ -96,7 +103,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 49,
     compareAt: 0,
     badge: 'Chic',
-    image: 'assets/products/cream-wide-leg-pants.svg',
+    imageId: 'pavia-look-06',
+    image: PAVIA_PRESET_IMAGE('pavia-look-06'),
     description: 'A soft neutral trouser with clean tailoring and a graceful wide-leg profile.',
     sizes: ['XS', 'S', 'M', 'L'],
     colors: [
@@ -113,7 +121,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 55,
     compareAt: 65,
     badge: 'Studio Pick',
-    image: 'assets/products/chocolate-mini-dress.svg',
+    imageId: 'pavia-look-07',
+    image: PAVIA_PRESET_IMAGE('pavia-look-07'),
     description: 'Structured mini dress with a button front, polished collar, and modern chocolate tone.',
     sizes: ['XS', 'S', 'M', 'L'],
     colors: [
@@ -130,7 +139,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 89,
     compareAt: 110,
     badge: 'Premium',
-    image: 'assets/products/beige-trench-coat.svg',
+    imageId: 'pavia-look-08',
+    image: PAVIA_PRESET_IMAGE('pavia-look-08'),
     description: 'A timeless trench silhouette with an elegant belt and soft structured finish.',
     sizes: ['S', 'M', 'L'],
     colors: [
@@ -147,7 +157,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 44,
     compareAt: 0,
     badge: 'Elegant',
-    image: 'assets/products/black-satin-skirt.svg',
+    imageId: 'pavia-look-09',
+    image: PAVIA_PRESET_IMAGE('pavia-look-09'),
     description: 'Light-catching black satin skirt that moves beautifully from day to evening.',
     sizes: ['S', 'M', 'L', 'XL'],
     colors: [
@@ -164,7 +175,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 82,
     compareAt: 0,
     badge: 'New Season',
-    image: 'assets/products/olive-longline-coat.svg',
+    imageId: 'pavia-look-10',
+    image: PAVIA_PRESET_IMAGE('pavia-look-10'),
     description: 'Longline outerwear in an olive neutral shade with a refined relaxed fit.',
     sizes: ['S', 'M', 'L', 'XL'],
     colors: [
@@ -181,7 +193,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 64,
     compareAt: 72,
     badge: 'Soft Touch',
-    image: 'assets/products/mocha-knit-set.svg',
+    imageId: 'pavia-look-01',
+    image: PAVIA_PRESET_IMAGE('pavia-look-01'),
     description: 'A cozy polished knit set for errands, travel, and elevated everyday comfort.',
     sizes: ['S', 'M', 'L'],
     colors: [
@@ -199,7 +212,8 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     price: 105,
     compareAt: 128,
     badge: 'Statement',
-    image: 'assets/products/leather-belted-coat.svg',
+    imageId: 'pavia-look-02',
+    image: PAVIA_PRESET_IMAGE('pavia-look-02'),
     description: 'A statement belted coat with a sleek finish and boutique-ready attitude.',
     sizes: ['S', 'M', 'L'],
     colors: [

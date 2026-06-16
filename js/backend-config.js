@@ -1,6 +1,7 @@
 window.PAVIA_BACKEND_CONFIG = Object.freeze({
   provider: 'local',
-  schemaVersion: 1,
+  fallbackToLocal: true,
+  schemaVersion: 2,
   namespace: 'pavia',
   analytics: Object.freeze({
     enabled: true,
