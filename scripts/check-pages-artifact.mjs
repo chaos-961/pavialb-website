@@ -7,6 +7,8 @@ const outDir = path.join(root, '_site');
 
 const required = [
   'index.html',
+  'robots.txt',
+  'sitemap.xml',
   'admin/index.html',
   'admin/payload.js',
   'service-worker.js',
@@ -20,6 +22,7 @@ const required = [
   'js/backend-firebase.js',
   'js/firebase-config.js',
   'js/image-catalog.js',
+  'js/store-core.js',
   'js/products.js',
   'assets/logo.svg',
   'assets/products/blue-pearl-blouse.svg',

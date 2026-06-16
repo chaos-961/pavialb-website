@@ -6,7 +6,11 @@
   "scripts": {
     "pages:build": "node scripts/build-pages-artifact.mjs",
     "pages:check": "node scripts/check-pages-artifact.mjs",
-    "check:syntax": "node --check js/app.js && node --check js/admin.js && node --check js/backend.js && node --check js/backend-config.js && node --check js/backend-firebase.js && node --check js/firebase-config.js && node --check js/config.js && node --check js/image-catalog.js && node --check js/products.js && node --check admin/dashboard.js && node --check admin/payload.js && node --check service-worker.js && node --check scripts/build-pages-artifact.mjs && node --check scripts/check-pages-artifact.mjs && node --check scripts/encrypt-admin.mjs && node --check scripts/seed-rtdb.mjs && node --check scripts/firebase-emulator-smoke.mjs",
+    "check:syntax": "node --check js/app.js && node --check js/admin.js && node --check js/backend.js && node --check js/backend-config.js && node --check js/backend-firebase.js && node --check js/firebase-config.js && node --check js/config.js && node --check js/image-catalog.js && node --check js/products.js && node --check js/store-core.js && node --check admin/dashboard.js && node --check admin/payload.js && node --check service-worker.js && node --check playwright.config.mjs && node --check scripts/build-pages-artifact.mjs && node --check scripts/check-pages-artifact.mjs && node --check scripts/encrypt-admin.mjs && node --check scripts/seed-rtdb.mjs && node --check scripts/firebase-emulator-smoke.mjs && node --check scripts/serve-static.mjs && node --check scripts/test-core.mjs && node --check scripts/test-static-quality.mjs",
+    "test:unit": "node --test scripts/test-core.mjs",
+    "test:static": "node --test scripts/test-static-quality.mjs",
+    "test:e2e": "playwright test",
+    "test": "npm run test:unit && npm run test:static && npm run emulators:smoke && npm run test:e2e",
     "setup:java": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-java21.ps1",
     "emulators": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-firebase.ps1 emulators:start --only auth,database --project demo-pavia-local",
     "emulators:import": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-firebase.ps1 emulators:start --only auth,database --project demo-pavia-local --import=.firebase/emulator-data --export-on-exit=.firebase/emulator-data",
@@ -19,6 +23,7 @@
     "firebase:version": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-firebase.ps1 --version"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "firebase-admin": "^13.6.0",
     "firebase-tools": "15.20.0"
   }

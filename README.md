@@ -44,6 +44,16 @@ Daily product, order, settings, and promo-code workflows are documented in
 GitHub Pages deployment, rollback, and the deferred Namecheap/Cloudflare domain
 launch plan are documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
+Automated quality gates, browser smoke coverage, and final-launch manual checks
+are documented in [`docs/QUALITY-GATES.md`](docs/QUALITY-GATES.md).
+
+Owner operations, launch readiness, backup/restore, and troubleshooting:
+
+- [`docs/OWNER-HANDOFF.md`](docs/OWNER-HANDOFF.md)
+- [`docs/FINAL-LAUNCH-CHECKLIST.md`](docs/FINAL-LAUNCH-CHECKLIST.md)
+- [`docs/BACKUP-RESTORE.md`](docs/BACKUP-RESTORE.md)
+- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
+
 ## GitHub Pages
 
 This repository includes a GitHub Actions workflow at `.github/workflows/static.yml`.
@@ -60,4 +70,10 @@ Local artifact checks:
 ```powershell
 npm run pages:build
 npm run pages:check
+```
+
+Core quality gates:
+
+```powershell
+npm test
 ```

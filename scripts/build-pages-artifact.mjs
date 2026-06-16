@@ -7,6 +7,8 @@ const outDir = path.join(root, '_site');
 
 const files = [
   ['index.html', 'index.html'],
+  ['robots.txt', 'robots.txt'],
+  ['sitemap.xml', 'sitemap.xml'],
   ['manifest.webmanifest', 'manifest.webmanifest'],
   ['service-worker.js', 'service-worker.js'],
   ['.nojekyll', '.nojekyll'],
@@ -22,6 +24,7 @@ const files = [
   ['js/firebase-config.js', 'js/firebase-config.js'],
   ['js/config.js', 'js/config.js'],
   ['js/image-catalog.js', 'js/image-catalog.js'],
+  ['js/store-core.js', 'js/store-core.js'],
   ['js/products.js', 'js/products.js'],
 ];
 

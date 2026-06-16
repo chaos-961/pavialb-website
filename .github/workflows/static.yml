@@ -38,8 +38,16 @@ jobs:
         run: npm ci
       - name: Check JavaScript syntax
         run: npm run check:syntax
+      - name: Run unit tests
+        run: npm run test:unit
+      - name: Run static quality and security checks
+        run: npm run test:static
       - name: Run Firebase emulator smoke tests
         run: ./node_modules/.bin/firebase emulators:exec --only auth,database --project demo-pavia-local "node scripts/firebase-emulator-smoke.mjs"
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run browser E2E smoke tests
+        run: npm run test:e2e
 
   deploy:
     needs: checks

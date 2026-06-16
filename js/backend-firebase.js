@@ -4,6 +4,7 @@
   const localBackend = window.PaviaBackend;
   const backendConfig = window.PAVIA_BACKEND_CONFIG || {};
   const firebaseConfig = window.PAVIA_FIREBASE_CONFIG || {};
+  const CORE = window.PaviaStoreCore || {};
   const sdkVersion = '12.14.0';
   const sdkBase = `https://www.gstatic.com/firebasejs/${sdkVersion}`;
   const localhostNames = new Set(['localhost', '127.0.0.1', '::1']);
@@ -140,6 +141,9 @@
   }
 
   function normalizeOrderItems(items) {
+    if (CORE.normalizeOrderItems) {
+      return CORE.normalizeOrderItems(items, { maxQty: 20, safeKey });
+    }
     return (Array.isArray(items) ? items : values(items)).map((item) => ({
       id: safeKey(item.id),
       name: String(item.name || '').trim().slice(0, 120),
@@ -151,6 +155,7 @@
   }
 
   function calculatePromoDiscount(promo, subtotal) {
+    if (CORE.calculatePromoDiscount) return CORE.calculatePromoDiscount(promo, subtotal);
     if (!promo || promo.active === false) return 0;
     if (Number(promo.minSubtotal || 0) > subtotal) return 0;
     const today = new Date().toISOString().slice(0, 10);
@@ -162,6 +167,7 @@
   }
 
   function calculateDelivery(settings, subtotalAfterDiscount, promo, deliveryArea) {
+    if (CORE.calculateDelivery) return CORE.calculateDelivery(settings, subtotalAfterDiscount, promo, deliveryArea);
     if (promo?.type === 'freeship') return 0;
     if (subtotalAfterDiscount >= Number(settings.freeDeliveryAt || 0)) return 0;
     return deliveryArea === 'beirut'

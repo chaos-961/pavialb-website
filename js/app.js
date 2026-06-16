@@ -19,6 +19,7 @@
 
   const SITE_CONFIG = window.PAVIA_CONFIG || {};
   const BACKEND = window.PaviaBackend;
+  const CORE = window.PaviaStoreCore || {};
   const WHATSAPP_NUMBER = SITE_CONFIG.whatsappNumber || '9613017725';
   let FREE_DELIVERY_AT = 100;
   let DELIVERY_BEIRUT = 3;
@@ -39,8 +40,8 @@
     try { localStorage.setItem(key, JSON.stringify(value)); }
     catch (e) { console.warn('Storage full?', e); }
   };
-  const money = (v) => `$${Number(v || 0).toFixed(0)}`;
-  const norm  = (v) => String(v || '').trim().toLowerCase();
+  const money = CORE.formatMoney || ((v) => `$${Number(v || 0).toFixed(0)}`);
+  const norm  = CORE.normalizeText || ((v) => String(v || '').trim().toLowerCase());
   const debounce = (fn, ms = 200) => {
     let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
   };
@@ -64,6 +65,12 @@
   }
 
   function normalizeProduct(p) {
+    if (CORE.normalizeProduct) {
+      return CORE.normalizeProduct(p, {
+        imageIdResolver: (image) => window.PaviaImages?.idFor?.(image) || '',
+        imageResolver: (image) => window.PaviaImages?.resolve?.(image) || image,
+      });
+    }
     const tags = Array.isArray(p.tags) ? p.tags : [];
     const compareAt = Number(p.compareAt ?? p.comparePrice ?? 0) || 0;
     const stock = Number.isFinite(Number(p.stock)) ? Number(p.stock) : 0;
@@ -187,6 +194,7 @@
   }
 
   function normalizeLebanonPhone(value) {
+    if (CORE.normalizeLebanonPhone) return CORE.normalizeLebanonPhone(value);
     const raw = String(value || '').trim();
     const digits = raw.replace(/\D/g, '');
     if (/^\+961\d{7,8}$/.test(raw.replace(/\s/g, ''))) return raw.replace(/\s/g, '');
@@ -252,7 +260,9 @@
     const codes = window.PAVIA_PROMO_CODES || {};
     const c = codes[appliedPromo];
     if (!c) return 0;
+    if (CORE.calculatePromoDiscount) return CORE.calculatePromoDiscount(c, cartSubtotal());
     if (c.type === 'percent') return Math.round(cartSubtotal() * (c.value / 100));
+    if (c.type === 'fixed') return Math.min(cartSubtotal(), Math.max(0, Number(c.value) || 0));
     return 0;
   }
   function isFreeShipPromo() {
@@ -1064,11 +1074,19 @@
 
   // ---------- Checkout ----------
   function deliveryFee(city = '', area = '') {
+    const codes = window.PAVIA_PROMO_CODES || {};
+    const promo = appliedPromo ? codes[appliedPromo] : null;
+    const deliveryArea = area || (norm(city).includes('beirut') ? 'beirut' : 'lebanon');
+    if (CORE.calculateDelivery) {
+      return CORE.calculateDelivery({
+        freeDeliveryAt: FREE_DELIVERY_AT,
+        deliveryBeirut: DELIVERY_BEIRUT,
+        deliveryLebanon: DELIVERY_LEBANON,
+      }, cartSubtotal() - discountAmount(), promo, deliveryArea);
+    }
     if (isFreeShipPromo()) return 0;
     if (cartSubtotal() - discountAmount() >= FREE_DELIVERY_AT) return 0;
-    if (area === 'beirut') return DELIVERY_BEIRUT;
-    if (area === 'lebanon') return DELIVERY_LEBANON;
-    return norm(city).includes('beirut') ? DELIVERY_BEIRUT : DELIVERY_LEBANON;
+    return deliveryArea === 'beirut' ? DELIVERY_BEIRUT : DELIVERY_LEBANON;
   }
 
   function openCheckout() {
