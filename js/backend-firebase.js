@@ -644,7 +644,11 @@
           await assertAdminReady();
           return clone((await readPath('storeSettings')) || {});
         }
-        return clone((await readPath('publicStoreSettings')) || {});
+        try {
+          return clone((await readPath('publicStoreSettings')) || {});
+        } catch {
+          return localBackend.settings.get();
+        }
       },
       async update(settings) {
         if (activeProvider === 'local') return localBackend.settings.update(settings);
@@ -678,7 +682,11 @@
           await assertAdminReady();
           return clone((await readPath('promoCodes')) || {});
         }
-        return clone((await readPath('publicPromoCodes')) || {});
+        try {
+          return clone((await readPath('publicPromoCodes')) || {});
+        } catch {
+          return localBackend.promoCodes.list();
+        }
       },
       async upsert(code, promo) {
         if (activeProvider === 'local') return localBackend.promoCodes.upsert(code, promo);
