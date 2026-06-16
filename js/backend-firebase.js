@@ -120,7 +120,11 @@
     const unsubscribe = firebaseState.databaseApi.onValue(
       databaseReference(path),
       () => listener(),
-      (error) => console.warn(`Pavia Firebase subscription failed for ${path}.`, error),
+      (error) => {
+        const optionalPublicPath = /^public(?:Products|StoreSettings|PromoCodes)/.test(path);
+        if (optionalPublicPath && error?.code === 'PERMISSION_DENIED') return;
+        console.warn(`Pavia Firebase subscription failed for ${path}.`, error);
+      },
     );
     firebaseState.subscriptions.add(unsubscribe);
     return () => {
@@ -400,8 +404,6 @@
           const record = await readPath('publicProducts');
           return orderedProducts(record).map(normalizePublicProduct);
         } catch (error) {
-          if (!fallbackEnabled) throw error;
-          console.warn('Firebase products are unavailable; using local catalog data.', error);
           return localBackend.products.list();
         }
       },
