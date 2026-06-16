@@ -12,9 +12,11 @@ Edit `js/config.js` to change the visible website name, version, location, descr
 wraps it with an Anonymous Auth plus Realtime Database provider while preserving
 the local implementation as an automatic fallback.
 
-The committed default remains `provider: 'local'`. On localhost, append
-`?backend=firebase` to use the Firebase emulators after starting and seeding
-them.
+The deployed GitHub Pages site uses the approved `pavia-lb` Realtime Database
+configuration. Localhost remains on the local provider by default so local
+development and browser smoke tests do not touch production data. On localhost,
+append `?backend=firebase` to use the Firebase emulators after starting and
+seeding them.
 
 Firebase Storage is intentionally not required for the current no-paid-plan setup.
 Products can use local preset image IDs from `js/image-catalog.js` and `assets/placeholders/`, or a future externally hosted image URL.
@@ -57,7 +59,7 @@ Owner operations, launch readiness, backup/restore, and troubleshooting:
 ## GitHub Pages
 
 This repository includes a GitHub Actions workflow at `.github/workflows/static.yml`.
-After pushing to GitHub, enable GitHub Pages with **GitHub Actions** as the source.
+After pushing to GitHub, keep GitHub Pages with **GitHub Actions** as the source.
 
 The site deploys from the `main` branch.
 The workflow runs syntax and Firebase emulator smoke checks before deployment.

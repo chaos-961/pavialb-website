@@ -1,15 +1,14 @@
-// Public Firebase web configuration. Replace the app values for a real
-// development, staging, or production project before selecting Firebase as
-// the default backend. The demo values are restricted to localhost emulators.
+// Public Firebase web configuration. Firebase web config identifies the
+// project; it is not a service-account credential or payment secret.
 window.PAVIA_FIREBASE_CONFIG = Object.freeze({
-  environment: 'development',
-  useEmulators: true,
+  environment: 'production',
+  useEmulators: false,
   app: Object.freeze({
-    apiKey: 'demo-pavia-local',
-    authDomain: 'demo-pavia-local.firebaseapp.com',
-    databaseURL: 'https://demo-pavia-local-default-rtdb.firebaseio.com',
-    projectId: 'demo-pavia-local',
-    appId: '1:000000000000:web:pavia-local',
+    apiKey: 'AIzaSyAyF7TIFDM37bo10a0qTShPxEPxvIlSpHY',
+    authDomain: 'pavia-lb.firebaseapp.com',
+    databaseURL: 'https://pavia-lb-default-rtdb.europe-west1.firebasedatabase.app',
+    projectId: 'pavia-lb',
+    appId: '1:571393548009:web:5e8122a40e791eaeb11a78',
   }),
   emulators: Object.freeze({
     authHost: '127.0.0.1',
