@@ -63,7 +63,7 @@ function productRecord(product, index, seededAt) {
     tags: Array.isArray(product.tags) ? product.tags : [],
     imageId,
     imageUrl,
-    imageProvider: imageUrl ? 'external' : 'local',
+    imageProvider: imageUrl ? 'external' : 'local_legacy',
     imageVersion: product.imageVersion || '',
     gallery: Array.isArray(product.gallery) ? product.gallery : [],
     material: product.material || '',

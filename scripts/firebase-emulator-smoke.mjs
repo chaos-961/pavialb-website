@@ -81,27 +81,21 @@ if (anonymousPublicRead.status !== 401) {
   throw new Error(`Expected unauthenticated public read denial; received ${anonymousPublicRead.status}.`);
 }
 
+// P12 password-only model: any signed-in user may read/write admin data; rules
+// only require auth != null. The private product read is therefore allowed.
 const privateRead = await fetch(databaseUrl('products', identity.idToken));
-if (privateRead.status !== 401) {
-  throw new Error(`Expected private product read denial; received ${privateRead.status}.`);
+if (!privateRead.ok) {
+  throw new Error(`Authenticated private product read failed with HTTP ${privateRead.status}.`);
 }
 
-const publicWrite = await fetch(databaseUrl('publicProducts/phase-03-write', identity.idToken), {
+// Unauthenticated writes must still be denied (auth != null is required).
+const anonymousWrite = await fetch(databaseUrl('publicProducts/anon-write-test'), {
   method: 'PUT',
   headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ id: 'phase-03-write' }),
+  body: JSON.stringify({ id: 'anon-write-test' }),
 });
-if (publicWrite.status !== 401) {
-  throw new Error(`Expected public product write denial; received ${publicWrite.status}.`);
-}
-
-const selfAllowlistWrite = await fetch(databaseUrl(`adminUids/${identity.localId}`, identity.idToken), {
-  method: 'PUT',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify(true),
-});
-if (selfAllowlistWrite.status !== 401) {
-  throw new Error(`Expected /adminUids self-write denial; received ${selfAllowlistWrite.status}.`);
+if (anonymousWrite.status !== 401) {
+  throw new Error(`Expected unauthenticated public write denial; received ${anonymousWrite.status}.`);
 }
 
 const phase07RequestId = `phase07-${Date.now()}`;
@@ -147,15 +141,6 @@ const publicStockDecrement = await fetch(databaseUrl('publicProducts/blue-pearl-
 });
 if (!productStockDecrement.ok || !publicStockDecrement.ok) {
   throw new Error(`Authenticated stock decrement failed: private ${productStockDecrement.status}, public ${publicStockDecrement.status}.`);
-}
-
-const stockIncrease = await fetch(databaseUrl('publicProducts/blue-pearl-blouse/stock', identity.idToken), {
-  method: 'PUT',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify(9),
-});
-if (stockIncrease.ok) {
-  throw new Error('Expected non-admin stock increase denial, but the write succeeded.');
 }
 
 const validStorefrontOrder = {
@@ -214,63 +199,18 @@ if (!storefrontOrderWrite.ok) {
   throw new Error(`Valid storefront order write failed with HTTP ${storefrontOrderWrite.status}.`);
 }
 
-const nonAdminStatusEscalation = await fetch(databaseUrl(`orders/${phase07OrderId}/paymentStatus`, identity.idToken), {
-  method: 'PUT',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify('paid'),
-});
-if (nonAdminStatusEscalation.ok) {
-  throw new Error('Expected non-admin paymentStatus escalation denial, but it succeeded.');
-}
-
-async function expectInvalidStorefrontOrderDenied(suffix, mutator) {
-  const requestId = `${phase07RequestId}-${suffix}`;
-  const orderId = `order-${requestId}`;
-  const request = await fetch(databaseUrl(`orderRequests/${requestId}`, identity.idToken), {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      uid: identity.localId,
-      orderId,
-      status: 'creating',
-      createdAt: phase07Now,
-    }),
-  });
-  if (!request.ok) throw new Error(`Could not create invalid-order request fixture ${suffix}.`);
-  const candidate = JSON.parse(JSON.stringify({
-    ...validStorefrontOrder,
-    id: orderId,
-    requestId,
-    orderNumber: `PAV-007-${suffix}`,
-  }));
-  mutator(candidate);
-  const response = await fetch(databaseUrl(`orders/${orderId}`, identity.idToken), {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(candidate),
-  });
-  if (response.ok) throw new Error(`Expected invalid storefront order ${suffix} to be denied.`);
-}
-
-await expectInvalidStorefrontOrderDenied('negative-qty', (candidate) => {
-  candidate.items[0].qty = -1;
-});
-await expectInvalidStorefrontOrderDenied('fake-price', (candidate) => {
-  candidate.items[0].price = 1;
-  candidate.subtotal = 1;
-  candidate.total = 5;
-});
-await expectInvalidStorefrontOrderDenied('fake-total', (candidate) => {
-  candidate.total = 1;
-});
+// NOTE: under the P12 password-only model, RTDB rules no longer reject tampered
+// order totals, fake prices, payment-status escalation, or credential-shaped
+// fields from a signed-in client. That server-side tamper protection was
+// intentionally removed when the UID allowlist was dropped; the encrypted admin
+// password only gates the admin UI, not the database.
 
 const app = getApps()[0];
 const database = getDatabase(app);
-await database.ref(`adminUids/${identity.localId}`).set(true);
 
 const adminPrivateRead = await fetch(databaseUrl('products', identity.idToken));
 if (!adminPrivateRead.ok) {
-  throw new Error(`Allowlisted admin private product read failed with HTTP ${adminPrivateRead.status}.`);
+  throw new Error(`Authenticated private product read failed with HTTP ${adminPrivateRead.status}.`);
 }
 
 const adminCancelOrder = await fetch(databaseUrl('', identity.idToken), {
@@ -288,7 +228,7 @@ const adminCancelOrder = await fetch(databaseUrl('', identity.idToken), {
   }),
 });
 if (!adminCancelOrder.ok) {
-  throw new Error(`Allowlisted admin cancellation stock restore failed with HTTP ${adminCancelOrder.status}.`);
+  throw new Error(`Authenticated admin cancellation stock restore failed with HTTP ${adminCancelOrder.status}.`);
 }
 const restoredStock = await (await fetch(databaseUrl('publicProducts/blue-pearl-blouse/stock', identity.idToken))).json();
 if (restoredStock !== 9) {
@@ -327,27 +267,36 @@ const adminProductUpdate = await fetch(databaseUrl('', identity.idToken), {
   }),
 });
 if (!adminProductUpdate.ok) {
-  throw new Error(`Allowlisted admin product update failed with HTTP ${adminProductUpdate.status}.`);
+  throw new Error(`Authenticated admin product update failed with HTTP ${adminProductUpdate.status}.`);
 }
 
-const invalidImageUpdate = await fetch(databaseUrl('products/invalid-image-product', identity.idToken), {
+const driveImageProduct = {
+  ...adminProduct,
+  id: 'drive-image-product',
+  slug: 'drive-image-product',
+  name: 'Drive Image Product',
+  imageProvider: 'google_drive',
+  imageId: '',
+  imageUrl: 'https://drive.google.com/thumbnail?id=test-drive-file&sz=w1600',
+  driveFileId: 'test-drive-file',
+  imageVersion: '20260617120000',
+  imageMeta: {
+    provider: 'google_drive',
+    mimeType: 'image/webp',
+    width: 1400,
+    height: 1800,
+    byteSize: 280000,
+    driveFileId: 'test-drive-file',
+    updatedAt: new Date().toISOString(),
+  },
+};
+const driveImageUpdate = await fetch(databaseUrl('products/drive-image-product', identity.idToken), {
   method: 'PUT',
   headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({
-    ...adminProduct,
-    id: 'invalid-image-product',
-    slug: 'invalid-image-product',
-    imageProvider: 'local',
-    imageId: 'not-a-pavia-image',
-  }),
+  body: JSON.stringify(driveImageProduct),
 });
-if (invalidImageUpdate.ok) {
-  throw new Error('Expected invalid image validation denial, but the write succeeded.');
-}
-const invalidImageRead = await fetch(databaseUrl('products/invalid-image-product', identity.idToken));
-const invalidImageRecord = await invalidImageRead.json();
-if (invalidImageRecord !== null) {
-  throw new Error('Invalid image product was created despite validation denial.');
+if (!driveImageUpdate.ok) {
+  throw new Error(`Expected Google Drive image product write to succeed, got HTTP ${driveImageUpdate.status}.`);
 }
 
 const settingsUpdate = await fetch(databaseUrl('', identity.idToken), {
@@ -408,7 +357,7 @@ const settingsUpdate = await fetch(databaseUrl('', identity.idToken), {
   }),
 });
 if (!settingsUpdate.ok) {
-  throw new Error(`Allowlisted admin settings sync failed with HTTP ${settingsUpdate.status}.`);
+  throw new Error(`Authenticated admin settings sync failed with HTTP ${settingsUpdate.status}.`);
 }
 const publicSettingsSmoke = await (await fetch(databaseUrl('publicStoreSettings', identity.idToken))).json();
 if (publicSettingsSmoke.siteTitle !== 'Pavia Phase 05 Smoke' || publicSettingsSmoke.deliveryBeirut !== 4) {
@@ -448,7 +397,7 @@ const promoUpdate = await fetch(databaseUrl('', identity.idToken), {
   }),
 });
 if (!promoUpdate.ok) {
-  throw new Error(`Allowlisted admin promo sync failed with HTTP ${promoUpdate.status}.`);
+  throw new Error(`Authenticated admin promo sync failed with HTTP ${promoUpdate.status}.`);
 }
 const publicPromoSmoke = await (await fetch(databaseUrl('publicPromoCodes/PHASE05', identity.idToken))).json();
 if (publicPromoSmoke?.label !== 'Phase 05 Smoke' || publicPromoSmoke?.usageLimit !== undefined) {
@@ -495,7 +444,7 @@ const orderUpdate = await fetch(databaseUrl('', identity.idToken), {
   }),
 });
 if (!orderUpdate.ok) {
-  throw new Error(`Allowlisted admin order workflow update failed with HTTP ${orderUpdate.status}.`);
+  throw new Error(`Authenticated admin order workflow update failed with HTTP ${orderUpdate.status}.`);
 }
 const updatedOrder = await (await fetch(databaseUrl(`orders/${orderId}`, identity.idToken))).json();
 if (updatedOrder.status !== 'confirmed' || updatedOrder.paymentStatus !== 'paid') {
@@ -535,5 +484,5 @@ if (invalidSubscriberWrite.ok) {
   throw new Error('Expected subscriber write without consent to be denied.');
 }
 
-console.log('RTDB Phase 07 storefront order, stock, idempotency, subscriber, and admin rules are active.');
+console.log('RTDB P12 password-only model: authed reads/writes, order/subscriber paths, and projections are active.');
 await Promise.all(getApps().map((app) => deleteApp(app)));

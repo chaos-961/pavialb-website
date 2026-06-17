@@ -77,6 +77,47 @@ body {
   font-size: 13px;
 }
 
+.compact-auth {
+  padding: 12px 14px;
+}
+
+.auth-details {
+  margin: -6px 0 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.auth-details summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.auth-details > div {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.auth-details span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.auth-details strong,
+.auth-details code {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
 .auth-warning,
 .security-note {
   margin-top: 14px;
@@ -733,6 +774,31 @@ body {
   border-radius: 12px;
 }
 
+.drive-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: #f4f8f5;
+  border: 1px solid rgba(82, 128, 105, 0.22);
+  border-radius: 9px;
+}
+
+.drive-panel strong {
+  display: block;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.drive-panel small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .optimization-select {
   min-width: 190px;
   gap: 4px !important;
@@ -818,6 +884,11 @@ body {
 
 .image-result strong {
   font-size: 12px;
+}
+
+.image-result small {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
 }
 
 .image-advanced {
@@ -1370,6 +1441,10 @@ body {
 
   .product-row {
     grid-template-columns: 68px minmax(0, 1fr);
+  }
+
+  .drive-panel {
+    grid-template-columns: 1fr;
   }
 
   .promo-row {

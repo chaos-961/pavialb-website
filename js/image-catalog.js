@@ -1,5 +1,6 @@
-// Local product image presets.
-// Firebase should store imageId and/or a future external image URL, not binary files.
+// Legacy local product image presets.
+// New production products should use encrypted Pages media or another approved
+// HTTPS image host. These IDs remain only for migration.
 window.PAVIA_IMAGE_CATALOG = Object.freeze({
   'pavia-look-01': 'assets/placeholders/pavia-look-01.svg',
   'pavia-look-02': 'assets/placeholders/pavia-look-02.svg',
@@ -13,7 +14,7 @@ window.PAVIA_IMAGE_CATALOG = Object.freeze({
   'pavia-look-10': 'assets/placeholders/pavia-look-10.svg',
 });
 
-window.PAVIA_IMAGE_PLACEHOLDER = 'pavia-look-01';
+  window.PAVIA_IMAGE_PLACEHOLDER = 'assets/logo.svg';
 
 window.PaviaImages = Object.freeze({
   resolve(value) {

@@ -34,6 +34,7 @@
   let ordersCache = [];
   let settingsCache = {};
   let promoCache = {};
+  let pendingDriveImage = null;
 
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
@@ -137,7 +138,7 @@
     notice.innerHTML = `
       <p class="admin-kicker">Read-only mode</p>
       <strong>Admin operations are locked for this session.</strong>
-      <p class="desc">UID allowlisting, encrypted local unlock, and database rules must all be active before writes are enabled.</p>
+      <p class="desc">The encrypted local password unlock must succeed before editing is enabled. Realtime Database rules require only a signed-in user.</p>
     `;
     dashboard.prepend(notice);
     $$('form input, form select, form textarea, form button, [data-delete], [data-update-order]')
@@ -266,15 +267,20 @@
     return Object.keys(window.PAVIA_IMAGE_CATALOG || {});
   }
 
+  function productNeedsImageMigration(product) {
+    const provider = String(product.imageProvider || '').trim();
+    return !product.imageUrl || Boolean(product.imageId) || provider === 'local' || provider === 'local_legacy';
+  }
+
   function imageReferenceFromFields() {
     const imageUrl = $('#prodImageUrl').value.trim();
     const imageId = $('#prodImageId').value.trim();
-    return imageUrl || imageId || window.PAVIA_IMAGE_PLACEHOLDER || 'pavia-look-01';
+    return imageUrl || imageId || 'assets/logo.svg';
   }
 
   function normalizeImagePath(value) {
     const path = String(value || '').trim();
-    if (!path) return window.PAVIA_IMAGE_PLACEHOLDER || 'pavia-look-01';
+    if (!path) return 'assets/logo.svg';
     if (/^https?:\/\//i.test(path)) return path;
     const preset = window.PaviaImages?.idFor?.(path) || path;
     return preset.replace(/^(\.\/)+/, '').replace(/^(\.\.\/)+/, '');
@@ -304,6 +310,8 @@
       imageId,
       imageUrl,
       image: imageUrl || imageId || normalizeImagePath(product.image),
+      imageProvider: product.imageProvider || (product.driveFileId ? 'google_drive' : imageUrl ? 'external' : 'local_legacy'),
+      driveFileId: product.driveFileId || '',
       imageVersion: product.imageVersion || '',
       imageMeta: product.imageMeta || null,
       description: product.description || '',
@@ -659,11 +667,10 @@
       errors.prodCompare = 'Compare-at price must be higher than price.';
     }
     if (product.stock < 0) errors.prodStock = 'Stock cannot be negative.';
-    if (product.imageUrl && !/^https:\/\//i.test(product.imageUrl)) {
-      errors.prodImageUrl = 'External images must use HTTPS.';
-    }
-    if (!product.imageUrl && !catalogImageIds().includes(product.imageId)) {
-      errors.prodImageId = 'Choose a valid preset image ID.';
+    if (!product.imageUrl) {
+      errors.prodImageUrl = 'Upload a product photo to Google Drive or enter an approved HTTPS image URL.';
+    } else if (!/^https:\/\//i.test(product.imageUrl)) {
+      errors.prodImageUrl = 'Product image URLs must use HTTPS.';
     }
     Object.entries(errors).forEach(([field, message]) => setFieldError(field, message));
     return Object.keys(errors).length === 0;
@@ -690,11 +697,14 @@
     $('#prodStock').value = 10;
     $('#prodSortOrder').value = nextSortOrder();
     $('#prodStatus').value = 'published';
-    $('#prodImageId').value = window.PAVIA_IMAGE_PLACEHOLDER || 'pavia-look-01';
+    pendingDriveImage = null;
+    $('#prodImageId').value = '';
     $('#prodImageUrl').value = '';
-    $('#prodImage').value = $('#prodImageId').value;
+    $('#prodImage').value = '';
     $('#prodImageVersion').value = '';
     $('#prodImageMeta').value = '';
+    $('#prodDriveFileId').value = '';
+    $('#prodImageProvider').value = '';
     $('#imageOptimizationResult').hidden = true;
     setSelectedSizes(['One size']);
     setColorRows([]);
@@ -726,11 +736,14 @@
     $('#prodCompare').value = product.compareAt || '';
     $('#prodStock').value = product.stock;
     $('#prodTags').value = product.tags.join(', ');
-    $('#prodImageId').value = product.imageUrl ? '' : (product.imageId || window.PAVIA_IMAGE_PLACEHOLDER || 'pavia-look-01');
+    pendingDriveImage = null;
+    $('#prodImageId').value = product.imageUrl ? '' : (product.imageId || '');
     $('#prodImageUrl').value = product.imageUrl || '';
     $('#prodImage').value = product.imageUrl || product.imageId || product.image;
     $('#prodImageVersion').value = product.imageVersion || '';
     $('#prodImageMeta').value = product.imageMeta ? JSON.stringify(product.imageMeta) : '';
+    $('#prodDriveFileId').value = product.driveFileId || product.imageMeta?.driveFileId || '';
+    $('#prodImageProvider').value = product.imageProvider || (product.imageUrl ? 'external' : 'local_legacy');
     setSelectedSizes(product.sizes);
     setColorRows(product.colors);
     $('#prodMaterial').value = product.material;
@@ -750,7 +763,10 @@
     }
     const id = slugify($('#prodSlug').value || $('#prodId').value || $('#prodName').value);
     const imageUrl = $('#prodImageUrl').value.trim();
-    const imageId = imageUrl ? '' : ($('#prodImageId').value.trim() || window.PAVIA_IMAGE_PLACEHOLDER || 'pavia-look-01');
+    const imageId = imageUrl ? '' : $('#prodImageId').value.trim();
+    const driveFileId = $('#prodDriveFileId').value.trim();
+    const imageProvider = $('#prodImageProvider').value.trim()
+      || (driveFileId ? 'google_drive' : imageUrl ? 'external' : 'local_legacy');
     const existing = productsCache.find((product) => product.id === $('#prodId').value);
     const product = normalizeProduct({
       id,
@@ -770,6 +786,8 @@
       image: imageUrl || imageId,
       imageId,
       imageUrl,
+      imageProvider,
+      driveFileId,
       imageVersion: $('#prodImageVersion').value,
       imageMeta: parseImageMeta(),
       sizes: selectedSizes(),
@@ -827,10 +845,12 @@
   function productMatchesFilters(product) {
     const query = norm($('#productSearch')?.value || '');
     const stock = $('#stockFilter')?.value || '';
+    const imageFilter = $('#imageMigrationFilter')?.value || '';
     const haystack = norm([product.name, product.sku, product.category, product.tags?.join(' ')].join(' '));
     return (!query || haystack.includes(query))
       && (!stock || (stock === 'low' && product.stock > 0 && product.stock <= LOW_STOCK_AT)
-        || (stock === 'out' && product.stock <= 0));
+        || (stock === 'out' && product.stock <= 0))
+      && (!imageFilter || (imageFilter === 'needs-image' && productNeedsImageMigration(product)));
   }
 
   async function renderProductList() {
@@ -861,6 +881,7 @@
                 <span>${fmt(product.price)}</span>
                 <span>${product.stock} in stock</span>
                 <span>Sort ${Number(product.sortOrder) || 0}</span>
+                ${productNeedsImageMigration(product) ? '<span>Needs image migration</span>' : ''}
                 ${product.featured ? '<span>Featured</span>' : ''}
               </div>
             </div>
@@ -901,44 +922,101 @@
       return;
     }
     const reduction = metadata.originalBytes
-      ? Math.max(0, Math.round((1 - metadata.bytes / metadata.originalBytes) * 100))
+      ? Math.max(0, Math.round((1 - (metadata.byteSize || metadata.bytes) / metadata.originalBytes) * 100))
       : 0;
     result.hidden = false;
     result.innerHTML = `
-      <strong>Optimized image ready</strong>
-      <span>${metadata.width} x ${metadata.height} - ${formatBytes(metadata.bytes)}${
+      <strong>${escapeHtml(metadata.status || 'Optimized image ready')}</strong>
+      <span>${metadata.width} x ${metadata.height} - ${formatBytes(metadata.byteSize || metadata.bytes)}${
         metadata.originalBytes ? ` - ${reduction}% smaller` : ''
       }</span>
+      ${metadata.publicUrl ? `<small>${escapeHtml(metadata.publicUrl)}</small>` : ''}
     `;
   }
 
   function imageOptimizationOptions() {
     const presets = {
-      compact: { maxWidth: 1200, maxHeight: 1600, quality: 0.76 },
-      balanced: { maxWidth: 1600, maxHeight: 2000, quality: 0.82 },
-      detail: { maxWidth: 2000, maxHeight: 2400, quality: 0.88 },
+      compact: { longEdge: 1400, quality: 0.78, targetBytes: 260 * 1024 },
+      balanced: { longEdge: 1600, quality: 0.82, targetBytes: 300 * 1024 },
+      detail: { longEdge: 1800, quality: 0.86, targetBytes: 500 * 1024 },
     };
     return presets[$('#imageOptimization').value] || presets.balanced;
   }
 
+  function setDriveStatus(message, detail = '') {
+    $('#driveStatus').textContent = message;
+    $('#driveStatusDetail').textContent = detail;
+  }
+
+  function refreshDrivePanel() {
+    const drive = window.PaviaDriveImages;
+    const button = $('#driveConnectBtn');
+    if (!drive?.configured?.()) {
+      setDriveStatus('Google Drive not configured', 'Add the OAuth client ID and Drive folder ID in js/backend-config.js.');
+      button.disabled = true;
+      return;
+    }
+    button.disabled = false;
+    setDriveStatus(
+      drive.accessToken?.() ? 'Google Drive connected' : 'Google Drive not connected',
+      drive.accessToken?.()
+        ? 'The access token is in memory only and is forgotten on lock, sign-out, or reload.'
+        : 'Click Connect Google Drive to authorize image uploads.',
+    );
+  }
+
+  async function connectDrive() {
+    const drive = window.PaviaDriveImages;
+    if (!drive) {
+      toast('Google Drive tools are unavailable');
+      return;
+    }
+    try {
+      $('#driveConnectBtn').disabled = true;
+      setDriveStatus('Connecting Google Drive...', 'Approve the Google permission popup to allow uploads to your folder.');
+      await drive.connect();
+      refreshDrivePanel();
+      toast('Google Drive connected');
+    } catch (error) {
+      refreshDrivePanel();
+      toast(error.message || 'Google Drive connection failed');
+    }
+  }
+
   async function handleImageUpload(file) {
-    if (!file || !BACKEND) return;
+    if (!file) return;
+    const drive = window.PaviaDriveImages;
+    if (!drive) {
+      toast('Google Drive tools are unavailable');
+      return;
+    }
     const dropzone = $('#imageDropzone');
     dropzone.classList.add('is-processing');
     $('#imageOptimizationResult').hidden = false;
     $('#imageOptimizationResult').textContent = 'Optimizing image...';
     try {
-      const saved = await BACKEND.media.saveImage(file, imageOptimizationOptions());
-      $('#prodImageUrl').value = '';
-      $('#prodImageId').value = saved.image;
-      $('#prodImage').value = saved.image;
-      $('#prodImageVersion').value = saved.imageVersion;
-      $('#prodImageMeta').value = JSON.stringify(saved.imageMeta);
-      showImageResult(saved.imageMeta);
+      const optimized = await drive.optimizeImage(file, imageOptimizationOptions());
+      showImageResult({ ...optimized.metadata, status: 'Optimized; uploading to Google Drive...' });
+      if (!drive.accessToken?.()) await connectDrive();
+      if (!drive.accessToken?.()) throw new Error('Connect Google Drive before uploading.');
+      const uploaded = await drive.uploadOptimizedImage(optimized);
+      pendingDriveImage = uploaded;
+      $('#prodImageUrl').value = uploaded.imageUrl;
+      $('#prodImageId').value = '';
+      $('#prodImage').value = uploaded.imageUrl;
+      $('#prodImageVersion').value = uploaded.imageVersion;
+      $('#prodDriveFileId').value = uploaded.driveFileId;
+      $('#prodImageProvider').value = uploaded.imageProvider;
+      $('#prodImageMeta').value = JSON.stringify(uploaded.imageMeta);
+      showImageResult({ ...uploaded.imageMeta, status: 'Uploaded to Google Drive; image URL saved to the product' });
       await updateProductPreview();
-      toast('Image optimized for local fallback');
+      toast('Image uploaded to Google Drive');
     } catch (error) {
-      showImageResult(null);
+      if (pendingDriveImage?.imageUrl) {
+        showImageResult({ ...pendingDriveImage.imageMeta, status: 'Drive image is ready; retry the product save' });
+      } else {
+        showImageResult(null);
+      }
       toast(error.message || 'Could not process this image');
     } finally {
       dropzone.classList.remove('is-processing');
@@ -1212,6 +1290,8 @@
   }
 
   function setupImageUploader() {
+    refreshDrivePanel();
+    $('#driveConnectBtn').addEventListener('click', () => void connectDrive());
     $('#prodImageFile').addEventListener('change', (event) => {
       void handleImageUpload(event.target.files?.[0]);
     });
@@ -1234,7 +1314,7 @@
       $(selector).addEventListener('input', renderOrders);
       $(selector).addEventListener('change', renderOrders);
     });
-    ['#productSearch', '#stockFilter'].forEach((selector) => {
+    ['#productSearch', '#stockFilter', '#imageMigrationFilter'].forEach((selector) => {
       $(selector).addEventListener('input', () => void renderProductList());
       $(selector).addEventListener('change', () => void renderProductList());
     });

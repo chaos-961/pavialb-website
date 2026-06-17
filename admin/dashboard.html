@@ -197,42 +197,51 @@
                 <div class="variant-heading">
                   <div>
                     <strong>Product image</strong>
-                    <small>Use a local preset image ID now, or an approved external HTTPS URL later.</small>
+                    <small>Optimize product photos and upload them to your Google Drive folder; the public image URL is saved to the product.</small>
                   </div>
                   <label class="optimization-select">
                     Image size
                     <select id="imageOptimization">
-                      <option value="compact">Compact - 1200px</option>
+                      <option value="compact">Compact - 1400px</option>
                       <option value="balanced" selected>Balanced - 1600px</option>
-                      <option value="detail">High detail - 2000px</option>
+                      <option value="detail">Fabric detail - 1800px</option>
                     </select>
                   </label>
                 </div>
+                <div class="drive-panel" id="drivePanel">
+                  <div>
+                    <strong id="driveStatus">Google Drive not connected</strong>
+                    <small id="driveStatusDetail">Connect Google Drive to upload product photos.</small>
+                  </div>
+                  <button type="button" class="btn btn-secondary" id="driveConnectBtn">Connect Google Drive</button>
+                </div>
                 <label class="image-dropzone" id="imageDropzone">
-                  <input id="prodImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/avif" />
+                  <input id="prodImageFile" type="file" accept="image/jpeg,image/png,image/webp" />
                   <span class="upload-icon" aria-hidden="true">+</span>
-                  <strong>Choose a product image</strong>
-                  <small>Local browser images work for local fallback only; Firebase rules accept preset IDs or HTTPS URLs.</small>
+                  <strong>Choose or drop a product photo</strong>
+                  <small>The optimized file targets about 300 KB, then uploads to your Google Drive folder.</small>
                 </label>
                 <div id="imageOptimizationResult" class="image-result" hidden></div>
-                <details class="image-advanced" open>
-                  <summary>Image reference</summary>
+                <details class="image-advanced">
+                  <summary>Manual/migration image reference</summary>
                   <div class="form-grid">
                     <label>
-                      Preset image ID
-                      <input id="prodImageId" type="text" list="imageIdOptions" placeholder="pavia-look-01" />
-                      <small class="field-error" data-error-for="prodImageId"></small>
-                    </label>
-                    <label>
-                      External HTTPS image URL
+                      Approved HTTPS image URL
                       <input id="prodImageUrl" type="url" placeholder="https://example.com/product.webp" />
                       <small class="field-error" data-error-for="prodImageUrl"></small>
+                    </label>
+                    <label>
+                      Legacy preset image ID
+                      <input id="prodImageId" type="text" readonly placeholder="Migration only" />
+                      <small class="field-error" data-error-for="prodImageId"></small>
                     </label>
                   </div>
                   <input id="prodImage" type="hidden" />
                 </details>
                 <input id="prodImageVersion" type="hidden" />
                 <input id="prodImageMeta" type="hidden" />
+                <input id="prodDriveFileId" type="hidden" />
+                <input id="prodImageProvider" type="hidden" />
               </div>
               <div class="variant-builder span-2">
                 <div class="variant-heading">
@@ -336,6 +345,13 @@
             <option value="">All stock</option>
             <option value="low">Low stock</option>
             <option value="out">Out of stock</option>
+          </select>
+        </label>
+        <label>
+          Image status
+          <select id="imageMigrationFilter">
+            <option value="">All images</option>
+            <option value="needs-image">Needs Drive/external image</option>
           </select>
         </label>
       </div>
@@ -495,8 +511,8 @@
       <h2>Password changes</h2>
       <p class="desc">The admin password is not stored in the browser. To change it, regenerate the encrypted admin payload with the documented build command and redeploy the site.</p>
       <div class="auth-warning">
-        <strong>Defense in depth, not server authentication.</strong>
-        <p>The encrypted payload can be downloaded and attacked offline. Use a strong unique password and keep Realtime Database UID allowlisting active.</p>
+        <strong>This password gates the admin UI only, not the database.</strong>
+        <p>The encrypted payload can be downloaded and attacked offline, so use a strong unique password. Note: Realtime Database writes are open to any signed-in visitor by owner decision, so the password does not protect the data itself.</p>
       </div>
     </div>
   </div>

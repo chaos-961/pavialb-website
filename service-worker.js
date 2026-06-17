@@ -1,5 +1,5 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v20';
+const CACHE = 'pavia-v22';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const ASSETS = [
   './',

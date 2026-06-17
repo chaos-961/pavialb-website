@@ -13,6 +13,7 @@ Desktop.ini
 .env.*
 firebase-debug.log*
 firestore-debug.log*
+database-debug.log*
 ui-debug.log*
 
 # Dependency/build output, if tooling is added later
@@ -24,6 +25,8 @@ playwright-report/
 test-results/
 _site/
 .firebase/
+firebase-export-*/
+emulator-data/
 
 # Local Firebase project selection
 .firebaserc

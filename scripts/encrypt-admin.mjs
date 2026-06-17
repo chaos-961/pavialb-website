@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, '..');
-const username = String(process.env.PAVIA_ADMIN_USERNAME || 'admin').trim().toLowerCase();
+const username = 'admin';
 const password = process.env.PAVIA_ADMIN_PASSWORD || '';
 const iterations = Number(process.env.PAVIA_ADMIN_PBKDF2_ITERATIONS || 600000);
 const minimumPasswordLength = Number(process.env.PAVIA_ADMIN_MIN_PASSWORD_LENGTH || 8);

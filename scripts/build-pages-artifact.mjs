@@ -24,6 +24,7 @@ const files = [
   ['js/firebase-config.js', 'js/firebase-config.js'],
   ['js/config.js', 'js/config.js'],
   ['js/image-catalog.js', 'js/image-catalog.js'],
+  ['js/drive-images.js', 'js/drive-images.js'],
   ['js/store-core.js', 'js/store-core.js'],
   ['js/products.js', 'js/products.js'],
 ];

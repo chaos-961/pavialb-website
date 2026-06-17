@@ -22,6 +22,7 @@ const required = [
   'js/backend-firebase.js',
   'js/firebase-config.js',
   'js/image-catalog.js',
+  'js/drive-images.js',
   'js/store-core.js',
   'js/products.js',
   'assets/logo.svg',
@@ -32,16 +33,48 @@ const required = [
 const forbidden = [
   'admin/dashboard.html',
   'admin/dashboard.js',
+  'AGENT.md',
+  'LAUNCH-STATUS.md',
+  'PHASE-01-BASELINE.md',
+  'README.md',
   'masterprompt.txt',
   'progress.txt',
   'database.rules.json',
   'firebase.json',
+  'playwright.config.mjs',
   'package.json',
   'package-lock.json',
+  '.env',
+  '.firebaserc',
+  '.gitignore',
   '.github',
   'docs',
   'scripts',
+  'tests',
 ];
+
+const forbiddenSuffixes = [
+  '.log',
+  '.map',
+  '.md',
+  '.ps1',
+];
+
+async function walk(relativeDir = '') {
+  const absoluteDir = path.join(outDir, relativeDir);
+  const entries = await readdir(absoluteDir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const relativePath = path.join(relativeDir, entry.name).replaceAll(path.sep, '/');
+    if (entry.isDirectory()) {
+      files.push(relativePath);
+      files.push(...await walk(relativePath));
+    } else {
+      files.push(relativePath);
+    }
+  }
+  return files;
+}
 
 async function exists(relativePath) {
   try {
@@ -62,6 +95,12 @@ for (const file of required) {
 const leaked = [];
 for (const file of forbidden) {
   if (await exists(file)) {
+    leaked.push(file);
+  }
+}
+
+for (const file of await walk()) {
+  if (forbiddenSuffixes.some((suffix) => file.endsWith(suffix))) {
     leaked.push(file);
   }
 }

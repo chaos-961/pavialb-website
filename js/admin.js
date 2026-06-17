@@ -3,9 +3,9 @@
 
   const BACKEND = window.PaviaBackend;
   const PAYLOAD = window.PAVIA_ADMIN_PAYLOAD;
+  const ADMIN_USERNAME = 'admin';
   const textEncoder = new TextEncoder();
   const state = {
-    allowlisted: false,
     backendReady: false,
     unlocked: false,
     inactivityTimer: 0,
@@ -19,10 +19,6 @@
   function bytesFromBase64(value) {
     const binary = atob(value || '');
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  }
-
-  function normalizeUsername(value) {
-    return String(value || '').trim().toLowerCase();
   }
 
   function withTimeout(promise, timeoutMs, message) {
@@ -47,13 +43,10 @@
     $$('[data-admin-uid]').forEach((element) => { element.textContent = uid || 'Unavailable'; });
     const provider = state.backendReady ? (BACKEND?.provider || 'local') : 'initializing';
     $('[data-auth-provider]').textContent = provider;
-    $('[data-auth-state]').textContent = provider === 'initializing'
-      ? 'Checking authorization'
-      : provider === 'firebase'
-      ? (state.allowlisted ? 'Authorized UID' : 'Waiting for allowlist')
-      : 'Local development provider';
-    $('#unlockPanel').hidden = provider === 'initializing' || (provider === 'firebase' && !state.allowlisted);
-    $('#notAuthorizedPanel').hidden = provider !== 'firebase' || state.allowlisted;
+    $('[data-auth-state]').textContent = provider === 'initializing' ? 'Checking access' : 'Ready for password';
+    $('#unlockPanel').hidden = provider === 'initializing';
+    const notAuthorized = $('#notAuthorizedPanel');
+    if (notAuthorized) notAuthorized.hidden = true;
   }
 
   function clearSensitiveInputs() {
@@ -92,6 +85,7 @@
   function lockDashboard(message = '') {
     state.unlocked = false;
     BACKEND?.setAdminUnlocked?.(false);
+    window.PaviaDriveImages?.disconnect?.();
     clearTimeout(state.inactivityTimer);
     const mount = $('#adminPayloadMount');
     mount.hidden = true;
@@ -153,23 +147,18 @@
   async function handleUnlock(event) {
     event.preventDefault();
     setMessage('');
-    const provider = BACKEND?.provider || 'local';
-    if (provider === 'firebase' && !state.allowlisted) {
-      setMessage('This anonymous UID is not allowlisted for Pavia Studio.', 'error');
-      return;
-    }
 
-    const username = normalizeUsername($('#loginUser').value);
     const password = $('#loginPass').value;
     const delay = Math.min(state.failedAttempts * 900, 4500);
     if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay));
 
     try {
-      const payload = await decryptPayload(username, password);
+      const payload = await decryptPayload(ADMIN_USERNAME, password);
       if (!payload?.html || !payload?.code) throw new Error('Invalid admin payload.');
       state.failedAttempts = 0;
       state.unlocked = true;
       BACKEND?.setAdminUnlocked?.(true);
+      window.PaviaDriveImages?.setPassword?.(password);
       clearSensitiveInputs();
       injectDashboard(payload.html, payload.code);
       resetInactivityTimer();
@@ -177,7 +166,7 @@
       state.failedAttempts += 1;
       clearSensitiveInputs();
       console.warn('Admin unlock failed.', error);
-      setMessage('Invalid username or password.', 'error');
+      setMessage('Invalid password.', 'error');
     }
   }
 
@@ -203,22 +192,15 @@
         'Admin backend initialization timed out. Check Firebase configuration and network access.',
       );
       state.backendReady = true;
-      state.allowlisted = BACKEND.provider === 'firebase'
-        ? await BACKEND.admin.isCurrentUidAllowlisted()
-        : true;
-      BACKEND.onAuthChanged?.(async () => {
+      BACKEND.onAuthChanged?.(() => {
         const wasUnlocked = state.unlocked;
-        state.allowlisted = BACKEND.provider === 'firebase'
-          ? await BACKEND.admin.isCurrentUidAllowlisted()
-          : true;
-        if (wasUnlocked && !state.allowlisted) {
-          lockDashboard('Firebase authorization changed. Enter the admin credentials again after the UID is allowlisted.');
+        if (wasUnlocked && !BACKEND.authUid) {
+          lockDashboard('Firebase sign-in was lost. Enter the admin password again.');
         }
         updateAuthState();
       });
     } else {
       state.backendReady = true;
-      state.allowlisted = true;
     }
 
     updateAuthState();

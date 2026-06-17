@@ -189,20 +189,12 @@
     return result;
   }
 
-  async function isCurrentUidAllowlisted() {
-    if (activeProvider !== 'firebase') return true;
-    const uid = firebaseState.auth?.currentUser?.uid;
-    if (!uid) return false;
-    const snapshot = await firebaseState.databaseApi.get(databaseReference(`adminUids/${uid}`));
-    return snapshot.val() === true;
-  }
-
   async function assertAdminReady() {
     if (activeProvider === 'local') return;
-    if (!adminUnlocked) throw new Error('Admin unlock is required before this operation.');
-    if (!(await isCurrentUidAllowlisted())) {
-      throw new Error('This anonymous UID is not allowlisted for admin operations.');
+    if (!firebaseState.auth?.currentUser?.uid) {
+      throw new Error('Anonymous sign-in is required before admin operations.');
     }
+    if (!adminUnlocked) throw new Error('Admin unlock is required before this operation.');
   }
 
   function normalizeProductRecord(product) {
@@ -210,9 +202,16 @@
     const id = String(product.id || product.slug || '').trim();
     if (!id) throw new Error('Product ID is required.');
     const imageId = String(product.imageId || window.PaviaImages?.idFor?.(product.image) || '').trim();
-    const imageUrl = /^https?:\/\//i.test(String(product.imageUrl || product.image || ''))
+    const imageValue = String(product.imageUrl || product.image || '');
+    const imageUrl = /^https?:\/\//i.test(imageValue)
       ? String(product.imageUrl || product.image)
       : '';
+    const driveFileId = String(product.driveFileId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120);
+    const requestedProvider = product.imageProvider || '';
+    const provider = ['google_drive', 'external', 'local_legacy'].includes(requestedProvider)
+      ? requestedProvider
+      : driveFileId ? 'google_drive' : imageUrl ? 'external' : 'local_legacy';
+    const imageMeta = safeImageMeta(product.imageMeta);
     return {
       id,
       slug: product.slug || id,
@@ -230,8 +229,10 @@
       tags: Array.isArray(product.tags) ? product.tags : [],
       imageId,
       imageUrl,
-      imageProvider: imageUrl ? 'external' : 'local',
+      imageProvider: provider,
+      driveFileId,
       imageVersion: product.imageVersion || '',
+      imageMeta,
       gallery: Array.isArray(product.gallery) ? product.gallery : [],
       material: product.material || '',
       fit: product.fit || '',
@@ -246,6 +247,30 @@
       createdBy: product.createdBy || firebaseState.auth?.currentUser?.uid || 'admin',
       updatedBy: firebaseState.auth?.currentUser?.uid || 'admin',
     };
+  }
+
+  function safeImageMeta(meta = {}) {
+    const source = meta && typeof meta === 'object' ? meta : {};
+    const clean = {
+      provider: String(source.provider || '').slice(0, 40),
+      originalName: String(source.originalName || '').slice(0, 120),
+      optimizedName: String(source.optimizedName || '').slice(0, 140),
+      mimeType: String(source.mimeType || source.type || '').slice(0, 40),
+      width: Math.max(0, Number(source.width) || 0),
+      height: Math.max(0, Number(source.height) || 0),
+      byteSize: Math.max(0, Number(source.byteSize || source.bytes) || 0),
+      originalBytes: Math.max(0, Number(source.originalBytes) || 0),
+      targetBytes: Math.max(0, Number(source.targetBytes) || 0),
+      contentHash: String(source.contentHash || '').replace(/[^a-f0-9]/gi, '').slice(0, 80),
+      imageVersion: String(source.imageVersion || '').slice(0, 40),
+      driveFileId: String(source.driveFileId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120),
+      publicUrl: /^https:\/\//i.test(String(source.publicUrl || '')) ? String(source.publicUrl).slice(0, 600) : '',
+      updatedAt: String(source.updatedAt || '').slice(0, 40),
+    };
+    Object.keys(clean).forEach((key) => {
+      if (clean[key] === '' || clean[key] === 0) delete clean[key];
+    });
+    return clean;
   }
 
   function publicProduct(record) {
@@ -763,10 +788,6 @@
     },
 
     media: localBackend.media,
-
-    admin: {
-      isCurrentUidAllowlisted,
-    },
 
     setAdminUnlocked(value) {
       adminUnlocked = Boolean(value);

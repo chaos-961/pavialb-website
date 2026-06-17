@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const require = createRequire(import.meta.url);
 const core = require('../js/store-core.js');
+const driveImages = require('../js/drive-images.js');
 
 test('normalizes Lebanese phone numbers', () => {
   assert.equal(core.normalizeLebanonPhone('70 123 456'), '+96170123456');
@@ -69,4 +70,15 @@ test('normalizes order items with quantity caps and safe keys', () => {
   assert.equal(items[0].id, 'Blue-Pearl-Blouse-');
   assert.equal(items[0].qty, 20);
   assert.equal(items[0].price, 42);
+});
+
+test('builds Google Drive image helpers', () => {
+  assert.equal(typeof driveImages.configured(), 'boolean');
+  assert.equal(driveImages.sanitizeFilename('Ivory Dress FINAL!!.JPG'), 'ivory-dress-final');
+  assert.equal(
+    driveImages.driveImageUrl('1AbC_dEf-123'),
+    'https://drive.google.com/thumbnail?id=1AbC_dEf-123&sz=w1600',
+  );
+  assert.equal(driveImages.driveImageUrl('1AbC_dEf-123', 800).includes('sz=w800'), true);
+  assert.equal(driveImages.driveImageUrl(''), '');
 });

@@ -14,57 +14,46 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="../css/styles.css?v=10" />
-    <link rel="stylesheet" href="../css/admin.css?v=12" />
+    <link rel="stylesheet" href="../css/admin.css?v=13" />
   </head>
   <body>
     <div class="admin-shell">
       <section id="adminGate" class="login-card" hidden>
         <p class="admin-kicker">Pavia Studio</p>
-        <h1>Secure unlock</h1>
-        <p class="sub">
-          Editing requires an allowlisted anonymous Firebase UID and the local encrypted admin password.
-        </p>
+        <h1>Studio unlock</h1>
+        <p class="sub">Enter the admin password to open the store tools.</p>
 
-        <div class="auth-card">
+        <div class="auth-card compact-auth">
+          <div>
+            <span>Access</span>
+            <strong data-auth-state>Checking authorization</strong>
+          </div>
+        </div>
+
+        <details class="auth-details">
+          <summary>Authorization details</summary>
           <div>
             <span>Provider</span>
             <strong data-auth-provider>Initializing</strong>
           </div>
-          <div>
-            <span>Status</span>
-            <strong data-auth-state>Checking authorization</strong>
-          </div>
-          <div>
+          <div class="uid-row">
             <span>Anonymous UID</span>
             <code data-admin-uid>Loading</code>
           </div>
-        </div>
-
-        <div id="notAuthorizedPanel" class="auth-warning" hidden>
-          <strong>This browser is not allowlisted yet.</strong>
-          <p>
-            Add this UID manually at <code>/adminUids/{uid}: true</code> in Realtime Database.
-            Anonymous Auth identifies this browser installation only; clearing browser storage can create a new UID.
-          </p>
-          <button id="resetIdentityBtn" type="button" class="btn btn-secondary full">Reset anonymous identity</button>
-        </div>
+        </details>
 
         <div id="unlockPanel" hidden>
           <form id="loginForm" autocomplete="off">
-            <label for="loginUser">
-              Username
-              <input id="loginUser" type="text" required autocomplete="username" />
-            </label>
             <label for="loginPass">
               Password
               <input id="loginPass" type="password" required autocomplete="current-password" />
             </label>
             <div id="loginError" class="login-error" role="alert"></div>
-            <button type="submit" class="btn btn-primary full">Decrypt admin tools</button>
+            <button type="submit" class="btn btn-primary full">Unlock Studio</button>
           </form>
           <p class="security-note">
-            This password decrypts a public browser payload and can be attacked offline.
-            Realtime Database rules and the allowlisted UID remain the real database authorization boundary.
+            The password decrypts the admin tools in this browser. Keep it private: anyone with this
+            password can manage the store. Use the Lock button when you finish.
           </p>
         </div>
       </section>
@@ -73,14 +62,15 @@
       <main id="adminPayloadMount" hidden></main>
     </div>
 
-    <script src="../admin/payload.js?v=14"></script>
+    <script src="../admin/payload.js?v=16"></script>
     <script src="../js/firebase-config.js?v=10"></script>
-    <script src="../js/backend-config.js?v=10"></script>
-    <script src="../js/image-catalog.js?v=10"></script>
+    <script src="../js/backend-config.js?v=12"></script>
+    <script src="../js/image-catalog.js?v=11"></script>
     <script src="../js/store-core.js?v=1"></script>
-    <script src="../js/backend.js?v=14"></script>
-    <script src="../js/backend-firebase.js?v=18"></script>
+    <script src="../js/backend.js?v=15"></script>
+    <script src="../js/backend-firebase.js?v=19"></script>
     <script src="../js/products.js?v=10"></script>
-    <script src="../js/admin.js?v=12"></script>
+    <script src="../js/drive-images.js?v=2"></script>
+    <script src="../js/admin.js?v=15"></script>
   </body>
 </html>

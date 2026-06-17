@@ -18,12 +18,11 @@ development and browser smoke tests do not touch production data. On localhost,
 append `?backend=firebase` to use the Firebase emulators after starting and
 seeding them.
 
-Firebase Storage is intentionally not required for the current no-paid-plan setup.
-Products can use local preset image IDs from `js/image-catalog.js` and `assets/placeholders/`, or a future externally hosted image URL.
-When a permanent image host is chosen later, product records should only need their `imageUrl` or resolver mapping updated.
-For the temporary Google Drive image workflow and compression targets, see `docs/GOOGLE-DRIVE-IMAGES.md`.
-
-Product uploads in the current local admin remain browser-local convenience behavior for testing. They should not be treated as production image hosting.
+Firebase Storage is intentionally not used. New production product images go
+through the admin Google Drive image pipeline and are saved as HTTPS `imageUrl`
+values with safe metadata in Realtime Database. Legacy local preset IDs remain
+only as a migration path for older products. See
+[`docs/GOOGLE-DRIVE-IMAGES.md`](docs/GOOGLE-DRIVE-IMAGES.md).
 
 ## Local launch
 
