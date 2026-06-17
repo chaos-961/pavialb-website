@@ -338,7 +338,33 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .reveal-delay-150 { transition-delay: 0.15s; }
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none; }
+  /* Suppress decorative motion across the storefront for reduced-motion users. */
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .product-card:hover .product-media img { transform: none; }
+  .skeleton-media, .skeleton-line { animation: none !important; }
+  .whatsapp-fab { animation: none !important; }
 }
+
+/* ===== P16: offline banner + load-error / retry ===== */
+.offline-banner {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  padding: 9px 16px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.offline-banner[hidden] { display: none; }
+.empty-state.load-error h3 { font-style: normal; }
+.empty-state.load-error .btn { margin-top: 14px; }
 
 /* =========================================================
    Sections

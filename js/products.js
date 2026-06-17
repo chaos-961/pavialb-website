@@ -1,6 +1,6 @@
 // Pavia product catalog
 // Each product has color objects with hex values for proper swatches.
-const PAVIA_PRESET_IMAGE = (id) => window.PaviaImages?.resolve(id) || `assets/placeholders/${id}.svg`;
+const PAVIA_PRESET_IMAGE = (id) => window.PaviaImages?.resolve(id) || 'assets/logo.svg';
 
 window.PAVIA_DEFAULT_PRODUCTS = [
   {

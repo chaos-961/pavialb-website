@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-label="Pavia preset fashion image 5">
-  <rect width="900" height="1200" fill="#f6f0e7"/>
-  <path d="M0 860c170-84 334-84 492 0s294 84 408 0v340H0V860z" fill="#c9a779" opacity=".34"/>
-  <path d="M280 320h340l-80 630H360l-80-630z" fill="#1a1612"/>
-  <path d="M306 320h288l-36 128H342l-36-128z" fill="#3b332e"/>
-  <path d="M366 462h168v488H366z" fill="#29231f"/>
-  <path d="M450 470v454" stroke="#f3ead8" stroke-width="12" stroke-linecap="round" opacity=".5"/>
-  <text x="450" y="1084" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" fill="#6d6255">PAVIA LOOK 05</text>
-</svg>

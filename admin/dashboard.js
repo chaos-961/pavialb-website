@@ -30,11 +30,24 @@
     refunded: 'Refunded',
   };
 
+  const CORE = window.PaviaStoreCore || {};
+  const DRAFT_KEY = 'PAVIA_PRODUCT_DRAFT';
+
   let productsCache = [];
   let ordersCache = [];
   let settingsCache = {};
   let promoCache = {};
   let pendingDriveImage = null;
+
+  // P15 UX state
+  let formDirty = false;
+  let suppressDirty = false;
+  let savingProduct = false;
+  let savingSettings = false;
+  let savingPromo = false;
+  let draftTimer = 0;
+  let optimizedPreviewUrl = '';
+  const selectedProductIds = new Set();
 
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
@@ -122,6 +135,146 @@
     }, 2400);
   }
 
+  // ---- P15: save feedback, dirty tracking, draft autosave ----
+  function setButtonLoading(button, loading, text) {
+    if (!button) return;
+    button.disabled = Boolean(loading);
+    button.classList.toggle('is-loading', Boolean(loading));
+    if (text) button.textContent = text;
+  }
+
+  function setFormStatus(id, message, tone = 'info') {
+    const element = $(`#${id}`);
+    if (!element) return;
+    element.textContent = message || '';
+    element.dataset.tone = message ? tone : '';
+    element.classList.toggle('show', Boolean(message));
+  }
+
+  function markFormDirty() {
+    if (suppressDirty) return;
+    formDirty = true;
+    scheduleDraftSave();
+  }
+
+  function clearFormDirty() {
+    formDirty = false;
+    clearTimeout(draftTimer);
+  }
+
+  function confirmDiscardIfDirty(message) {
+    return !formDirty || window.confirm(message);
+  }
+
+  function serializeProductForm() {
+    return {
+      id: $('#prodId').value,
+      slug: $('#prodSlug').value,
+      name: $('#prodName').value,
+      category: $('#prodCategory').value,
+      badge: $('#prodBadge').value,
+      sku: $('#prodSku').value,
+      status: $('#prodStatus').value,
+      featured: $('#prodFeatured').checked,
+      sortOrder: $('#prodSortOrder').value,
+      description: $('#prodDesc').value,
+      price: $('#prodPrice').value,
+      compareAt: $('#prodCompare').value,
+      stock: $('#prodStock').value,
+      tags: $('#prodTags').value,
+      sizes: $('#prodSizes').value,
+      colors: $('#prodColors').value,
+      material: $('#prodMaterial').value,
+      fit: $('#prodFit').value,
+      care: $('#prodCare').value,
+      imageUrl: $('#prodImageUrl').value,
+      imageId: $('#prodImageId').value,
+      imageVersion: $('#prodImageVersion').value,
+      imageMeta: $('#prodImageMeta').value,
+      driveFileId: $('#prodDriveFileId').value,
+      imageProvider: $('#prodImageProvider').value,
+      savedAt: new Date().toISOString(),
+    };
+  }
+
+  function draftHasContent(draft) {
+    if (!draft) return false;
+    return Boolean(String(draft.name || '').trim()
+      || String(draft.description || '').trim()
+      || (Number(draft.price) > 0)
+      || String(draft.imageUrl || '').trim());
+  }
+
+  function scheduleDraftSave() {
+    clearTimeout(draftTimer);
+    draftTimer = window.setTimeout(saveDraft, 600);
+  }
+
+  function saveDraft() {
+    if (!formDirty) return;
+    const draft = serializeProductForm();
+    if (!draftHasContent(draft)) return;
+    writeLS(DRAFT_KEY, draft);
+  }
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+    const banner = $('#draftBanner');
+    if (banner) banner.hidden = true;
+  }
+
+  function applyDraft(draft) {
+    if (!draft) return;
+    suppressDirty = true;
+    $('#prodId').value = draft.id || '';
+    $('#prodSlug').value = draft.slug || '';
+    $('#prodName').value = draft.name || '';
+    $('#prodCategory').value = draft.category || '';
+    $('#prodBadge').value = draft.badge || '';
+    $('#prodSku').value = draft.sku || '';
+    $('#prodStatus').value = draft.status || 'published';
+    $('#prodFeatured').checked = Boolean(draft.featured);
+    $('#prodSortOrder').value = draft.sortOrder || nextSortOrder();
+    $('#prodDesc').value = draft.description || '';
+    $('#prodPrice').value = draft.price || '';
+    $('#prodCompare').value = draft.compareAt || '';
+    $('#prodStock').value = draft.stock || 0;
+    $('#prodTags').value = draft.tags || '';
+    $('#prodImageUrl').value = draft.imageUrl || '';
+    $('#prodImageId').value = draft.imageId || '';
+    $('#prodImage').value = draft.imageUrl || draft.imageId || '';
+    $('#prodImageVersion').value = draft.imageVersion || '';
+    $('#prodImageMeta').value = draft.imageMeta || '';
+    $('#prodDriveFileId').value = draft.driveFileId || '';
+    $('#prodImageProvider').value = draft.imageProvider || '';
+    setSelectedSizes(splitList(draft.sizes));
+    setColorRows(parseColors(draft.colors));
+    $('#prodMaterial').value = draft.material || '';
+    $('#prodFit').value = draft.fit || '';
+    $('#prodCare').value = draft.care || '';
+    $('#formTitle').textContent = draft.id ? 'Edit product' : 'Add a product';
+    $('#formSubmit').textContent = draft.id ? 'Save changes' : 'Add product';
+    suppressDirty = false;
+    formDirty = true;
+    void updateProductPreview();
+  }
+
+  function maybeShowDraftBanner() {
+    const banner = $('#draftBanner');
+    if (!banner) return;
+    const draft = readLS(DRAFT_KEY, null);
+    if (!draftHasContent(draft)) {
+      banner.hidden = true;
+      return;
+    }
+    $('#draftBannerMeta').textContent = `"${draft.name || 'Untitled'}" saved ${new Date(draft.savedAt || Date.now()).toLocaleString()}`;
+    banner.hidden = false;
+  }
+
   function adminMutationsEnabled() {
     return BACKEND?.capabilities?.adminMutations !== false;
   }
@@ -188,6 +341,7 @@
         setSelectedSizes(selectedSizes().filter((size) => size !== button.dataset.removeSize));
       });
     });
+    markFormDirty();
   }
 
   function togglePresetSize(size) {
@@ -220,6 +374,7 @@
 
   function syncColorsField() {
     $('#prodColors').value = colorsToString(colorRows());
+    markFormDirty();
   }
 
   function addColorRow(color = { name: '', hex: '#c9a779' }) {
@@ -485,6 +640,16 @@
     }).join('');
     const disabled = orderManagementEnabled() ? '' : ' disabled';
     const date = new Date(order.date || order.createdAt || Date.now()).toLocaleString();
+    const timeline = [
+      ['Created', order.createdAt || order.date],
+      ['Updated', order.updatedAt],
+      ['Out for delivery', order.outForDeliveryAt],
+      ['Completed', order.completedAt],
+      ['Cancelled', order.cancelledAt],
+    ]
+      .filter(([, value]) => value)
+      .map(([label, value]) => `<li><span>${escapeHtml(label)}</span><time>${escapeHtml(new Date(value).toLocaleString())}</time></li>`)
+      .join('');
 
     return `
       <article class="order-item" data-order-id="${escapeHtml(order.id)}">
@@ -505,6 +670,7 @@
         ${customer.notes || order.notes ? `<p class="order-note"><strong>Customer notes:</strong> ${escapeHtml(customer.notes || order.notes)}</p>` : ''}
         ${order.pricingReview ? `<p class="order-note"><strong>Pricing review:</strong> ${escapeHtml(order.pricingReview.status || 'Manual review required')} - expected total ${escapeHtml(fmt(order.pricingReview.expectedTotal || order.total || 0))}</p>` : ''}
         <ul class="order-products">${items}</ul>
+        ${timeline ? `<ul class="order-timeline">${timeline}</ul>` : ''}
         <div class="order-workflow">
           <label>
             Order status
@@ -534,10 +700,19 @@
     `;
   }
 
+  function sortOrders(list) {
+    const key = $('#orderSort')?.value || 'newest';
+    const time = (order) => new Date(order.createdAt || order.date || 0).getTime();
+    const total = (order) => Number(order.total) || 0;
+    const arr = [...list];
+    if (key === 'oldest') return arr.sort((left, right) => time(left) - time(right));
+    if (key === 'total-desc') return arr.sort((left, right) => total(right) - total(left));
+    if (key === 'total') return arr.sort((left, right) => total(left) - total(right));
+    return arr.sort((left, right) => time(right) - time(left));
+  }
+
   function renderOrders() {
-    const orders = ordersCache
-      .filter(orderMatchesFilters)
-      .sort((left, right) => new Date(right.createdAt || right.date || 0) - new Date(left.createdAt || left.date || 0));
+    const orders = sortOrders(ordersCache.filter(orderMatchesFilters));
     const openCount = ordersCache.filter((order) => !['completed', 'cancelled'].includes(order.status)).length;
     $('#availableOrderCount').textContent = openCount;
     $('#availableOrders').innerHTML = orders.length
@@ -691,6 +866,7 @@
   }
 
   function resetForm() {
+    suppressDirty = true;
     $('#productForm').reset();
     $('#prodId').value = '';
     $('#prodSlug').value = '';
@@ -706,12 +882,16 @@
     $('#prodDriveFileId').value = '';
     $('#prodImageProvider').value = '';
     $('#imageOptimizationResult').hidden = true;
+    clearOptimizedPreview();
     setSelectedSizes(['One size']);
     setColorRows([]);
     clearProductErrors();
+    setFormStatus('productFormStatus', '');
     $('#formTitle').textContent = 'Add a product';
     $('#formSubmit').textContent = 'Add product';
     void updateProductPreview();
+    suppressDirty = false;
+    clearFormDirty();
   }
 
   function nextSortOrder() {
@@ -722,6 +902,10 @@
   function loadIntoForm(id) {
     const product = getProducts().find((item) => item.id === id);
     if (!product) return;
+    if (!confirmDiscardIfDirty('Discard unsaved changes and edit this product?')) return;
+    suppressDirty = true;
+    clearOptimizedPreview();
+    setFormStatus('productFormStatus', '');
     $('#prodId').value = product.id;
     $('#prodSlug').value = product.slug || product.id;
     $('#prodName').value = product.name;
@@ -752,6 +936,8 @@
     $('#formTitle').textContent = 'Edit product';
     $('#formSubmit').textContent = 'Save changes';
     void updateProductPreview();
+    suppressDirty = false;
+    clearFormDirty();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -799,19 +985,34 @@
     });
 
     if (!validateProduct(id, product)) {
+      setFormStatus('productFormStatus', 'Fix the highlighted fields and try again.', 'error');
       toast('Fix the highlighted product fields');
       return;
     }
 
+    if (savingProduct) return; // double-submit guard
+    savingProduct = true;
+    const submitButton = $('#formSubmit');
+    const originalText = submitButton.textContent;
+    setButtonLoading(submitButton, true, 'Saving...');
+    setFormStatus('productFormStatus', 'Saving product...', 'info');
     try {
       await upsertProduct(product);
       await renderProductList();
       renderMetrics();
       updateCategoryOptions();
+      clearDraft();
       resetForm();
+      setButtonLoading(submitButton, false);
+      setFormStatus('productFormStatus', existing ? 'Product updated and synced.' : 'Product added and synced.', 'success');
       toast(existing ? 'Product updated' : 'Product added');
     } catch (error) {
+      setButtonLoading(submitButton, false);
+      submitButton.textContent = originalText;
+      setFormStatus('productFormStatus', error.message || 'Could not save product.', 'error');
       toast(error.message || 'Could not save product');
+    } finally {
+      savingProduct = false;
     }
   }
 
@@ -853,22 +1054,47 @@
       && (!imageFilter || (imageFilter === 'needs-image' && productNeedsImageMigration(product)));
   }
 
+  function productSortKey() {
+    return $('#productSort')?.value || 'sortOrder';
+  }
+
+  // Drag reorder is only meaningful (and unambiguous) in the unfiltered sortOrder view.
+  function reorderEnabled() {
+    return productSortKey() === 'sortOrder'
+      && !norm($('#productSearch')?.value || '')
+      && !($('#stockFilter')?.value)
+      && !($('#imageMigrationFilter')?.value);
+  }
+
   async function renderProductList() {
-    const products = getProducts()
-      .filter(productMatchesFilters)
-      .sort((left, right) => (Number(left.sortOrder) || 0) - (Number(right.sortOrder) || 0)
-        || left.name.localeCompare(right.name));
+    const comparator = CORE.compareProducts
+      ? CORE.compareProducts(productSortKey())
+      : (left, right) => (Number(left.sortOrder) || 0) - (Number(right.sortOrder) || 0) || left.name.localeCompare(right.name);
+    const products = getProducts().filter(productMatchesFilters).sort(comparator);
+
+    // Keep the selection set in sync with products that still exist.
+    const existingIds = new Set(getProducts().map((product) => product.id));
+    [...selectedProductIds].forEach((id) => { if (!existingIds.has(id)) selectedProductIds.delete(id); });
+
     const imageUrls = await Promise.all(products.map((product) => (
       BACKEND
         ? BACKEND.media.resolveImage(product.imageUrl || product.imageId || product.image, product.imageVersion)
         : Promise.resolve(imageSrc(product.imageUrl || product.imageId || product.image))
     )));
+    const canReorder = reorderEnabled();
     $('#catalogCount').textContent = productsCache.length;
     $('#productList').innerHTML = products.length
       ? products.map((product, index) => {
         const stockClass = product.stock <= 0 ? 'out' : product.stock <= LOW_STOCK_AT ? 'low' : 'ok';
+        const selected = selectedProductIds.has(product.id);
         return `
-          <article class="product-row">
+          <article class="product-row${selected ? ' is-selected' : ''}" data-product-id="${escapeHtml(product.id)}"${canReorder ? ' draggable="true"' : ''}>
+            <div class="row-lead">
+              <label class="row-select">
+                <input type="checkbox" data-select="${escapeHtml(product.id)}"${selected ? ' checked' : ''} aria-label="Select ${escapeHtml(product.name)}" />
+              </label>
+              ${canReorder ? '<span class="drag-handle" aria-hidden="true" title="Drag to reorder">::</span>' : ''}
+            </div>
             <img src="${escapeHtml(imageUrls[index])}" alt="" />
             <div class="product-row-info">
               <div class="product-row-title">
@@ -877,9 +1103,9 @@
                 <span class="stock-pill ${stockClass}">${product.stock <= 0 ? 'Out of stock' : product.stock <= LOW_STOCK_AT ? 'Low stock' : 'In stock'}</span>
               </div>
               <p>${escapeHtml(product.category)}${product.sku ? ` - ${escapeHtml(product.sku)}` : ''}</p>
-              <div class="product-row-meta">
-                <span>${fmt(product.price)}</span>
-                <span>${product.stock} in stock</span>
+              <div class="product-row-inline">
+                <label class="inline-edit">Price <input type="number" min="0" step="0.01" data-quick-price="${escapeHtml(product.id)}" value="${Number(product.price) || 0}" /></label>
+                <label class="inline-edit">Stock <input type="number" min="0" step="1" data-quick-stock="${escapeHtml(product.id)}" value="${Number(product.stock) || 0}" /></label>
                 <span>Sort ${Number(product.sortOrder) || 0}</span>
                 ${productNeedsImageMigration(product) ? '<span>Needs image migration</span>' : ''}
                 ${product.featured ? '<span>Featured</span>' : ''}
@@ -905,6 +1131,180 @@
     $$('[data-delete]').forEach((button) => {
       button.addEventListener('click', () => void deleteProduct(button.dataset.delete));
     });
+    $$('#productList [data-select]').forEach((box) => {
+      box.addEventListener('change', () => {
+        if (box.checked) selectedProductIds.add(box.dataset.select);
+        else selectedProductIds.delete(box.dataset.select);
+        box.closest('.product-row')?.classList.toggle('is-selected', box.checked);
+        updateBulkBar();
+      });
+    });
+    $$('[data-quick-price]').forEach((input) => {
+      input.addEventListener('change', () => void quickEditProduct(input.dataset.quickPrice, 'price', input.value));
+    });
+    $$('[data-quick-stock]').forEach((input) => {
+      input.addEventListener('change', () => void quickEditProduct(input.dataset.quickStock, 'stock', input.value));
+    });
+    if (canReorder) bindReorder();
+    updateBulkBar();
+  }
+
+  function updateBulkBar() {
+    const bar = $('#bulkBar');
+    if (!bar) return;
+    const count = selectedProductIds.size;
+    bar.hidden = count === 0;
+    const countLabel = $('#bulkCount');
+    if (countLabel) countLabel.textContent = count;
+    const visible = $$('#productList [data-select]');
+    const selectAll = $('#bulkSelectAll');
+    if (selectAll) selectAll.checked = visible.length > 0 && visible.every((box) => box.checked);
+  }
+
+  function toggleSelectAll(checked) {
+    $$('#productList [data-select]').forEach((box) => {
+      box.checked = checked;
+      if (checked) selectedProductIds.add(box.dataset.select);
+      else selectedProductIds.delete(box.dataset.select);
+      box.closest('.product-row')?.classList.toggle('is-selected', checked);
+    });
+    updateBulkBar();
+  }
+
+  function clearSelection() {
+    selectedProductIds.clear();
+    $$('#productList [data-select]').forEach((box) => {
+      box.checked = false;
+      box.closest('.product-row')?.classList.remove('is-selected');
+    });
+    updateBulkBar();
+  }
+
+  // Optimistic inline edit of price/stock; re-syncs from the backend on failure.
+  async function quickEditProduct(id, field, rawValue) {
+    if (!adminMutationsEnabled()) {
+      toast('Catalog editing is disabled for this session');
+      return;
+    }
+    const product = productsCache.find((item) => item.id === id);
+    if (!product) return;
+    const value = Math.max(0, Number(rawValue) || 0);
+    if (Number(product[field]) === value) return;
+    const updated = { ...product, [field]: value };
+    product[field] = value;
+    try {
+      await upsertProduct(updated);
+      renderMetrics();
+      toast(`${field === 'price' ? 'Price' : 'Stock'} updated`);
+    } catch (error) {
+      await loadProducts();
+      await renderProductList();
+      toast(error.message || 'Could not update product');
+    }
+  }
+
+  async function runBulkAction(action) {
+    if (!adminMutationsEnabled()) {
+      toast('Catalog editing is disabled for this session');
+      return;
+    }
+    const ids = [...selectedProductIds];
+    if (!ids.length) return;
+    let stockValue = null;
+    if (action === 'stock') {
+      const input = window.prompt('Set stock for the selected products to:', '0');
+      if (input === null) return;
+      stockValue = Math.max(0, Number(input) || 0);
+    }
+    if (action === 'delete' && !window.confirm(`Delete ${ids.length} selected product(s) permanently?`)) return;
+    try {
+      for (const id of ids) {
+        const product = productsCache.find((item) => item.id === id);
+        if (!product) continue;
+        if (action === 'delete') {
+          await removeProduct(id);
+          continue;
+        }
+        const updated = { ...product };
+        if (action === 'publish') updated.active = true;
+        if (action === 'unpublish') updated.active = false;
+        if (action === 'stock') updated.stock = stockValue;
+        await upsertProduct(updated);
+      }
+      selectedProductIds.clear();
+      await loadProducts();
+      await renderProductList();
+      renderMetrics();
+      updateCategoryOptions();
+      toast(`Bulk ${action} applied to ${ids.length} product(s)`);
+    } catch (error) {
+      await loadProducts();
+      await renderProductList();
+      toast(error.message || 'Bulk action failed');
+    }
+  }
+
+  let dragSourceId = '';
+  function bindReorder() {
+    $$('#productList .product-row[draggable="true"]').forEach((row) => {
+      row.addEventListener('dragstart', (event) => {
+        dragSourceId = row.dataset.productId;
+        row.classList.add('dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        try {
+          event.dataTransfer.setData('text/plain', dragSourceId);
+        } catch {
+          /* some browsers restrict setData */
+        }
+      });
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
+      row.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        row.classList.add('drag-over');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (event) => {
+        event.preventDefault();
+        row.classList.remove('drag-over');
+        const targetId = row.dataset.productId;
+        if (dragSourceId && targetId && dragSourceId !== targetId) void reorderProducts(dragSourceId, targetId);
+      });
+    });
+  }
+
+  async function reorderProducts(sourceId, targetId) {
+    if (!adminMutationsEnabled()) {
+      toast('Catalog editing is disabled for this session');
+      return;
+    }
+    const sortOrderComparator = CORE.compareProducts
+      ? CORE.compareProducts('sortOrder')
+      : (a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+    const ordered = [...productsCache].sort(sortOrderComparator);
+    const from = ordered.findIndex((item) => item.id === sourceId);
+    const to = ordered.findIndex((item) => item.id === targetId);
+    if (from < 0 || to < 0) return;
+    const [moved] = ordered.splice(from, 1);
+    ordered.splice(to, 0, moved);
+    const changed = [];
+    ordered.forEach((item, index) => {
+      const newOrder = (index + 1) * 10;
+      if (Number(item.sortOrder) !== newOrder) {
+        item.sortOrder = newOrder;
+        changed.push({ ...item });
+      }
+    });
+    try {
+      for (const item of changed) await upsertProduct(item);
+      await loadProducts();
+      await renderProductList();
+      toast('Product order updated');
+    } catch (error) {
+      await loadProducts();
+      await renderProductList();
+      toast(error.message || 'Could not reorder products');
+    }
   }
 
   function formatBytes(bytes) {
@@ -921,17 +1321,37 @@
       result.textContent = '';
       return;
     }
+    const hasDimensions = metadata.width && metadata.height;
     const reduction = metadata.originalBytes
       ? Math.max(0, Math.round((1 - (metadata.byteSize || metadata.bytes) / metadata.originalBytes) * 100))
       : 0;
     result.hidden = false;
     result.innerHTML = `
       <strong>${escapeHtml(metadata.status || 'Optimized image ready')}</strong>
-      <span>${metadata.width} x ${metadata.height} - ${formatBytes(metadata.byteSize || metadata.bytes)}${
+      ${hasDimensions ? `<span>${metadata.width} x ${metadata.height} - ${formatBytes(metadata.byteSize || metadata.bytes)}${
         metadata.originalBytes ? ` - ${reduction}% smaller` : ''
-      }</span>
+      }</span>` : ''}
       ${metadata.publicUrl ? `<small>${escapeHtml(metadata.publicUrl)}</small>` : ''}
     `;
+  }
+
+  function showOptimizedPreview(blob) {
+    const row = $('#imagePreviewRow');
+    const image = $('#imageOptimizedPreview');
+    if (!row || !image || !blob) return;
+    if (optimizedPreviewUrl) URL.revokeObjectURL(optimizedPreviewUrl);
+    optimizedPreviewUrl = URL.createObjectURL(blob);
+    image.src = optimizedPreviewUrl;
+    row.hidden = false;
+  }
+
+  function clearOptimizedPreview() {
+    if (optimizedPreviewUrl) {
+      URL.revokeObjectURL(optimizedPreviewUrl);
+      optimizedPreviewUrl = '';
+    }
+    const row = $('#imagePreviewRow');
+    if (row) row.hidden = true;
   }
 
   function imageOptimizationOptions() {
@@ -992,13 +1412,27 @@
     }
     const dropzone = $('#imageDropzone');
     dropzone.classList.add('is-processing');
-    $('#imageOptimizationResult').hidden = false;
-    $('#imageOptimizationResult').textContent = 'Optimizing image...';
+    showImageResult({ status: 'Optimizing image...' });
     try {
       const optimized = await drive.optimizeImage(file, imageOptimizationOptions());
-      showImageResult({ ...optimized.metadata, status: 'Optimized; uploading to Google Drive...' });
+      showOptimizedPreview(optimized.blob);
+      showImageResult({ ...optimized.metadata, status: 'Optimized. Preparing upload...' });
+
+      // Dedup: if the freshly optimized bytes match the image this product already
+      // stores, skip the Drive upload entirely and reuse the existing public URL.
+      const existingMeta = parseImageMeta();
+      const currentUrl = $('#prodImageUrl').value.trim();
+      if (currentUrl && CORE.shouldReuseImage?.(existingMeta?.contentHash, optimized.metadata.contentHash)) {
+        showImageResult({ ...existingMeta, status: 'Identical image - reused the existing Drive file (no re-upload).' });
+        markFormDirty();
+        await updateProductPreview();
+        toast('Same image - reused the existing Drive file');
+        return;
+      }
+
       if (!drive.accessToken?.()) await connectDrive();
       if (!drive.accessToken?.()) throw new Error('Connect Google Drive before uploading.');
+      showImageResult({ ...optimized.metadata, status: 'Uploading to Google Drive...' });
       const uploaded = await drive.uploadOptimizedImage(optimized);
       pendingDriveImage = uploaded;
       $('#prodImageUrl').value = uploaded.imageUrl;
@@ -1008,6 +1442,7 @@
       $('#prodDriveFileId').value = uploaded.driveFileId;
       $('#prodImageProvider').value = uploaded.imageProvider;
       $('#prodImageMeta').value = JSON.stringify(uploaded.imageMeta);
+      markFormDirty();
       showImageResult({ ...uploaded.imageMeta, status: 'Uploaded to Google Drive; image URL saved to the product' });
       await updateProductPreview();
       toast('Image uploaded to Google Drive');
@@ -1097,6 +1532,10 @@
         whish_money: $('#settingWhish').checked,
       },
     };
+    if (savingSettings) return;
+    savingSettings = true;
+    const button = event.submitter || $('#settingsForm button[type="submit"]');
+    setButtonLoading(button, true, 'Saving...');
     try {
       settingsCache = BACKEND?.settings?.update
         ? await BACKEND.settings.update(record)
@@ -1106,6 +1545,9 @@
       toast('Settings saved');
     } catch (error) {
       toast(error.message || 'Could not save settings');
+    } finally {
+      savingSettings = false;
+      setButtonLoading(button, false, 'Save settings');
     }
   }
 
@@ -1199,6 +1641,11 @@
       endsAt: $('#promoEndsAt').value,
       active: $('#promoActive').checked,
     };
+    if (savingPromo) return;
+    savingPromo = true;
+    const button = $('#promoSubmit');
+    const originalText = button.textContent;
+    setButtonLoading(button, true, 'Saving...');
     try {
       if (originalCode && originalCode !== code && BACKEND?.promoCodes?.remove) {
         await BACKEND.promoCodes.remove(originalCode);
@@ -1211,9 +1658,14 @@
       if (!BACKEND?.promoCodes?.upsert) writeLS(KEYS.promoCodes, promoCache);
       renderPromos();
       resetPromoForm();
+      setButtonLoading(button, false);
       toast('Promo saved');
     } catch (error) {
+      setButtonLoading(button, false);
+      button.textContent = originalText;
       toast(error.message || 'Could not save promo');
+    } finally {
+      savingPromo = false;
     }
   }
 
@@ -1310,14 +1762,60 @@
   }
 
   function setupFilters() {
-    ['#orderSearch', '#orderStatusFilter', '#paymentStatusFilter', '#orderDateFilter'].forEach((selector) => {
+    ['#orderSearch', '#orderStatusFilter', '#paymentStatusFilter', '#orderDateFilter', '#orderSort'].forEach((selector) => {
       $(selector).addEventListener('input', renderOrders);
       $(selector).addEventListener('change', renderOrders);
     });
-    ['#productSearch', '#stockFilter', '#imageMigrationFilter'].forEach((selector) => {
+    ['#productSearch', '#stockFilter', '#imageMigrationFilter', '#productSort'].forEach((selector) => {
       $(selector).addEventListener('input', () => void renderProductList());
       $(selector).addEventListener('change', () => void renderProductList());
     });
+  }
+
+  function setupAdminUx() {
+    // Bulk actions
+    $('#bulkSelectAll')?.addEventListener('change', (event) => toggleSelectAll(event.target.checked));
+    $('#bulkClear')?.addEventListener('click', clearSelection);
+    $$('[data-bulk]').forEach((button) => {
+      button.addEventListener('click', () => void runBulkAction(button.dataset.bulk));
+    });
+
+    // Unsaved-changes draft restore/discard
+    $('#draftRestore')?.addEventListener('click', () => {
+      const draft = readLS(DRAFT_KEY, null);
+      if (draft) applyDraft(draft);
+      $('#draftBanner').hidden = true;
+      $('[data-tab="products"]')?.click();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    $('#draftDiscard')?.addEventListener('click', clearDraft);
+
+    // Dirty tracking on the product form (programmatic fills are suppressed).
+    const form = $('#productForm');
+    form.addEventListener('input', markFormDirty);
+    form.addEventListener('change', markFormDirty);
+
+    // Warn before reload / navigation / tab close when there are unsaved edits.
+    window.addEventListener('beforeunload', (event) => {
+      if (!formDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+
+    // Keyboard shortcuts: Ctrl/Cmd+S saves the active form, Esc clears the product form.
+    document.addEventListener('keydown', (event) => {
+      const activePanel = $('.admin-panel.active')?.dataset.panel;
+      if ((event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S')) {
+        if (activePanel === 'products') { event.preventDefault(); $('#productForm').requestSubmit(); }
+        else if (activePanel === 'settings') { event.preventDefault(); $('#settingsForm').requestSubmit(); }
+        else if (activePanel === 'promos') { event.preventDefault(); $('#promoForm').requestSubmit(); }
+      }
+      if (event.key === 'Escape' && activePanel === 'products') {
+        if (confirmDiscardIfDirty('Discard unsaved product changes?')) resetForm();
+      }
+    });
+
+    maybeShowDraftBanner();
   }
 
   async function refreshAll() {
@@ -1358,11 +1856,16 @@
     await refreshAll();
     applyBackendCapabilities();
     $('#logoutBtn').addEventListener('click', () => {
+      if (!confirmDiscardIfDirty('You have unsaved product changes (saved as a recoverable draft). Lock the studio anyway?')) return;
       window.PaviaAdminShell?.lock?.('Locked. Enter the admin credentials again.');
     });
     $('#productForm').addEventListener('submit', handleProductSubmit);
-    $('#formReset').addEventListener('click', resetForm);
-    $('#formCancel').addEventListener('click', resetForm);
+    $('#formReset').addEventListener('click', () => {
+      if (confirmDiscardIfDirty('Discard unsaved changes and start a new product?')) resetForm();
+    });
+    $('#formCancel').addEventListener('click', () => {
+      if (confirmDiscardIfDirty('Discard unsaved changes?')) resetForm();
+    });
     $('#settingsForm').addEventListener('submit', handleSettingsSubmit);
     $('#promoForm').addEventListener('submit', handlePromoSubmit);
     $('#promoReset').addEventListener('click', resetPromoForm);
@@ -1371,6 +1874,7 @@
     setupVariantBuilders();
     setupImageUploader();
     setupFilters();
+    setupAdminUx();
     resetForm();
     resetPromoForm();
     $('#dashboard').hidden = false;

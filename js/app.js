@@ -42,6 +42,49 @@
   };
   const money = CORE.formatMoney || ((v) => `$${Number(v || 0).toFixed(0)}`);
   const norm  = CORE.normalizeText || ((v) => String(v || '').trim().toLowerCase());
+
+  // ---------- Output escaping (storefront XSS hardening) ----------
+  // Every dynamic string rendered via innerHTML below is escaped. `html` is an
+  // auto-escaping tagged template (safe by default); esc/safeImg/safeColor/safeUrl
+  // cover ad-hoc and attribute contexts. CORE provides these; fall back if absent.
+  const esc = CORE.escapeHtml || ((value) => String(value === null || value === undefined ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;'));
+  const html = CORE.html || (() => {
+    const isSafe = (v) => Boolean(v) && typeof v === 'object' && v.__paviaSafeHtml === true;
+    const resolve = (v) => {
+      if (v === null || v === undefined || v === false) return '';
+      if (isSafe(v)) return v.value;
+      if (Array.isArray(v)) return v.map(resolve).join('');
+      return esc(v);
+    };
+    const mark = (str) => { const value = String(str === null || str === undefined ? '' : str); return { __paviaSafeHtml: true, value, toString() { return value; } }; };
+    const fn = (strings, ...vals) => {
+      let out = strings[0];
+      for (let i = 0; i < vals.length; i += 1) out += resolve(vals[i]) + strings[i + 1];
+      return mark(out);
+    };
+    fn.raw = (v) => mark(v);
+    return fn;
+  })();
+  const safeImg = CORE.safeImageSrc || ((value, fallback = 'assets/logo.svg') => {
+    const str = String(value === null || value === undefined ? '' : value).trim();
+    return str || fallback;
+  });
+  const safeColor = CORE.safeCssColor || ((value, fallback = '#a78970') => {
+    const str = String(value === null || value === undefined ? '' : value).trim();
+    return /^#[0-9a-fA-F]{3,8}$/.test(str) || /^[a-zA-Z]{1,24}$/.test(str) ? str : fallback;
+  });
+  const safeUrl = CORE.safeExternalUrl || ((value, fallback = '') => {
+    const str = String(value === null || value === undefined ? '' : value).trim();
+    return /^https?:\/\//i.test(str) ? str : fallback;
+  });
+  const setHtml = (el, safe) => { if (el) el.innerHTML = String(safe); };
+  const prefersReducedMotion = () => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+
+  // ---------- P16: storefront resilience state ----------
+  let loadError = false;          // true when a catalog load truly failed with no data
+  let lastDrawerFocus = null;     // restore focus when a drawer closes
   const debounce = (fn, ms = 200) => {
     let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
   };
@@ -317,20 +360,221 @@
       el.href = `https://wa.me/${String(config.whatsappNumber).replace(/\D/g, '')}`;
     });
     $$('[data-instagram-link]').forEach((el) => {
-      el.href = config.instagramUrl;
+      el.href = safeUrl(config.instagramUrl, 'https://instagram.com/');
     });
 
     document.title = `${config.siteTitle} · ${config.tagline}`;
   }
 
-  async function loadProducts() {
-    const records = BACKEND
-      ? await BACKEND.products.list()
-      : readJSON(STORE_KEYS.products, window.PAVIA_DEFAULT_PRODUCTS || []);
-    const normalized = records.map(normalizeProduct).filter(product => product.active);
-    products = BACKEND
-      ? await BACKEND.media.resolveProductImages(normalized)
-      : normalized;
+  // ---------- Revision-aware catalog cache (P14) ----------
+  const CatalogCache = window.PaviaCatalogCache || null;
+  let rawById = new Map();        // id -> raw public product record (pre-normalize)
+  let knownRevs = {};             // id -> rev currently held, for manifest diffing
+  let currentManifest = null;     // last manifest we synced/persisted
+
+  function orderRawProducts(list) {
+    return [...list].sort((a, b) => {
+      const order = (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+      return order || String(a.name || a.id).localeCompare(String(b.name || b.id));
+    });
+  }
+
+  // Resolve image URLs through the persisted imageVersion-keyed cache so unchanged
+  // images are never re-resolved or re-fetched from Google Drive.
+  async function resolveProductImagesCached(list) {
+    if (!BACKEND) return list;
+    const resolved = [];
+    for (const product of list) {
+      const key = CORE.imageCacheKey ? CORE.imageCacheKey(product) : '';
+      const cachedUrl = key && CatalogCache ? await CatalogCache.getResolvedImage(key) : null;
+      if (cachedUrl && (!CORE.isStableImageUrl || CORE.isStableImageUrl(cachedUrl))) {
+        resolved.push({ ...product, imageSource: product.image, image: cachedUrl });
+        continue;
+      }
+      const [one] = await BACKEND.media.resolveProductImages([product]);
+      resolved.push(one);
+      if (key && CatalogCache && (!CORE.isStableImageUrl || CORE.isStableImageUrl(one.image))) {
+        await CatalogCache.putResolvedImage(key, one.image);
+      }
+    }
+    return resolved;
+  }
+
+  async function rebuildProductsFromRaw() {
+    const normalized = orderRawProducts([...rawById.values()])
+      .map(normalizeProduct)
+      .filter((product) => product.active);
+    products = await resolveProductImagesCached(normalized);
+  }
+
+  async function persistCatalog() {
+    if (!CatalogCache) return;
+    try {
+      await CatalogCache.writeCatalog([...rawById.values()], currentManifest);
+    } catch (error) {
+      /* cache persistence is best effort */
+    }
+  }
+
+  // Differential sync: read the tiny manifest, fetch only changed/new product nodes,
+  // reuse cached objects for unchanged ids, drop deleted ids. Falls back to a full
+  // list when no manifest exists, and keeps the cached catalog when offline.
+  async function syncCatalog() {
+    let manifest = null;
+    let errored = false;
+    try {
+      manifest = BACKEND?.catalog?.readManifest ? await BACKEND.catalog.readManifest() : null;
+    } catch (error) {
+      errored = true;
+    }
+
+    if (errored && rawById.size) { loadError = false; return; } // offline: keep the cached catalog
+
+    const nextRevs = manifest && CORE.manifestProductRevs ? CORE.manifestProductRevs(manifest) : {};
+    if (manifest && Object.keys(nextRevs).length) {
+      const cold = rawById.size === 0;
+      const { changed, removed } = CORE.diffManifest(knownRevs, nextRevs);
+      const toFetch = cold ? Object.keys(nextRevs) : changed;
+      if (toFetch.length) {
+        try {
+          const fetched = await BACKEND.catalog.fetchProducts(toFetch);
+          fetched.forEach((record) => rawById.set(String(record.id), record));
+        } catch (error) {
+          errored = true;
+        }
+      }
+      removed.forEach((id) => rawById.delete(String(id)));
+      [...rawById.keys()].forEach((id) => { if (nextRevs[id] === undefined) rawById.delete(id); });
+      knownRevs = nextRevs;
+      currentManifest = manifest;
+    } else {
+      // No manifest yet (local provider or unseeded production): full list.
+      let records = [];
+      try {
+        records = BACKEND
+          ? await BACKEND.products.list()
+          : readJSON(STORE_KEYS.products, window.PAVIA_DEFAULT_PRODUCTS || []);
+      } catch (error) {
+        errored = true;
+      }
+      if (!records.length && rawById.size) { loadError = false; return; } // keep cache rather than blanking
+      rawById = new Map(records.map((record) => [String(record.id), record]));
+      currentManifest = CORE.buildCatalogManifest ? CORE.buildCatalogManifest(records, Date.now()) : null;
+      knownRevs = CORE.manifestProductRevs ? CORE.manifestProductRevs(currentManifest) : {};
+    }
+
+    // Only a genuine failure with no catalog at all surfaces the error/retry state.
+    loadError = errored && rawById.size === 0;
+    await rebuildProductsFromRaw();
+    if (rawById.size) await persistCatalog();
+  }
+
+  async function retryLoad() {
+    loadError = false;
+    showSkeletons();
+    try {
+      await syncCatalog();
+    } catch (error) {
+      loadError = true;
+    }
+    renderCategories();
+    renderProducts();
+    renderRecent();
+    updateStructuredData();
+  }
+
+  function siteOrigin() {
+    try {
+      return new URL('.', document.baseURI).href.replace(/\/+$/, '');
+    } catch (error) {
+      return location.origin;
+    }
+  }
+
+  // Inject/refresh an ItemList of Products as JSON-LD (a data block, not executed,
+  // so it is unaffected by the strict script-src CSP).
+  function updateStructuredData() {
+    if (!CORE.buildProductListJsonLd) return;
+    const data = CORE.buildProductListJsonLd(products, {
+      siteUrl: siteOrigin(),
+      siteName: SITE_CONFIG.siteTitle || 'Pavia Lebanon',
+      currency: SITE_CONFIG.currency || 'USD',
+      limit: 24,
+    });
+    let script = document.querySelector('script[data-product-jsonld]');
+    if (!script) {
+      script = document.createElement('script');
+      script.type = 'application/ld+json';
+      script.setAttribute('data-product-jsonld', '');
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify(data);
+  }
+
+  // Point og:image/twitter:image at a real featured product image when one exists.
+  // Local placeholder SVGs are skipped so the static social card stays valid until
+  // Drive-hosted product photos are published.
+  function updateSocialImage() {
+    const featured = products.find((p) => p.featured && p.image) || products.find((p) => p.image);
+    const candidate = SITE_CONFIG.ogImage || featured?.image || '';
+    const absolute = CORE.absoluteImageUrl ? CORE.absoluteImageUrl(candidate, siteOrigin()) : candidate;
+    if (!/^https:\/\//i.test(absolute) || /\.svg(?:$|\?)/i.test(absolute)) return;
+    $$('meta[property="og:image"], meta[name="twitter:image"]').forEach((el) => el.setAttribute('content', absolute));
+  }
+
+  function setOfflineBanner(offline) {
+    const banner = $('[data-offline-banner]');
+    if (banner) banner.hidden = !offline;
+  }
+
+  function updateOnlineStatus() {
+    setOfflineBanner(navigator.onLine === false);
+  }
+
+  async function onReconnect() {
+    setOfflineBanner(false);
+    try {
+      await syncCatalog();
+    } catch (error) {
+      /* keep showing the cached catalog */
+    }
+    renderCategories();
+    renderProducts();
+    renderRecent();
+    updateStructuredData();
+    updateSocialImage();
+  }
+
+  // Stale-while-revalidate first paint: render the IndexedDB-cached catalog instantly.
+  async function paintFromCache() {
+    if (!CatalogCache) return false;
+    let cached = null;
+    try {
+      cached = await CatalogCache.readCatalog();
+    } catch (error) {
+      return false;
+    }
+    if (!cached || !Array.isArray(cached.rawProducts) || !cached.rawProducts.length) return false;
+    rawById = new Map(cached.rawProducts.map((record) => [String(record.id), record]));
+    currentManifest = cached.manifest || null;
+    knownRevs = CORE.manifestProductRevs ? CORE.manifestProductRevs(currentManifest) : {};
+    await rebuildProductsFromRaw();
+    return products.length > 0;
+  }
+
+  function subscribeCatalog() {
+    if (!BACKEND) return;
+    const onChange = async () => {
+      await syncCatalog();
+      renderCategories();
+      renderProducts();
+      renderRecent();
+      renderCart();
+      updateStructuredData();
+      updateSocialImage();
+    };
+    if (BACKEND.catalog?.subscribeManifest) BACKEND.catalog.subscribeManifest(onChange);
+    else BACKEND.products.subscribe(onChange);
   }
 
   async function loadBackendPublicConfig() {
@@ -348,17 +592,20 @@
 
   async function init() {
     $('[data-year]').textContent = new Date().getFullYear();
-    showSkeletons();
+    // Instant first paint from the cached catalog, else skeletons.
+    const painted = await paintFromCache();
+    if (painted) {
+      renderCategories();
+      renderProducts();
+      renderRecent();
+    } else {
+      showSkeletons();
+    }
     if (BACKEND) {
       await BACKEND.init({ defaultProducts: window.PAVIA_DEFAULT_PRODUCTS || [] });
       await loadBackendPublicConfig();
-      await loadProducts();
-      BACKEND.products.subscribe(async () => {
-        await loadProducts();
-        renderCategories();
-        renderProducts();
-        renderRecent();
-      });
+      await syncCatalog();
+      subscribeCatalog();
       BACKEND.settings?.subscribe?.(async () => {
         await loadBackendPublicConfig();
         applySiteConfig();
@@ -369,19 +616,32 @@
         renderCart();
       });
       void BACKEND.analytics.recordSessionVisit();
+    } else {
+      await syncCatalog();
     }
     applySiteConfig();
     renderCategories();
-    // Stagger the actual product render so the skeletons get a moment to breathe
-    setTimeout(() => {
+    if (painted) {
+      // Cache already painted; patch in the revalidated catalog immediately.
       renderProducts();
       renderRecent();
-    }, 250);
+    } else {
+      // Stagger the first render so the skeletons get a moment to breathe.
+      setTimeout(() => {
+        renderProducts();
+        renderRecent();
+      }, 250);
+    }
     renderCart();
     renderWishlist();
     bindEvents();
     setupRevealObserver();
     registerServiceWorker();
+    updateStructuredData();
+    updateSocialImage();
+    updateOnlineStatus();
+    window.addEventListener('online', onReconnect);
+    window.addEventListener('offline', () => setOfflineBanner(true));
   }
 
   // ---------- Event bindings ----------
@@ -472,6 +732,8 @@
       }
       trapFocus(e, n.modal);
       trapFocus(e, n.checkoutModal);
+      trapFocus(e, n.cartDrawer);
+      trapFocus(e, n.wishlistDrawer);
     });
 
     // Smooth-scroll fallback for anchor links (some browsers don't honor hash with sticky header)
@@ -510,9 +772,9 @@
 
   // ---------- Categories ----------
   function renderCategories() {
-    n.categoryPills.innerHTML = categories().map(c => `
+    setHtml(n.categoryPills, html`${categories().map(c => html`
       <button type="button" class="${c === activeCategory ? 'is-active' : ''}" data-category="${c}">${c}</button>
-    `).join('');
+    `)}`);
     $$('[data-category]', n.categoryPills).forEach(b => {
       b.addEventListener('click', () => {
         activeCategory = b.dataset.category;
@@ -576,8 +838,8 @@
   function productCard(p) {
     const colors = (p.colors || []).map(colorObj);
     const swatches = colors.slice(0, 4)
-      .map(c => `<span style="background:${c.hex}"></span>`).join('');
-    const moreCount = colors.length > 4 ? `<span class="color-mini-count">+${colors.length - 4}</span>` : '';
+      .map(c => html`<span style="background:${safeColor(c.hex)}"></span>`);
+    const moreCount = colors.length > 4 ? html`<span class="color-mini-count">+${colors.length - 4}</span>` : '';
     const onSale = p.compareAt && p.compareAt > p.price;
     const savePct = onSale ? Math.round((1 - p.price / p.compareAt) * 100) : 0;
     const soldOut = p.stock <= 0;
@@ -585,17 +847,17 @@
     const stockCopy = stockMessage(p);
 
     const badges = [];
-    if (norm(p.badge) === 'new') badges.push(`<span class="badge new">${p.badge}</span>`);
-    else if (onSale) badges.push(`<span class="badge sale">-${savePct}%</span>`);
-    if (soldOut) badges.push('<span class="badge sold">Sold out</span>');
-    else if (lowStock) badges.push(`<span class="badge low">Only ${p.stock} left</span>`);
-    if (!badges.length && p.badge) badges.push(`<span class="badge">${p.badge}</span>`);
+    if (norm(p.badge) === 'new') badges.push(html`<span class="badge new">${p.badge}</span>`);
+    else if (onSale) badges.push(html`<span class="badge sale">-${savePct}%</span>`);
+    if (soldOut) badges.push(html.raw('<span class="badge sold">Sold out</span>'));
+    else if (lowStock) badges.push(html`<span class="badge low">Only ${p.stock} left</span>`);
+    if (!badges.length && p.badge) badges.push(html`<span class="badge">${p.badge}</span>`);
 
-    return `
+    return html`
       <article class="product-card reveal" data-low-stock="${lowStock}" data-sold-out="${soldOut}" data-product-id="${p.id}">
         <div class="product-media">
-          <img src="${p.image}" alt="${p.name}" loading="lazy" width="640" height="800" />
-          <div class="badge-stack">${badges.join('')}</div>
+          <img src="${safeImg(p.image)}" alt="${p.name}" loading="lazy" decoding="async" width="640" height="800" />
+          <div class="badge-stack">${badges}</div>
           <button class="wish-btn ${wishlist.includes(p.id) ? 'is-active' : ''}" data-wish="${p.id}" aria-label="Save ${p.name}">
             <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>
           </button>
@@ -609,7 +871,7 @@
           <h3 class="product-name" data-quick-view="${p.id}" role="button" tabindex="0">${p.name}</h3>
           <div class="product-price">
             <span class="now">${money(p.price)}</span>
-            ${onSale ? `<span class="was">${money(p.compareAt)}</span><span class="save">Save ${savePct}%</span>` : ''}
+            ${onSale ? html`<span class="was">${money(p.compareAt)}</span><span class="save">Save ${savePct}%</span>` : ''}
           </div>
           <div class="color-mini">${swatches}${moreCount}</div>
           <div class="stock-bar">${stockCopy}</div>
@@ -619,6 +881,27 @@
   }
 
   function renderProducts() {
+    // Catalog-level states (error / genuinely empty) take precedence over filter-empty.
+    if (!products.length) {
+      n.resultCount.textContent = 0;
+      if (loadError) {
+        n.productGrid.innerHTML = `
+          <div class="empty-state load-error" role="alert">
+            <h3>Couldn't load the collection</h3>
+            <p>Check your connection and try again.</p>
+            <button type="button" class="btn btn-primary" data-retry-load>Retry</button>
+          </div>`;
+        $('[data-retry-load]', n.productGrid)?.addEventListener('click', () => void retryLoad());
+      } else {
+        n.productGrid.innerHTML = `
+          <div class="empty-state">
+            <h3>Collection coming soon</h3>
+            <p>New pieces are on their way.</p>
+          </div>`;
+      }
+      return;
+    }
+
     const result = filteredProducts();
     n.resultCount.textContent = result.length;
 
@@ -633,10 +916,11 @@
       return;
     }
 
-    n.productGrid.innerHTML = result.map(productCard).join('');
-    // Stagger reveal
+    setHtml(n.productGrid, html`${result.map(productCard)}`);
+    // Reveal cards; skip the stagger entirely for reduced-motion users.
+    const reduce = prefersReducedMotion();
     $$('.product-grid .reveal').forEach((el, i) => {
-      el.style.transitionDelay = `${Math.min(i * 40, 320)}ms`;
+      if (!reduce) el.style.transitionDelay = `${Math.min(i * 40, 320)}ms`;
       requestAnimationFrame(() => el.classList.add('is-visible'));
     });
 
@@ -704,17 +988,17 @@
     const gallery = productGallery(p);
     selectedQty = Math.min(Math.max(1, selectedQty), Math.max(1, maxQty));
 
-    n.modalContent.innerHTML = `
+    setHtml(n.modalContent, html`
       <div class="modal-product">
         <div class="image-wrap">
-          <img src="${selectedImage || p.image}" alt="${p.name}" width="720" height="780" />
-          ${gallery.length > 1 ? `
+          <img src="${safeImg(selectedImage || p.image)}" alt="${p.name}" decoding="async" width="720" height="780" />
+          ${gallery.length > 1 ? html`
             <div class="modal-gallery" aria-label="Product images">
-              ${gallery.map((src, index) => `
-                <button type="button" class="${src === selectedImage ? 'is-selected' : ''}" data-gallery-src="${src}" aria-label="View image ${index + 1}">
-                  <img src="${src}" alt="" width="64" height="80" loading="lazy" />
+              ${gallery.map((src, index) => html`
+                <button type="button" class="${src === selectedImage ? 'is-selected' : ''}" data-gallery-src="${safeImg(src)}" aria-label="View image ${index + 1}">
+                  <img src="${safeImg(src)}" alt="" width="64" height="80" loading="lazy" decoding="async" />
                 </button>
-              `).join('')}
+              `)}
             </div>
           ` : ''}
         </div>
@@ -722,33 +1006,33 @@
           <span class="eyebrow">${p.category} · ${p.badge || ''}</span>
           <h2 id="modalTitle">${p.name}</h2>
           <p class="muted">${p.description}</p>
-          ${(p.material || p.fit || p.care) ? `
+          ${(p.material || p.fit || p.care) ? html`
             <dl class="product-extra-details">
-              ${p.material ? `<div><dt>Material</dt><dd>${p.material}</dd></div>` : ''}
-              ${p.fit ? `<div><dt>Fit</dt><dd>${p.fit}</dd></div>` : ''}
-              ${p.care ? `<div><dt>Care</dt><dd>${p.care}</dd></div>` : ''}
+              ${p.material ? html`<div><dt>Material</dt><dd>${p.material}</dd></div>` : ''}
+              ${p.fit ? html`<div><dt>Fit</dt><dd>${p.fit}</dd></div>` : ''}
+              ${p.care ? html`<div><dt>Care</dt><dd>${p.care}</dd></div>` : ''}
             </dl>
           ` : ''}
           <div class="modal-price-row">
             <span class="now">${money(p.price)}</span>
-            ${onSale ? `<span class="was">${money(p.compareAt)}</span><span class="save">Save ${savePct}%</span>` : ''}
+            ${onSale ? html`<span class="was">${money(p.compareAt)}</span><span class="save">Save ${savePct}%</span>` : ''}
           </div>
 
           <div class="option-group">
             <div class="label"><span>Size</span><span>${selectedSize}</span></div>
             <div class="size-options">
-              ${p.sizes.map(s => `<button type="button" class="${s === selectedSize ? 'is-selected' : ''}" data-size="${s}">${s}</button>`).join('')}
+              ${p.sizes.map(s => html`<button type="button" class="${s === selectedSize ? 'is-selected' : ''}" data-size="${s}">${s}</button>`)}
             </div>
           </div>
 
           <div class="option-group">
             <div class="label"><span>Color</span><span>${selectedColor}</span></div>
             <div class="color-swatches">
-              ${colors.map(c => `
+              ${colors.map(c => html`
                 <button type="button" class="${c.name === selectedColor ? 'is-selected' : ''}" data-color="${c.name}">
-                  <span class="color-dot" style="background:${c.hex}"></span>${c.name}
+                  <span class="color-dot" style="background:${safeColor(c.hex)}"></span>${c.name}
                 </button>
-              `).join('')}
+              `)}
             </div>
           </div>
 
@@ -781,7 +1065,7 @@
           </div>
         </div>
       </div>
-    `;
+    `);
 
     const modalAddButton = $('[data-modal-add]', n.modalContent);
     if (modalAddButton) {
@@ -913,9 +1197,9 @@
       return;
     }
 
-    n.cartItems.innerHTML = cart.map(i => `
+    setHtml(n.cartItems, html`${cart.map(i => html`
       <article class="cart-row" data-key="${i.key}">
-        <img src="${getProduct(i.id)?.image || i.image}" alt="${i.name}" />
+        <img src="${safeImg(getProduct(i.id)?.image || i.image)}" alt="${i.name}" loading="lazy" decoding="async" width="76" height="96" />
         <div class="cart-row-content">
           <h3>${i.name}</h3>
           <div class="meta">${i.size} · ${i.color}</div>
@@ -931,7 +1215,7 @@
         </div>
         <button class="remove-btn" type="button" data-remove="${i.key}" aria-label="Remove ${i.name}">×</button>
       </article>
-    `).join('');
+    `)}`);
 
     $$('[data-cart-change]').forEach(b => b.addEventListener('click', () => changeCartQty(b.dataset.cartChange, b.dataset.direction)));
     $$('[data-remove]').forEach(b => b.addEventListener('click', () => {
@@ -985,9 +1269,9 @@
         </div>`;
       return;
     }
-    n.wishlistItems.innerHTML = items.map(p => `
+    setHtml(n.wishlistItems, html`${items.map(p => html`
       <article class="cart-row">
-        <img src="${p.image}" alt="${p.name}" />
+        <img src="${safeImg(p.image)}" alt="${p.name}" loading="lazy" decoding="async" width="76" height="96" />
         <div class="cart-row-content">
           <h3>${p.name}</h3>
           <div class="meta">${p.category} · ${p.badge || ''}</div>
@@ -1001,7 +1285,7 @@
         </div>
         <button class="remove-btn" type="button" data-wish-remove="${p.id}" aria-label="Remove ${p.name}">×</button>
       </article>
-    `).join('');
+    `)}`);
 
     $$('[data-wish-quick]').forEach(b => b.addEventListener('click', () => {
       closeDrawer(n.wishlistDrawer);
@@ -1025,32 +1309,36 @@
       return;
     }
     n.recentSection.classList.add('is-visible');
-    n.recentList.innerHTML = items.map(p => `
+    setHtml(n.recentList, html`${items.map(p => html`
       <div class="recent-card" data-recent-view="${p.id}">
-        <img src="${p.image}" alt="${p.name}" loading="lazy" />
+        <img src="${safeImg(p.image)}" alt="${p.name}" loading="lazy" decoding="async" width="140" height="154" />
         <div>
           <strong>${p.name}</strong>
           <span>${money(p.price)}</span>
         </div>
       </div>
-    `).join('');
+    `)}`);
     $$('[data-recent-view]').forEach(c => c.addEventListener('click', () => openProductModal(c.dataset.recentView)));
   }
 
   // ---------- Drawers ----------
   function openDrawer(d) {
     if (!d) return;
+    lastDrawerFocus = document.activeElement;
     d.classList.add('is-open');
     d.setAttribute('aria-hidden', 'false');
     document.body.classList.add('no-scroll');
+    requestAnimationFrame(() => focusableElements(d)[0]?.focus());
   }
   function closeDrawer(d) {
     if (!d) return;
+    const wasOpen = d.classList.contains('is-open');
     d.classList.remove('is-open');
     d.setAttribute('aria-hidden', 'true');
     if (!n.modal.classList.contains('is-open') && !n.checkoutModal.classList.contains('is-open')) {
       document.body.classList.remove('no-scroll');
     }
+    if (wasOpen) lastDrawerFocus?.focus?.();
   }
 
   // ---------- Promo ----------
@@ -1118,17 +1406,17 @@
     const discount = discountAmount();
     const delivery = deliveryFee(formCity, deliveryArea);
     const total = Math.max(0, subtotal - discount) + delivery;
-    n.checkoutSummary.innerHTML = `
-      ${cart.map(i => `
+    setHtml(n.checkoutSummary, html`
+      ${cart.map(i => html`
         <div class="summary-line">
           <span>${i.qty}× ${i.name}<br><small style="color:var(--muted)">${i.size} · ${i.color}</small></span>
           <strong>${money(i.price * i.qty)}</strong>
-        </div>`).join('')}
+        </div>`)}
       <div class="summary-line"><span>Subtotal</span><strong>${money(subtotal)}</strong></div>
-      ${discount > 0 ? `<div class="summary-line"><span>Discount${appliedPromo ? ` (${appliedPromo})` : ''}</span><strong>-${money(discount)}</strong></div>` : ''}
+      ${discount > 0 ? html`<div class="summary-line"><span>Discount${appliedPromo ? ` (${appliedPromo})` : ''}</span><strong>-${money(discount)}</strong></div>` : ''}
       <div class="summary-line"><span>Delivery</span><strong>${delivery ? money(delivery) : 'Free'}</strong></div>
       <div class="summary-line total"><span>Total</span><strong>${money(total)}</strong></div>
-    `;
+    `);
   }
 
   function orderText(formData = null) {
@@ -1238,7 +1526,8 @@
     }
     void BACKEND?.analytics.recordEvent('order_created');
 
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(txt)}`, '_blank', 'noopener,noreferrer');
+    const whatsappDigits = String(WHATSAPP_NUMBER).replace(/\D/g, '');
+    window.open(`https://wa.me/${whatsappDigits}?text=${encodeURIComponent(txt)}`, '_blank', 'noopener,noreferrer');
     toast(`Order ${order.orderNumber || orderNumber} prepared.`);
     if (n.checkoutSuccess) {
       n.checkoutSuccess.textContent = `Order ${order.orderNumber || orderNumber} is saved. Send the WhatsApp message to confirm with Pavia.`;

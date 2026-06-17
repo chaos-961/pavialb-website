@@ -1,26 +1,14 @@
-// Legacy local product image presets.
-// New production products should use encrypted Pages media or another approved
-// HTTPS image host. These IDs remain only for migration.
-window.PAVIA_IMAGE_CATALOG = Object.freeze({
-  'pavia-look-01': 'assets/placeholders/pavia-look-01.svg',
-  'pavia-look-02': 'assets/placeholders/pavia-look-02.svg',
-  'pavia-look-03': 'assets/placeholders/pavia-look-03.svg',
-  'pavia-look-04': 'assets/placeholders/pavia-look-04.svg',
-  'pavia-look-05': 'assets/placeholders/pavia-look-05.svg',
-  'pavia-look-06': 'assets/placeholders/pavia-look-06.svg',
-  'pavia-look-07': 'assets/placeholders/pavia-look-07.svg',
-  'pavia-look-08': 'assets/placeholders/pavia-look-08.svg',
-  'pavia-look-09': 'assets/placeholders/pavia-look-09.svg',
-  'pavia-look-10': 'assets/placeholders/pavia-look-10.svg',
-});
-
-  window.PAVIA_IMAGE_PLACEHOLDER = 'assets/logo.svg';
+// Legacy preset assets no longer ship with the storefront. Existing old records
+// that still contain preset IDs resolve to the neutral logo until they are
+// replaced with Google Drive HTTPS image URLs.
+window.PAVIA_IMAGE_CATALOG = Object.freeze({});
+window.PAVIA_IMAGE_PLACEHOLDER = 'assets/logo.svg';
 
 window.PaviaImages = Object.freeze({
   resolve(value) {
     const key = String(value || '').trim();
     const catalog = window.PAVIA_IMAGE_CATALOG || {};
-    const fallback = catalog[window.PAVIA_IMAGE_PLACEHOLDER] || 'assets/logo.svg';
+    const fallback = window.PAVIA_IMAGE_PLACEHOLDER || 'assets/logo.svg';
 
     if (!key) return fallback;
     if (catalog[key]) return catalog[key];

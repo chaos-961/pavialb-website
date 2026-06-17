@@ -484,5 +484,105 @@ if (invalidSubscriberWrite.ok) {
   throw new Error('Expected subscriber write without consent to be denied.');
 }
 
+// --- P14 revision-aware cache: manifest seeded, single-node fetch, rev/manifest bump ---
+const seededManifest = await (await fetch(databaseUrl('publicCatalogManifest', identity.idToken))).json();
+if (!seededManifest || typeof seededManifest.catalogRev !== 'number') {
+  throw new Error('Expected publicCatalogManifest.catalogRev to be seeded as a number.');
+}
+if (Object.keys(seededManifest.products || {}).length !== 12) {
+  throw new Error(`Expected 12 product revisions in the seeded manifest, got ${Object.keys(seededManifest.products || {}).length}.`);
+}
+if (seededManifest.products['blue-pearl-blouse'] !== 1) {
+  throw new Error('Expected seeded rev 1 for blue-pearl-blouse in the manifest.');
+}
+
+// Differential sync fetches only changed ids, one node at a time.
+const singleNode = await (await fetch(databaseUrl('publicProducts/blue-pearl-blouse', identity.idToken))).json();
+if (!singleNode || singleNode.id !== 'blue-pearl-blouse') {
+  throw new Error('Expected to fetch a single public product node by id.');
+}
+
+// An admin save bumps the product rev and the manifest so storefronts detect the delta.
+const revBumpWrite = await fetch(databaseUrl('', identity.idToken), {
+  method: 'PATCH',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    'products/blue-pearl-blouse/rev': 2,
+    'publicProducts/blue-pearl-blouse/rev': 2,
+    'publicCatalogManifest/products/blue-pearl-blouse': 2,
+    'publicCatalogManifest/catalogRev': Date.now(),
+  }),
+});
+if (!revBumpWrite.ok) {
+  throw new Error(`Expected manifest/rev bump write to succeed, got HTTP ${revBumpWrite.status}.`);
+}
+const bumpedRev = await (await fetch(databaseUrl('publicCatalogManifest/products/blue-pearl-blouse', identity.idToken))).json();
+if (bumpedRev !== 2) {
+  throw new Error(`Expected bumped manifest rev 2, got ${bumpedRev}.`);
+}
+console.log('RTDB P14 cache: manifest seeded (12 revs), single-node fetch, and rev/manifest bump verified.');
+
+// --- P13 storefront security hardening: hostile markup and forged totals rejected ---
+// The clean control proves the only difference (angle brackets / discount bound)
+// is what triggers each denial, not some unrelated validation failure.
+const cleanPublicProduct = { ...publicProduct, id: 'p13-clean', slug: 'p13-clean', name: 'Clean P13 Product' };
+const cleanProductWrite = await fetch(databaseUrl('publicProducts/p13-clean', identity.idToken), {
+  method: 'PUT',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify(cleanPublicProduct),
+});
+if (!cleanProductWrite.ok) {
+  throw new Error(`Expected clean P13 public product write to succeed, got HTTP ${cleanProductWrite.status}.`);
+}
+
+const xssPublicProduct = { ...publicProduct, id: 'p13-xss', slug: 'p13-xss', name: 'Hostile <img src=x onerror=alert(1)>' };
+const xssProductWrite = await fetch(databaseUrl('publicProducts/p13-xss', identity.idToken), {
+  method: 'PUT',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify(xssPublicProduct),
+});
+if (xssProductWrite.ok) {
+  throw new Error('Expected publicProducts angle-bracket name to be rejected by .validate.');
+}
+
+const xssSettingsWrite = await fetch(databaseUrl('publicStoreSettings', identity.idToken), {
+  method: 'PUT',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ ...publicSettingsSmoke, siteName: 'Pavia <script>alert(1)</script>' }),
+});
+if (xssSettingsWrite.ok) {
+  throw new Error('Expected publicStoreSettings angle-bracket siteName to be rejected by .validate.');
+}
+
+const xssPromoWrite = await fetch(databaseUrl('publicPromoCodes/P13XSS', identity.idToken), {
+  method: 'PUT',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    code: 'P13XSS', active: true, type: 'percent', value: 10,
+    label: 'Bad <b>x</b>', minSubtotal: 0, startsAt: '', endsAt: '',
+  }),
+});
+if (xssPromoWrite.ok) {
+  throw new Error('Expected publicPromoCodes angle-bracket label to be rejected by .validate.');
+}
+
+const forgedOrderId = `p13-forged-${Date.now()}`;
+const forgedOrderWrite = await fetch(databaseUrl(`orders/${forgedOrderId}`, identity.idToken), {
+  method: 'PUT',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    ...validStorefrontOrder,
+    id: forgedOrderId,
+    requestId: `p13-forged-req-${Date.now()}`,
+    subtotal: 42,
+    discount: 100,
+    total: -54,
+  }),
+});
+if (forgedOrderWrite.ok) {
+  throw new Error('Expected order with discount > subtotal to be rejected by .validate.');
+}
+console.log('RTDB P13 hardening: angle-bracket name/settings/promo writes and discount>subtotal orders are denied.');
+
 console.log('RTDB P12 password-only model: authed reads/writes, order/subscriber paths, and projections are active.');
 await Promise.all(getApps().map((app) => deleteApp(app)));

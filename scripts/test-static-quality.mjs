@@ -145,6 +145,56 @@ test('Realtime Database rules keep critical paths gated and parse as JSON', asyn
   assert.match(rules.rules.products.$productId['.validate'], /clientSecret/);
 });
 
+test('storefront-facing rules reject markup and bound the order discount (P13)', async () => {
+  const rules = JSON.parse(await text('database.rules.json'));
+  // Angle brackets are rejected in product name (private + public projection).
+  assert.match(rules.rules.products.$productId['.validate'], /name'\)\.val\(\)\.matches\(\/\[<>\]\//);
+  assert.match(rules.rules.publicProducts.$productId['.validate'], /name'\)\.val\(\)\.matches\(\/\[<>\]\//);
+  // Previously-unvalidated storefront projections now have content validation.
+  assert.ok(rules.rules.publicStoreSettings['.validate'], 'publicStoreSettings must have a .validate');
+  assert.match(rules.rules.publicStoreSettings['.validate'], /matches\(\/\[<>\]\//);
+  assert.match(rules.rules.publicStoreSettings['.validate'], /instagramUrl'\)\.val\(\)\.beginsWith\('https:\/\//);
+  assert.ok(rules.rules.publicPromoCodes.$code['.validate'], 'publicPromoCodes/$code must have a .validate');
+  assert.match(rules.rules.publicPromoCodes.$code['.validate'], /matches\(\/\[<>\]\//);
+  // Order totals cannot be forged with a discount larger than the subtotal.
+  assert.match(rules.rules.orders.$orderId['.validate'], /discount'\)\.val\(\) <= newData\.child\('subtotal'\)\.val\(\)/);
+});
+
+test('revision-aware cache is wired into rules and script order (P14)', async () => {
+  const rules = JSON.parse(await text('database.rules.json'));
+  assert.ok(rules.rules.publicCatalogManifest, 'rules must expose publicCatalogManifest');
+  assert.match(rules.rules.publicCatalogManifest['.read'], /auth != null/);
+  assert.match(rules.rules.publicCatalogManifest.catalogRev['.validate'], /isNumber/);
+  assert.match(rules.rules.publicCatalogManifest.products.$productId['.validate'], /isNumber/);
+  // rev is an allowed numeric field on products + the public projection.
+  assert.match(rules.rules.products.$productId['.validate'], /rev'\)\.isNumber/);
+  assert.match(rules.rules.publicProducts.$productId['.validate'], /rev'\)\.isNumber/);
+
+  const html = await text('index.html');
+  const scripts = [...html.matchAll(/<script\s+src="([^"]+)"/g)].map((match) => match[1]);
+  const idx = (needle) => scripts.findIndex((script) => script.includes(needle));
+  assert.ok(idx('js/catalog-cache.js') > -1, 'index.html loads catalog-cache.js');
+  assert.ok(idx('js/store-core.js') < idx('js/catalog-cache.js'), 'store-core loads before catalog-cache');
+  assert.ok(idx('js/catalog-cache.js') < idx('js/app.js'), 'catalog-cache loads before app.js');
+});
+
+test('storefront ships a strict Content-Security-Policy meta (P13)', async () => {
+  const html = await text('index.html');
+  const match = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/);
+  assert.ok(match, 'index.html must declare a CSP meta');
+  const csp = match[1];
+  // The storefront loads no inline/admin Google Identity scripts, so script-src stays strict.
+  assert.match(csp, /script-src 'self' https:\/\/www\.gstatic\.com/);
+  assert.equal(/script-src[^;]*'unsafe-eval'/.test(csp), false, 'script-src must not allow unsafe-eval');
+  assert.equal(/script-src[^;]*'unsafe-inline'/.test(csp), false, 'script-src must stay free of unsafe-inline');
+  assert.match(csp, /object-src 'none'/);
+  assert.match(csp, /base-uri 'none'/);
+  assert.match(csp, /connect-src[^;]*firebasedatabase\.app/);
+  assert.match(csp, /img-src[^;]*drive\.google\.com/);
+  // The storefront must not pull Google Identity Services (admin-only).
+  assert.equal(html.includes('accounts.google.com/gsi/client'), false, 'storefront must not load GIS');
+});
+
 test('HTML references existing script assets in execution order', async () => {
   const htmlFiles = ['index.html', 'admin/index.html'];
   for (const file of htmlFiles) {
@@ -164,6 +214,65 @@ test('HTML references existing script assets in execution order', async () => {
       await text(normalized);
     }
   }
+});
+
+test('admin dashboard ships the P15 UX features', async () => {
+  const dashboardHtml = await text('admin/dashboard.html');
+  const dashboardJs = await text('admin/dashboard.js');
+
+  // Markup: sort controls, bulk bar, inline status, draft banner, optimized preview.
+  for (const marker of ['id="productSort"', 'id="orderSort"', 'id="bulkBar"', 'data-bulk="delete"',
+    'id="productFormStatus"', 'id="draftBanner"', 'id="imageOptimizedPreview"']) {
+    assert.ok(dashboardHtml.includes(marker), `dashboard.html should include ${marker}`);
+  }
+
+  // Behavior: dedup, bulk/inline/reorder, save feedback, unsaved-changes guard.
+  for (const marker of ['shouldReuseImage', 'quickEditProduct', 'runBulkAction', 'reorderProducts',
+    'setButtonLoading', 'compareProducts', 'beforeunload', 'DRAFT_KEY']) {
+    assert.ok(dashboardJs.includes(marker), `dashboard.js should reference ${marker}`);
+  }
+
+  // The product draft must not be persisted under an admin-flagged storage key.
+  assert.equal(/DRAFT_KEY\s*=\s*'[^']*(?:ADMIN|PASSWORD|UNLOCK|SESSION|HASH)/i.test(dashboardJs), false,
+    'draft storage key must avoid admin/credential-flagged names');
+});
+
+test('storefront ships P16 perf / a11y / SEO / PWA improvements', async () => {
+  const html = await text('index.html');
+  const css = await text('css/styles.css');
+  const appJs = await text('js/app.js');
+  const manifest = JSON.parse(await text('manifest.webmanifest'));
+
+  // CLS: product-card images carry loading + decoding + explicit dimensions.
+  assert.match(appJs, /loading="lazy" decoding="async" width="640" height="800"/);
+  // Reduced motion is suppressed beyond just .reveal.
+  assert.match(css, /prefers-reduced-motion: reduce/);
+  assert.match(css, /animation-duration:\s*0\.001ms\s*!important/);
+  // Resilient loading: offline banner + retry state + structured-data injection.
+  assert.match(html, /data-offline-banner/);
+  assert.match(html, /name="twitter:image"/);
+  assert.match(appJs, /updateStructuredData/);
+  assert.match(appJs, /data-retry-load/);
+  // PWA installability: standalone display + at least one maskable icon.
+  assert.equal(manifest.display, 'standalone');
+  assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 1, 'manifest must declare icons');
+  assert.ok(manifest.icons.some((icon) => String(icon.purpose || '').includes('maskable')), 'manifest needs a maskable icon');
+});
+
+test('Pages hygiene keeps planning docs and legacy local product images out of the artifact (P17)', async () => {
+  const buildScript = await text('scripts/build-pages-artifact.mjs');
+  const checkScript = await text('scripts/check-pages-artifact.mjs');
+  const imageCatalog = await text('js/image-catalog.js');
+  const serviceWorker = await text('service-worker.js');
+
+  assert.equal(buildScript.includes("cp(path.join(root, 'assets')"), false, 'Pages build must not copy all assets');
+  assert.match(buildScript, /assets\/logo\.svg/);
+  assert.match(checkScript, /'planning'/);
+  assert.match(checkScript, /'docs'/);
+  assert.match(checkScript, /'assets\/placeholders'/);
+  assert.match(checkScript, /'assets\/products'/);
+  assert.match(imageCatalog, /PAVIA_IMAGE_CATALOG = Object\.freeze\(\{\}\)/);
+  assert.equal(serviceWorker.includes('assets/placeholders/'), false, 'service worker must not precache pruned placeholders');
 });
 
 test('storefront keeps launch-critical accessibility and SEO markers', async () => {

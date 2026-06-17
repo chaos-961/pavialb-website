@@ -491,6 +491,22 @@
       },
     },
 
+    catalog: {
+      // Local mode has no manifest; returning null tells the storefront to take
+      // the full-list path (localStorage reads are already instant). The catalog
+      // cache still persists the result for instant first paint and offline.
+      async readManifest() {
+        return null;
+      },
+      subscribeManifest(listener) {
+        return subscribe('products', listener);
+      },
+      async fetchProducts(ids) {
+        const wanted = new Set((ids || []).map((id) => String(id)));
+        return clone(read(keys.products, []).filter((product) => wanted.has(String(product.id))));
+      },
+    },
+
     media: {
       optimizeImage,
       saveImage,

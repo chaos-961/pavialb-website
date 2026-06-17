@@ -71,6 +71,7 @@ function productRecord(product, index, seededAt) {
     care: product.care || '',
     active: product.active !== false,
     featured: Boolean(product.featured),
+    rev: 1,
     sortOrder: index + 1,
     seoTitle: product.seoTitle || product.name,
     seoDescription: product.seoDescription || product.description || '',
@@ -161,10 +162,14 @@ export async function seedRealtimeDatabase() {
   const promoCodes = {};
   const publicPromoCodes = {};
 
+  const publicCatalogManifest = { catalogRev: Date.parse(seededAt) || 0, products: {} };
   source.products.forEach((product, index) => {
     const record = productRecord(product, index, seededAt);
     products[record.id] = record;
-    if (record.active) publicProducts[record.id] = publicProduct(record);
+    if (record.active) {
+      publicProducts[record.id] = publicProduct(record);
+      publicCatalogManifest.products[record.id] = Number(record.rev) || 1;
+    }
   });
 
   Object.entries(source.promoCodes).forEach(([code, promo]) => {
@@ -183,6 +188,7 @@ export async function seedRealtimeDatabase() {
   await database.ref().update({
     products,
     publicProducts,
+    publicCatalogManifest,
     promoCodes,
     publicPromoCodes,
     storeSettings: settings,

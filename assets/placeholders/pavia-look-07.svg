@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-label="Pavia preset fashion image 7">
-  <rect width="900" height="1200" fill="#edf3f7"/>
-  <circle cx="450" cy="450" r="330" fill="#d3e1ec"/>
-  <path d="M250 350h400l52 600H198l52-600z" fill="#5a7da3"/>
-  <path d="M252 350h396l-198 234L252 350z" fill="#f8fbfd" opacity=".9"/>
-  <path d="M324 590h252M306 704h288M286 818h328" stroke="#d3e1ec" stroke-width="20" stroke-linecap="round"/>
-  <text x="450" y="1084" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" fill="#5d6974">PAVIA LOOK 07</text>
-</svg>

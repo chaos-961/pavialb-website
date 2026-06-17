@@ -33,8 +33,8 @@ Double-click `launch-pavia.bat` to start the local site and open both the storef
 Firebase Anonymous Auth and Realtime Database emulator setup is documented in
 [`docs/FIREBASE-SETUP.md`](docs/FIREBASE-SETUP.md).
 
-Firebase-mode admin writes require both the encrypted local admin unlock and an
-anonymous UID allowlisted in Realtime Database. Firebase Hosting and Firebase
+The current P12 owner decision keeps admin access password-only and leaves RTDB
+writes open to any authenticated anonymous user. Firebase Hosting and Firebase
 Storage are not used.
 
 Admin security setup and payload regeneration are documented in
@@ -66,6 +66,17 @@ The workflow runs syntax and Firebase emulator smoke checks before deployment.
 It builds an explicit `_site` artifact so repository files such as this README,
 local launchers, notes, and workflow configuration are not published as website pages.
 The `.nojekyll` file keeps GitHub Pages in plain static-site mode.
+
+## What Ships
+
+The Pages artifact is an allowlisted static bundle: storefront HTML, the public
+admin shell and encrypted payload, CSS, runtime JavaScript, PWA files, and
+`assets/logo.svg`.
+
+Planning notes, repository docs, tests, Firebase rules/tooling, local launch
+helpers, build output, logs, and legacy placeholder/product SVGs stay out of the
+published artifact. New production product photos should be Drive-hosted HTTPS
+URLs saved through the admin flow, not committed image files.
 
 Local artifact checks:
 

@@ -122,6 +122,206 @@
     };
   }
 
+  // ---- Output escaping / safe templating (storefront XSS hardening) ----
+  // Under the P12 open-write model any signed-in visitor can store arbitrary
+  // strings in product/settings/promo records. Every value rendered into the
+  // DOM must therefore be escaped. escapeHtml() escapes text and attribute
+  // contexts; html`` is an auto-escaping tagged template that is safe by
+  // default — interpolations are escaped unless they are themselves html``
+  // fragments (or html.raw(...)) or arrays of such fragments.
+  function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function isSafeHtml(value) {
+    return Boolean(value) && typeof value === 'object' && value.__paviaSafeHtml === true;
+  }
+
+  function markSafe(str) {
+    const value = str === null || str === undefined ? '' : String(str);
+    return { __paviaSafeHtml: true, value, toString() { return value; } };
+  }
+
+  function resolveHtmlValue(value) {
+    if (value === null || value === undefined || value === false) return '';
+    if (isSafeHtml(value)) return value.value;
+    if (Array.isArray(value)) return value.map(resolveHtmlValue).join('');
+    return escapeHtml(value);
+  }
+
+  function html(strings, ...valuesToInsert) {
+    let out = strings[0];
+    for (let index = 0; index < valuesToInsert.length; index += 1) {
+      out += resolveHtmlValue(valuesToInsert[index]) + strings[index + 1];
+    }
+    return markSafe(out);
+  }
+  html.raw = (value) => markSafe(value);
+
+  // Attribute-value sanitizers (escaping prevents breakout; these add a
+  // scheme/format allowlist as defense in depth so hostile values render inert).
+  function safeImageSrc(value, fallback = 'assets/logo.svg') {
+    const str = String(value === null || value === undefined ? '' : value).trim();
+    if (!str) return fallback;
+    if (/^(?:https?:\/\/|data:image\/|blob:|assets\/|\.\/|\/)/i.test(str)) return str;
+    if (/^[\w./-]+\.(?:svg|png|jpe?g|webp|gif|avif)$/i.test(str)) return str;
+    return fallback;
+  }
+
+  function safeCssColor(value, fallback = '#a78970') {
+    const str = String(value === null || value === undefined ? '' : value).trim();
+    if (/^#[0-9a-fA-F]{3,8}$/.test(str)) return str;
+    if (/^[a-zA-Z]{1,24}$/.test(str)) return str;
+    if (/^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/.test(str)) return str;
+    return fallback;
+  }
+
+  function safeExternalUrl(value, fallback = '') {
+    const str = String(value === null || value === undefined ? '' : value).trim();
+    if (/^https?:\/\//i.test(str) || /^(?:mailto:|tel:)/i.test(str)) return str;
+    return fallback;
+  }
+
+  // ---- Revision-aware catalog cache helpers (P14, pure / node-testable) ----
+  // The storefront keeps a tiny publicCatalogManifest { catalogRev, products: {id:rev} }
+  // so it can detect changes with one small read and fetch only changed product nodes.
+  function manifestProductRevs(manifest) {
+    if (!manifest || typeof manifest !== 'object') return {};
+    const source = manifest.products && typeof manifest.products === 'object' ? manifest.products : {};
+    const revs = {};
+    Object.keys(source).forEach((id) => {
+      const rev = Number(source[id]);
+      if (id && Number.isFinite(rev)) revs[id] = rev;
+    });
+    return revs;
+  }
+
+  function diffManifest(prevRevs = {}, nextRevs = {}) {
+    const prev = prevRevs || {};
+    const next = nextRevs || {};
+    const changed = [];
+    const removed = [];
+    Object.keys(next).forEach((id) => {
+      if (prev[id] === undefined || prev[id] !== next[id]) changed.push(id);
+    });
+    Object.keys(prev).forEach((id) => {
+      if (next[id] === undefined) removed.push(id);
+    });
+    return { changed, removed };
+  }
+
+  function buildCatalogManifest(products = [], catalogRev = 0) {
+    const map = {};
+    (Array.isArray(products) ? products : []).forEach((product) => {
+      const id = String(product?.id || '').trim();
+      if (!id || product.active === false) return;
+      map[id] = Math.max(1, Math.floor(safeNumber(product.rev, 1)) || 1);
+    });
+    return { catalogRev: safeNumber(catalogRev), products: map };
+  }
+
+  // Resolved-image-URL cache key: stable across reloads, busts when imageVersion changes.
+  function imageCacheKey(product = {}) {
+    const base = String(product.driveFileId || product.imageId || product.image || '').trim();
+    if (!base) return '';
+    const version = String(product.imageVersion || '').trim();
+    return `${base}::${version}`;
+  }
+
+  // Only persist resolved URLs that survive a reload (never session-scoped blob: URLs).
+  function isStableImageUrl(url) {
+    const str = String(url || '').trim();
+    if (!str || /^blob:/i.test(str)) return false;
+    return /^(https?:|data:image\/|assets\/|\.{0,2}\/|[\w.-]+\/)/i.test(str) || /^[\w.-]+\.(?:svg|png|jpe?g|webp|gif|avif)/i.test(str);
+  }
+
+  // LRU eviction: returns the keys to delete so a capped cache keeps the most-recent.
+  function pruneLruKeys(entries = [], max = 60) {
+    const list = Array.isArray(entries) ? entries : [];
+    if (list.length <= max) return [];
+    const sorted = [...list].sort((a, b) => (safeNumber(a.lastUsed) - safeNumber(b.lastUsed)));
+    return sorted.slice(0, list.length - max).map((entry) => entry.key);
+  }
+
+  // ---- Admin list/sort + image-dedup helpers (P15, pure / node-testable) ----
+  function compareProducts(key) {
+    const byName = (a, b) => String(a && a.name ? a.name : '').localeCompare(String(b && b.name ? b.name : ''));
+    switch (key) {
+      case 'name':
+        return byName;
+      case 'price':
+        return (a, b) => (safeNumber(a.price) - safeNumber(b.price)) || byName(a, b);
+      case 'price-desc':
+        return (a, b) => (safeNumber(b.price) - safeNumber(a.price)) || byName(a, b);
+      case 'stock':
+        return (a, b) => (safeNumber(a.stock) - safeNumber(b.stock)) || byName(a, b);
+      case 'stock-desc':
+        return (a, b) => (safeNumber(b.stock) - safeNumber(a.stock)) || byName(a, b);
+      default:
+        return (a, b) => (safeNumber(a.sortOrder) - safeNumber(b.sortOrder)) || byName(a, b);
+    }
+  }
+
+  // Dedup an admin image re-upload: reuse the existing Drive file when the freshly
+  // optimized bytes hash to the same value the product already stores.
+  function shouldReuseImage(existingContentHash, candidateContentHash) {
+    const existing = String(existingContentHash || '').trim();
+    const candidate = String(candidateContentHash || '').trim();
+    return Boolean(existing) && existing === candidate;
+  }
+
+  // ---- SEO / structured-data helpers (P16, pure / node-testable) ----
+  function absoluteImageUrl(image, siteUrl = '') {
+    const str = String(image || '').trim();
+    if (!str) return '';
+    if (/^https?:\/\//i.test(str)) return str;
+    if (/^(?:data:|blob:)/i.test(str)) return '';
+    const base = String(siteUrl || '').replace(/\/+$/, '');
+    return base ? `${base}/${str.replace(/^\.?\/+/, '')}` : str;
+  }
+
+  function buildProductListJsonLd(products = [], options = {}) {
+    const siteUrl = String(options.siteUrl || '').replace(/\/+$/, '');
+    const currency = options.currency || 'USD';
+    const limit = Math.max(1, safeNumber(options.limit, 24));
+    const itemListElement = (Array.isArray(products) ? products : [])
+      .filter((product) => product && product.active !== false)
+      .slice(0, limit)
+      .map((product, index) => {
+        const image = absoluteImageUrl(product.image || product.imageUrl || '', siteUrl);
+        const offer = {
+          '@type': 'Offer',
+          price: Math.max(0, safeNumber(product.price)),
+          priceCurrency: currency,
+          availability: safeNumber(product.stock) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        };
+        if (siteUrl && product.id) offer.url = `${siteUrl}/#${product.id}`;
+        const item = {
+          '@type': 'Product',
+          name: String(product.name || 'Product'),
+          offers: offer,
+        };
+        if (image) item.image = image;
+        if (product.description) item.description = String(product.description).slice(0, 300);
+        if (product.sku) item.sku = String(product.sku);
+        if (product.category) item.category = String(product.category);
+        return { '@type': 'ListItem', position: index + 1, item };
+      });
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      name: options.siteName || 'Pavia Lebanon',
+      numberOfItems: itemListElement.length,
+      itemListElement,
+    };
+  }
+
   function normalizeOrderItems(items, options = {}) {
     const maxQty = Math.max(1, safeNumber(options.maxQty, 20));
     const safeKey = options.safeKey || ((value) => String(value || '').trim());
@@ -141,13 +341,28 @@
     calculateOrderTotals,
     calculatePromoDiscount,
     colorObject,
+    escapeHtml,
     formatMoney,
+    html,
     normalizeLebanonPhone,
     normalizeOrderItems,
     normalizeProduct,
     normalizeText,
+    safeCssColor,
+    safeExternalUrl,
+    safeImageSrc,
     safeNumber,
     stringToHex,
+    absoluteImageUrl,
+    buildCatalogManifest,
+    buildProductListJsonLd,
+    compareProducts,
+    diffManifest,
+    imageCacheKey,
+    isStableImageUrl,
+    manifestProductRevs,
+    pruneLruKeys,
+    shouldReuseImage,
   });
 
   global.PaviaStoreCore = api;

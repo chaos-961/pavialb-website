@@ -24,10 +24,9 @@ const required = [
   'js/image-catalog.js',
   'js/drive-images.js',
   'js/store-core.js',
+  'js/catalog-cache.js',
   'js/products.js',
   'assets/logo.svg',
-  'assets/products/blue-pearl-blouse.svg',
-  'assets/placeholders/pavia-look-01.svg',
 ];
 
 const forbidden = [
@@ -39,6 +38,7 @@ const forbidden = [
   'README.md',
   'masterprompt.txt',
   'progress.txt',
+  'planning',
   'database.rules.json',
   'firebase.json',
   'playwright.config.mjs',
@@ -49,6 +49,8 @@ const forbidden = [
   '.gitignore',
   '.github',
   'docs',
+  'assets/placeholders',
+  'assets/products',
   'scripts',
   'tests',
 ];
@@ -58,7 +60,10 @@ const forbiddenSuffixes = [
   '.map',
   '.md',
   '.ps1',
+  '.txt',
 ];
+
+const requiredSet = new Set(required);
 
 async function walk(relativeDir = '') {
   const absoluteDir = path.join(outDir, relativeDir);
@@ -100,7 +105,7 @@ for (const file of forbidden) {
 }
 
 for (const file of await walk()) {
-  if (forbiddenSuffixes.some((suffix) => file.endsWith(suffix))) {
+  if (!requiredSet.has(file) && forbiddenSuffixes.some((suffix) => file.endsWith(suffix))) {
     leaked.push(file);
   }
 }

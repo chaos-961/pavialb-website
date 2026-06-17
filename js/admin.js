@@ -176,7 +176,7 @@
     $('#loginForm').addEventListener('submit', handleUnlock);
     $('#resetIdentityBtn')?.addEventListener('click', async () => {
       const confirmed = window.confirm(
-        'Resetting this anonymous identity can remove admin access until the new UID is allowlisted. Continue?',
+        'Resetting this anonymous identity signs this browser out and reloads admin. Continue?',
       );
       if (!confirmed) return;
       await BACKEND?.signOut?.();

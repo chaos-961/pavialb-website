@@ -28,5 +28,10 @@ _site/
 firebase-export-*/
 emulator-data/
 
+# Local-only planning scratch files
+planning/local/
+planning/*.local.md
+planning/*.tmp.md
+
 # Local Firebase project selection
 .firebaserc

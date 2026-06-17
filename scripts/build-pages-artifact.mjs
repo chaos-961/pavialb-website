@@ -26,7 +26,9 @@ const files = [
   ['js/image-catalog.js', 'js/image-catalog.js'],
   ['js/drive-images.js', 'js/drive-images.js'],
   ['js/store-core.js', 'js/store-core.js'],
+  ['js/catalog-cache.js', 'js/catalog-cache.js'],
   ['js/products.js', 'js/products.js'],
+  ['assets/logo.svg', 'assets/logo.svg'],
 ];
 
 if (!outDir.startsWith(`${root}${path.sep}`)) {
@@ -35,7 +37,6 @@ if (!outDir.startsWith(`${root}${path.sep}`)) {
 
 await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
-await cp(path.join(root, 'assets'), path.join(outDir, 'assets'), { recursive: true });
 
 for (const [source, destination] of files) {
   const target = path.join(outDir, destination);

@@ -121,7 +121,7 @@
       databaseReference(path),
       () => listener(),
       (error) => {
-        const optionalPublicPath = /^public(?:Products|StoreSettings|PromoCodes)/.test(path);
+        const optionalPublicPath = /^public(?:Products|StoreSettings|PromoCodes|CatalogManifest)/.test(path);
         if (optionalPublicPath && error?.code === 'PERMISSION_DENIED') return;
         console.warn(`Pavia Firebase subscription failed for ${path}.`, error);
       },
@@ -239,6 +239,7 @@
       care: product.care || '',
       active: product.active !== false,
       featured: Boolean(product.featured),
+      rev: Math.max(1, Math.floor(Number(product.rev) || 0) + 1),
       sortOrder: Number(product.sortOrder || product.createdAt) || Date.now(),
       seoTitle: product.seoTitle || product.name || 'Pavia product',
       seoDescription: product.seoDescription || product.description || '',
@@ -353,6 +354,8 @@
     const updates = {
       [`products/${record.id}`]: record,
       [`publicProducts/${record.id}`]: record.active ? publicProduct(record) : null,
+      [`publicCatalogManifest/products/${record.id}`]: record.active ? record.rev : null,
+      'publicCatalogManifest/catalogRev': Date.now(),
       [`auditLogs/${Date.now()}-${record.id}`]: {
         actorUid: firebaseState.auth?.currentUser?.uid || '',
         action: 'product.upsert',
@@ -443,13 +446,16 @@
           const record = normalizeProductRecord(product);
           updates[`products/${record.id}`] = record;
           updates[`publicProducts/${record.id}`] = record.active ? publicProduct(record) : null;
+          updates[`publicCatalogManifest/products/${record.id}`] = record.active ? record.rev : null;
         });
         Object.keys(current || {}).forEach((id) => {
           if (!incoming.has(id)) {
             updates[`products/${id}`] = null;
             updates[`publicProducts/${id}`] = null;
+            updates[`publicCatalogManifest/products/${id}`] = null;
           }
         });
+        updates['publicCatalogManifest/catalogRev'] = Date.now();
         await firebaseState.databaseApi.update(databaseReference('/'), updates);
       },
       async upsert(product) {
@@ -464,6 +470,8 @@
         await firebaseState.databaseApi.update(databaseReference('/'), {
           [`products/${productId}`]: null,
           [`publicProducts/${productId}`]: null,
+          [`publicCatalogManifest/products/${productId}`]: null,
+          'publicCatalogManifest/catalogRev': Date.now(),
           [`auditLogs/${Date.now()}-${productId}`]: {
             actorUid: firebaseState.auth?.currentUser?.uid || '',
             action: 'product.remove',
@@ -476,6 +484,32 @@
       subscribe(listener) {
         if (activeProvider === 'local') return localBackend.products.subscribe(listener);
         return subscribePath('publicProducts', listener);
+      },
+    },
+
+    catalog: {
+      // Tiny manifest read used by the storefront to detect catalog changes (P14).
+      async readManifest() {
+        if (activeProvider === 'local') return localBackend.catalog.readManifest();
+        return readPath('publicCatalogManifest');
+      },
+      subscribeManifest(listener) {
+        if (activeProvider === 'local') return localBackend.catalog.subscribeManifest(listener);
+        return subscribePath('publicCatalogManifest', listener);
+      },
+      // Fetch only the changed/new product nodes named by a manifest diff.
+      async fetchProducts(ids) {
+        if (activeProvider === 'local') return localBackend.catalog.fetchProducts(ids);
+        const out = [];
+        for (const id of ids || []) {
+          try {
+            const record = await readPath(`publicProducts/${id}`);
+            if (record) out.push(normalizePublicProduct(record));
+          } catch (error) {
+            /* skip unreadable node; differential sync tolerates gaps */
+          }
+        }
+        return out;
       },
     },
 

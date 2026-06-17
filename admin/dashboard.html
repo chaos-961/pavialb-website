@@ -90,12 +90,31 @@
           Date
           <input id="orderDateFilter" type="date" />
         </label>
+        <label>
+          Sort by
+          <select id="orderSort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="total-desc">Total high to low</option>
+            <option value="total">Total low to high</option>
+          </select>
+        </label>
       </div>
       <div id="availableOrders" class="order-list"></div>
     </div>
   </div>
 
   <div class="admin-panel" data-panel="products">
+    <div class="draft-banner" id="draftBanner" hidden>
+      <div>
+        <strong>Unsaved product draft found</strong>
+        <span id="draftBannerMeta" class="draft-banner-meta"></span>
+      </div>
+      <div class="draft-banner-actions">
+        <button type="button" class="btn btn-secondary" id="draftRestore">Restore draft</button>
+        <button type="button" class="btn btn-ghost" id="draftDiscard">Discard</button>
+      </div>
+    </div>
     <div class="product-editor-layout">
       <div class="panel-card">
         <div class="panel-heading">
@@ -221,6 +240,9 @@
                   <strong>Choose or drop a product photo</strong>
                   <small>The optimized file targets about 300 KB, then uploads to your Google Drive folder.</small>
                 </label>
+                <div class="image-preview-row" id="imagePreviewRow" hidden>
+                  <img id="imageOptimizedPreview" alt="Optimized product image preview" />
+                </div>
                 <div id="imageOptimizationResult" class="image-result" hidden></div>
                 <details class="image-advanced">
                   <summary>Manual/migration image reference</summary>
@@ -302,6 +324,7 @@
           <div class="form-actions sticky-actions">
             <button type="submit" class="btn btn-primary" id="formSubmit">Add product</button>
             <button type="button" class="btn btn-ghost" id="formCancel">Clear form</button>
+            <span class="form-status" id="productFormStatus" role="status" aria-live="polite"></span>
           </div>
         </form>
       </div>
@@ -354,6 +377,30 @@
             <option value="needs-image">Needs Drive/external image</option>
           </select>
         </label>
+        <label>
+          Sort by
+          <select id="productSort">
+            <option value="sortOrder">Sort order (drag to reorder)</option>
+            <option value="name">Name A-Z</option>
+            <option value="price">Price low to high</option>
+            <option value="price-desc">Price high to low</option>
+            <option value="stock">Stock low to high</option>
+            <option value="stock-desc">Stock high to low</option>
+          </select>
+        </label>
+      </div>
+      <div class="bulk-bar" id="bulkBar" hidden>
+        <label class="bulk-select-all">
+          <input type="checkbox" id="bulkSelectAll" />
+          <span><strong id="bulkCount">0</strong> selected</span>
+        </label>
+        <div class="bulk-actions">
+          <button type="button" class="btn btn-secondary" data-bulk="publish">Publish</button>
+          <button type="button" class="btn btn-secondary" data-bulk="unpublish">Unpublish</button>
+          <button type="button" class="btn btn-secondary" data-bulk="stock">Set stock</button>
+          <button type="button" class="btn btn-ghost danger-button" data-bulk="delete">Delete</button>
+          <button type="button" class="btn btn-ghost" id="bulkClear">Clear</button>
+        </div>
       </div>
       <div id="productList" class="product-list"></div>
     </div>

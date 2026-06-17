@@ -3,13 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- Storefront Content-Security-Policy (P13). The storefront loads no Google
+       Identity/Drive scripts (admin-only), so script-src stays strict: 'self' plus
+       the gstatic host for the Firebase modular SDK. connect-src covers Firebase
+       RTDB (https + wss) and Anonymous Auth token endpoints, plus localhost emulator
+       ports for dev. style-src keeps 'unsafe-inline' for inline style attributes.
+       frame-ancestors / HSTS are enforced later at the Cloudflare edge (docs only). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000 http://localhost:9099 http://localhost:9000 ws://localhost:9000" />
   <meta name="theme-color" content="#1a1612" />
   <meta name="description" content="Pavia Lebanon — modern elegant fashion. Crafted for everyday refinement, delivered all over Lebanon." data-site-description />
   <meta property="og:title" content="Pavia Lebanon" />
   <meta property="og:description" content="Modern elegant fashion boutique with delivery across Lebanon." data-site-description />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="assets/placeholders/pavia-look-08.svg" />
+  <meta property="og:image" content="assets/logo.svg" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="assets/logo.svg" />
   <meta name="format-detection" content="telephone=no" />
   <title>Pavia Lebanon · Modern Elegant Fashion</title>
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
@@ -17,7 +25,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="css/styles.css?v=10" />
+  <link rel="stylesheet" href="css/styles.css?v=11" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -37,6 +45,9 @@
 </head>
 <body>
   <a class="skip-link" href="#shop">Skip to shop</a>
+  <div class="offline-banner" data-offline-banner role="status" aria-live="polite" hidden>
+    You're offline — showing your last saved view.
+  </div>
 
   <!-- ========== Header ========== -->
   <header class="site-header" data-header>
@@ -88,13 +99,13 @@
         <div class="hero-visual reveal reveal-delay-150">
           <span class="hero-tag">Eid Collection</span>
           <div class="hero-card main">
-            <img src="assets/placeholders/pavia-look-08.svg" alt="Pavia featured outerwear look" />
+            <img src="assets/logo.svg" alt="Pavia featured outerwear look" />
           </div>
           <div class="hero-card float-1">
-            <img src="assets/placeholders/pavia-look-01.svg" alt="Pavia blue blouse look" />
+            <img src="assets/logo.svg" alt="Pavia blue blouse look" />
           </div>
           <div class="hero-card float-2">
-            <img src="assets/placeholders/pavia-look-09.svg" alt="Pavia satin skirt look" />
+            <img src="assets/logo.svg" alt="Pavia satin skirt look" />
           </div>
         </div>
       </div>
@@ -426,10 +437,11 @@
   <script src="js/firebase-config.js?v=10"></script>
   <script src="js/backend-config.js?v=12"></script>
   <script src="js/image-catalog.js?v=11"></script>
-  <script src="js/store-core.js?v=1"></script>
-  <script src="js/backend.js?v=15"></script>
-  <script src="js/backend-firebase.js?v=19"></script>
+  <script src="js/store-core.js?v=5"></script>
+  <script src="js/catalog-cache.js?v=1"></script>
+  <script src="js/backend.js?v=16"></script>
+  <script src="js/backend-firebase.js?v=20"></script>
   <script src="js/products.js?v=10"></script>
-  <script src="js/app.js?v=13"></script>
+  <script src="js/app.js?v=16"></script>
 </body>
 </html>

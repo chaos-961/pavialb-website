@@ -1,6 +1,7 @@
 {
   "name": "Pavia Elegant Store",
   "short_name": "Pavia",
+  "id": "/index.html",
   "description": "Refined Lebanese fashion boutique — order direct via WhatsApp.",
   "start_url": "./index.html",
   "scope": "./",
@@ -9,12 +10,19 @@
   "background_color": "#f7f1e8",
   "theme_color": "#5e463a",
   "lang": "en",
+  "categories": ["shopping", "lifestyle"],
   "icons": [
     {
       "src": "assets/logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "assets/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }

@@ -1,5 +1,5 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v22';
+const CACHE = 'pavia-v27';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const ASSETS = [
   './',
@@ -8,24 +8,15 @@ const ASSETS = [
   './js/firebase-config.js?v=10',
   './js/backend-config.js?v=10',
   './js/image-catalog.js?v=10',
-  './js/store-core.js?v=1',
-  './js/backend.js?v=14',
-  './js/backend-firebase.js?v=18',
-  './css/styles.css?v=10',
+  './js/store-core.js?v=5',
+  './js/catalog-cache.js?v=1',
+  './js/backend.js?v=16',
+  './js/backend-firebase.js?v=20',
+  './css/styles.css?v=11',
   './js/products.js?v=10',
-  './js/app.js?v=13',
+  './js/app.js?v=16',
   './manifest.webmanifest',
   './assets/logo.svg',
-  './assets/placeholders/pavia-look-01.svg',
-  './assets/placeholders/pavia-look-02.svg',
-  './assets/placeholders/pavia-look-03.svg',
-  './assets/placeholders/pavia-look-04.svg',
-  './assets/placeholders/pavia-look-05.svg',
-  './assets/placeholders/pavia-look-06.svg',
-  './assets/placeholders/pavia-look-07.svg',
-  './assets/placeholders/pavia-look-08.svg',
-  './assets/placeholders/pavia-look-09.svg',
-  './assets/placeholders/pavia-look-10.svg',
 ];
 
 self.addEventListener('install', (event) => {
