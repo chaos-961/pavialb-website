@@ -54,6 +54,22 @@ test('admin unlock cannot be bypassed with browser-stored verifier/session keys'
   }
 });
 
+test('encrypted admin payload does not expose dashboard source in plaintext', async () => {
+  const payload = await text('admin/payload.js');
+  const plaintextMarkers = [
+    '<section id="overview"',
+    'function renderOverview',
+    'Products',
+    'Orders',
+    'Settings',
+    'Promos',
+  ];
+
+  for (const marker of plaintextMarkers) {
+    assert.equal(payload.includes(marker), false, `admin/payload.js exposes plaintext marker ${marker}`);
+  }
+});
+
 test('Realtime Database rules keep critical paths gated and parse as JSON', async () => {
   const rules = JSON.parse(await text('database.rules.json'));
   assert.equal(rules.rules['.read'], false);

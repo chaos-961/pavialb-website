@@ -8,12 +8,13 @@ const projectRoot = path.resolve(scriptDirectory, '..');
 const username = String(process.env.PAVIA_ADMIN_USERNAME || 'admin').trim().toLowerCase();
 const password = process.env.PAVIA_ADMIN_PASSWORD || '';
 const iterations = Number(process.env.PAVIA_ADMIN_PBKDF2_ITERATIONS || 600000);
+const minimumPasswordLength = Number(process.env.PAVIA_ADMIN_MIN_PASSWORD_LENGTH || 8);
 
 if (!password) {
   throw new Error('PAVIA_ADMIN_PASSWORD is required to generate the encrypted admin payload.');
 }
-if (password.length < 16) {
-  throw new Error('PAVIA_ADMIN_PASSWORD must be at least 16 characters for payload generation.');
+if (password.length < minimumPasswordLength) {
+  throw new Error(`PAVIA_ADMIN_PASSWORD must be at least ${minimumPasswordLength} characters for payload generation.`);
 }
 
 function b64(buffer) {

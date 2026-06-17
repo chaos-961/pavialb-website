@@ -21,6 +21,7 @@ seeding them.
 Firebase Storage is intentionally not required for the current no-paid-plan setup.
 Products can use local preset image IDs from `js/image-catalog.js` and `assets/placeholders/`, or a future externally hosted image URL.
 When a permanent image host is chosen later, product records should only need their `imageUrl` or resolver mapping updated.
+For the temporary Google Drive image workflow and compression targets, see `docs/GOOGLE-DRIVE-IMAGES.md`.
 
 Product uploads in the current local admin remain browser-local convenience behavior for testing. They should not be treated as production image hosting.
 
