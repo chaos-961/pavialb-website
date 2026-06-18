@@ -298,7 +298,7 @@
     notice.innerHTML = `
       <p class="admin-kicker">Read-only mode</p>
       <strong>Admin operations are locked for this session.</strong>
-      <p class="desc">The encrypted local password unlock must succeed before editing is enabled. Realtime Database rules require only a signed-in user.</p>
+      <p class="desc">Unlock must succeed before editing is enabled: the password decrypts this dashboard locally and signs in as the admin. Realtime Database rules grant writes only to the verified admin identity.</p>
     `;
     dashboard.prepend(notice);
     $$('form input, form select, form textarea, form button, [data-delete], [data-update-order]')
