@@ -232,6 +232,9 @@ test('admin dashboard ships the P15 UX features', async () => {
     assert.ok(dashboardJs.includes(marker), `dashboard.js should reference ${marker}`);
   }
 
+  assert.doesNotMatch(dashboardJs, /Revenue est\.|Browser\/order snapshot estimate/,
+    'admin overview should not show a revenue estimate');
+
   // The product draft must not be persisted under an admin-flagged storage key.
   assert.equal(/DRAFT_KEY\s*=\s*'[^']*(?:ADMIN|PASSWORD|UNLOCK|SESSION|HASH)/i.test(dashboardJs), false,
     'draft storage key must avoid admin/credential-flagged names');

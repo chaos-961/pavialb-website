@@ -543,15 +543,11 @@
     const pendingPayments = ordersCache.filter((order) => ['pending', 'awaiting_confirmation'].includes(order.paymentStatus));
     const today = todayKey();
     const todayOrders = ordersCache.filter((order) => todayKey(order.createdAt || order.date) === today);
-    const revenue = ordersCache
-      .filter((order) => order.status !== 'cancelled')
-      .reduce((sum, order) => sum + (Number(order.total) || 0), 0);
     const lowStock = productsCache.filter((product) => product.stock > 0 && product.stock <= LOW_STOCK_AT);
 
     $('#metricsGrid').innerHTML = [
       ['Open orders', openOrders.length, 'Orders still in progress'],
       ['Today', todayOrders.length, 'Orders created today'],
-      ['Revenue est.', fmt(revenue), 'Browser/order snapshot estimate'],
       ['Pending pay', pendingPayments.length, 'Manual payment checks'],
       ['Low stock', lowStock.length, `At or below ${LOW_STOCK_AT}`],
     ].map(([label, value, detail]) => `

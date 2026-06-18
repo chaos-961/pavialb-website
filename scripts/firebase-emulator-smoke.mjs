@@ -199,6 +199,30 @@ if (!storefrontOrderWrite.ok) {
   throw new Error(`Valid storefront order write failed with HTTP ${storefrontOrderWrite.status}.`);
 }
 
+// The password-gated dashboard uses its own anonymous Firebase session. Verify
+// that a separate signed-in session can list and display the storefront order.
+const adminSignInResponse = await fetch(
+  'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-pavia-local',
+  {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ returnSecureToken: true }),
+  },
+);
+if (!adminSignInResponse.ok) {
+  throw new Error(`Admin test session sign-in failed with HTTP ${adminSignInResponse.status}.`);
+}
+const adminIdentity = await adminSignInResponse.json();
+const adminOrdersRead = await fetch(databaseUrl('orders', adminIdentity.idToken));
+if (!adminOrdersRead.ok) {
+  throw new Error(`Admin test session could not read orders: HTTP ${adminOrdersRead.status}.`);
+}
+const adminOrders = await adminOrdersRead.json();
+if (adminOrders?.[phase07OrderId]?.orderNumber !== validStorefrontOrder.orderNumber) {
+  throw new Error('The storefront order was not visible to the admin test session.');
+}
+console.log(`Admin order list received test order ${validStorefrontOrder.orderNumber}.`);
+
 // NOTE: under the P12 password-only model, RTDB rules no longer reject tampered
 // order totals, fake prices, payment-status escalation, or credential-shaped
 // fields from a signed-in client. That server-side tamper protection was

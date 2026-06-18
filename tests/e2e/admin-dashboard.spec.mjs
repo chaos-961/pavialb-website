@@ -13,12 +13,33 @@ test.describe('admin dashboard (decrypted)', () => {
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 
+    await page.addInitScript(() => {
+      localStorage.setItem('PAVIA_ORDERS', JSON.stringify([{
+        id: 'order-admin-visible',
+        orderNumber: 'PAV-ADMIN-TEST',
+        status: 'new',
+        paymentStatus: 'awaiting_confirmation',
+        paymentMethod: 'cash_on_delivery',
+        items: [{ id: 'blue-pearl-blouse', name: 'Blue Pearl Ruffle Blouse', qty: 1, price: 42 }],
+        customer: { name: 'Dashboard Test', phone: '+96170000000', city: 'Beirut', address: 'Test address' },
+        subtotal: 42,
+        discount: 0,
+        delivery: 4,
+        total: 46,
+        createdAt: new Date().toISOString(),
+      }]));
+    });
+
     await page.goto('/admin/index.html');
 
     // Unlock the encrypted bundle.
     await page.locator('#loginPass').fill(ADMIN_PASSWORD);
     await page.locator('#loginForm button[type="submit"]').click();
     await expect(page.locator('#dashboard')).toBeVisible();
+    await expect(page.locator('#metricsGrid')).not.toContainText('Revenue');
+
+    await page.locator('[data-tab="orders"]').click();
+    await expect(page.locator('#availableOrders')).toContainText('PAV-ADMIN-TEST');
 
     // P15 helpers are available to the dashboard.
     const helpers = await page.evaluate(() => ({
