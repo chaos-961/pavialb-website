@@ -22,7 +22,7 @@
       // Public, non-secret values. A browser OAuth web client ID is not a secret;
       // never put the OAuth client secret, a service-account JSON, refresh token,
       // or any long-lived token here or anywhere in the frontend.
-      clientId: '184935807585-ad57eas9imh1bvmdfl5pp5pg4nnnhji9.apps.googleusercontent.com',
+      clientId: '571393548009-s3b667tgr13pddo9lv7gee8gn34sppe0.apps.googleusercontent.com',
       folderId: '1PnoKTM312CxrOQooeB9sVLo5HLISEtQ3',
       scope: 'https://www.googleapis.com/auth/drive.file',
       longEdge: 1600,
