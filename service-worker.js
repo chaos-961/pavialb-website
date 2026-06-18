@@ -1,17 +1,17 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v27';
+const CACHE = 'pavia-v28';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const ASSETS = [
   './',
   './index.html',
   './js/config.js?v=10',
   './js/firebase-config.js?v=10',
-  './js/backend-config.js?v=10',
-  './js/image-catalog.js?v=10',
+  './js/backend-config.js?v=12',
+  './js/image-catalog.js?v=11',
   './js/store-core.js?v=5',
   './js/catalog-cache.js?v=1',
   './js/backend.js?v=16',
-  './js/backend-firebase.js?v=20',
+  './js/backend-firebase.js?v=21',
   './css/styles.css?v=11',
   './js/products.js?v=10',
   './js/app.js?v=16',
@@ -88,17 +88,21 @@ self.addEventListener('fetch', (event) => {
 
   if (new URL(req.url).origin !== self.location.origin) return;
 
+  // Network-first for same-origin app code (JS/CSS/etc). Always prefer fresh
+  // bytes and refresh the cache, falling back to cache only when offline. A
+  // cache-first strategy here previously pinned a stale backend-firebase.js
+  // (one without signInAdmin) and broke the admin dashboard whenever a file's
+  // contents changed without its ?v= query being bumped. Network-first makes
+  // that class of stale-code bug impossible while online.
   event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req)
-        .then((res) => {
-          if (!res || res.status !== 200 || res.type === 'opaque') return res;
+    fetch(req)
+      .then((res) => {
+        if (res && res.status === 200 && res.type !== 'opaque') {
           const copy = res.clone();
           caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => null);
-          return res;
-        })
-        .catch(() => caches.match('./index.html'));
-    }),
+        }
+        return res;
+      })
+      .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html'))),
   );
 });
