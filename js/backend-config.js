@@ -11,6 +11,14 @@
       enabled: true,
       sessionKey: 'PAVIA_VISIT_RECORDED',
     }),
+    admin: Object.freeze({
+      // Static admin identity. The browser signs in to Firebase Email/Password
+      // with this address (using the unlock password) so the database rules can
+      // trust that only this account writes products, settings, promos, and
+      // orders. An email is public, not a secret. Must match the email of the
+      // Firebase Auth user you create and the address in database.rules.json.
+      email: 'paviadata@gmail.com',
+    }),
     images: Object.freeze({
       format: 'image/webp',
       quality: 0.82,

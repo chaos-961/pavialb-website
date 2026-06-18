@@ -36,6 +36,13 @@
   let productsCache = [];
   let ordersCache = [];
   let settingsCache = {};
+  let statsCache = null;
+  const EVENT_LABELS = {
+    product_view: 'Product views',
+    add_to_cart: 'Add to cart',
+    checkout_started: 'Checkout started',
+    order_created: 'Orders placed',
+  };
   let promoCache = {};
   let pendingDriveImage = null;
 
@@ -536,6 +543,42 @@
     promoCache = BACKEND?.promoCodes?.list
       ? await BACKEND.promoCodes.list()
       : readLS(KEYS.promoCodes, window.PAVIA_PROMO_CODES || {});
+  }
+
+  async function loadStatistics() {
+    statsCache = BACKEND?.analytics?.readStatistics
+      ? await BACKEND.analytics.readStatistics().catch(() => null)
+      : null;
+  }
+
+  function renderVisitorMetrics() {
+    const grid = $('#visitorMetricsGrid');
+    if (!grid) return;
+    const stats = statsCache || { totalVisitors: 0, newToday: 0, activeNow: 0, sessions: 0, todaySessions: 0, events: [], recent: [] };
+    grid.innerHTML = [
+      ['Visitors', stats.totalVisitors, 'Unique anonymous visitors'],
+      ['New today', stats.newToday, 'First-time visitors today'],
+      ['Active now', stats.activeNow, 'Seen in the last 15 min'],
+      ['Sessions', stats.sessions, `${stats.todaySessions} today`],
+    ].map(([label, value, detail]) => `
+      <article class="metric-card">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+        <small>${escapeHtml(detail)}</small>
+      </article>
+    `).join('');
+
+    const events = $('#visitorEvents');
+    if (!events) return;
+    const rows = (stats.events || []).filter((entry) => Number(entry.count) > 0);
+    events.innerHTML = rows.length
+      ? rows.map((entry) => `
+          <div class="compact-row">
+            <div><strong>${escapeHtml(EVENT_LABELS[entry.type] || entry.type)}</strong></div>
+            <b>${escapeHtml(entry.count)}</b>
+          </div>
+        `).join('')
+      : '<div class="empty-state-admin compact-empty"><strong>No visitor activity yet</strong><p>Storefront sessions and engagement events will appear here.</p></div>';
   }
 
   function renderMetrics() {
@@ -1691,7 +1734,7 @@
         $$('.admin-panel').forEach((panel) => {
           panel.classList.toggle('active', panel.dataset.panel === target);
         });
-        if (target === 'dashboard') renderMetrics();
+        if (target === 'dashboard') { renderMetrics(); renderVisitorMetrics(); }
         if (target === 'orders') renderOrders();
         if (target === 'products') void renderProductList();
         if (target === 'promos') renderPromos();
@@ -1815,11 +1858,12 @@
   }
 
   async function refreshAll() {
-    await Promise.all([loadOrders(), loadProducts(), loadSettings(), loadPromos()]);
+    await Promise.all([loadOrders(), loadProducts(), loadSettings(), loadPromos(), loadStatistics()]);
     updateCategoryOptions();
     updateImageOptions();
     fillSettingsForm();
     renderMetrics();
+    renderVisitorMetrics();
     renderOrders();
     await renderProductList();
     renderPromos();
@@ -1847,6 +1891,10 @@
       BACKEND.promoCodes?.subscribe?.(async () => {
         await loadPromos();
         renderPromos();
+      });
+      BACKEND.analytics?.subscribeStatistics?.(async () => {
+        await loadStatistics();
+        renderVisitorMetrics();
       });
     }
     await refreshAll();

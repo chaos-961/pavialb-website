@@ -14,6 +14,7 @@
     : '';
   const requestedProvider = requestedByQuery || backendConfig.provider || 'local';
   const fallbackEnabled = backendConfig.fallbackToLocal !== false;
+  const adminEmail = String(backendConfig.admin?.email || '').trim().toLowerCase();
   const firebaseState = {
     auth: null,
     authApi: null,
@@ -59,6 +60,73 @@
       throw new Error('Firebase web configuration is incomplete.');
     }
     return app;
+  }
+
+  // --- Visitor analytics helpers (anonymous users/{uid} model, matching the
+  // sibling marketing sites). A short session cookie dedupes repeat pageviews
+  // so visits/count increments once per session, not once per page. ---
+  const VISIT_EVENTS = new Set(['product_view', 'add_to_cart', 'checkout_started', 'order_created']);
+  const VISIT_SESSION_COOKIE = 'pavia_visit_session';
+
+  function createEventId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function getVisitSessionId() {
+    const match = document.cookie.match(/(?:^|; )pavia_visit_session=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
+  function setVisitSessionId(sessionId) {
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `${VISIT_SESSION_COOKIE}=${encodeURIComponent(sessionId)}; Path=/; Max-Age=1800; SameSite=Lax${secure}`;
+  }
+
+  function startOfLocalDay(timestamp) {
+    const date = new Date(timestamp);
+    date.setHours(0, 0, 0, 0);
+    return date.getTime();
+  }
+
+  // Pure aggregation of the raw users node into the figures the admin Overview
+  // shows. Mirrors the sibling sites' stats-core summarizer.
+  function summarizeVisitors(rawUsers, now = Date.now()) {
+    const startOfDay = startOfLocalDay(now);
+    const activeNowStart = now - 15 * 60000;
+    const eventTypes = ['product_view', 'add_to_cart', 'checkout_started', 'order_created'];
+    const eventTotals = Object.fromEntries(eventTypes.map((type) => [type, 0]));
+    const recent = [];
+    let totalVisitors = 0;
+    let newToday = 0;
+    let activeNow = 0;
+    let sessions = 0;
+    let todaySessions = 0;
+
+    Object.entries(rawUsers || {}).forEach(([uid, user = {}]) => {
+      totalVisitors += 1;
+      const createdAt = Number(user.profile?.createdAt) || 0;
+      const lastAt = Number(user.activity?.lastSeenAt || user.visits?.lastAt) || 0;
+      sessions += Number(user.visits?.count) || 0;
+      if (createdAt >= startOfDay) newToday += 1;
+      if (lastAt >= activeNowStart) activeNow += 1;
+      Object.values(user.sessionHistory || {}).forEach((entry) => {
+        if ((Number(entry?.startedAt) || 0) >= startOfDay) todaySessions += 1;
+      });
+      eventTypes.forEach((type) => { eventTotals[type] += Number(user.events?.[type]?.count) || 0; });
+      recent.push({ uid, lastAt, visitCount: Number(user.visits?.count) || 0 });
+    });
+
+    recent.sort((left, right) => right.lastAt - left.lastAt);
+    return {
+      totalVisitors,
+      newToday,
+      activeNow,
+      sessions,
+      todaySessions,
+      events: eventTypes.map((type) => ({ type, count: eventTotals[type] })),
+      recent: recent.slice(0, 8),
+    };
   }
 
   async function initializeFirebase() {
@@ -191,8 +259,12 @@
 
   async function assertAdminReady() {
     if (activeProvider === 'local') return;
-    if (!firebaseState.auth?.currentUser?.uid) {
-      throw new Error('Anonymous sign-in is required before admin operations.');
+    const user = firebaseState.auth?.currentUser;
+    if (!user?.uid) {
+      throw new Error('Admin sign-in is required before admin operations.');
+    }
+    if (adminEmail && String(user.email || '').trim().toLowerCase() !== adminEmail) {
+      throw new Error('The signed-in account is not the configured admin.');
     }
     if (!adminUnlocked) throw new Error('Admin unlock is required before this operation.');
   }
@@ -813,11 +885,79 @@
     },
 
     analytics: {
+      // A storefront visitor (anonymous Firebase session) records one session
+      // visit per cookie window, plus a live lastSeenAt heartbeat.
       async recordSessionVisit() {
         if (activeProvider === 'local') return localBackend.analytics.recordSessionVisit();
+        const user = firebaseState.auth?.currentUser;
+        if (!user?.uid || !user.isAnonymous) return;
+        const api = firebaseState.databaseApi;
+        const base = `users/${user.uid}`;
+        const createdAt = Date.parse(user.metadata?.creationTime) || Date.now();
+        const updates = {
+          [`${base}/profile/createdAt`]: createdAt,
+          [`${base}/activity/lastSeenAt`]: api.serverTimestamp(),
+        };
+        if (getVisitSessionId()) {
+          await api.update(databaseReference('/'), updates).catch(() => {});
+          return;
+        }
+        const sessionId = createEventId();
+        updates[`${base}/visits/count`] = api.increment(1);
+        updates[`${base}/visits/lastAt`] = api.serverTimestamp();
+        updates[`${base}/sessionHistory/${sessionId}/startedAt`] = api.serverTimestamp();
+        try {
+          await api.update(databaseReference('/'), updates);
+        } catch {
+          await api.update(databaseReference('/'), {
+            [`${base}/visits/count`]: api.increment(1),
+            [`${base}/visits/lastAt`]: api.serverTimestamp(),
+          }).catch(() => {});
+        }
+        setVisitSessionId(sessionId);
       },
+      // Storefront engagement events (product views, add-to-cart, checkout, order).
       async recordEvent(name) {
         if (activeProvider === 'local') return localBackend.analytics.recordEvent(name);
+        if (!VISIT_EVENTS.has(name)) return;
+        const user = firebaseState.auth?.currentUser;
+        if (!user?.uid || !user.isAnonymous) return;
+        const api = firebaseState.databaseApi;
+        const base = `users/${user.uid}`;
+        const createdAt = Date.parse(user.metadata?.creationTime) || Date.now();
+        const eventId = createEventId();
+        try {
+          await api.update(databaseReference('/'), {
+            [`${base}/profile/createdAt`]: createdAt,
+            [`${base}/activity/lastSeenAt`]: api.serverTimestamp(),
+            [`${base}/events/${name}/count`]: api.increment(1),
+            [`${base}/events/${name}/lastAt`]: api.serverTimestamp(),
+            [`${base}/eventHistory/${eventId}/type`]: name,
+            [`${base}/eventHistory/${eventId}/at`]: api.serverTimestamp(),
+          });
+        } catch {
+          await api.update(databaseReference('/'), {
+            [`${base}/events/${name}/count`]: api.increment(1),
+            [`${base}/events/${name}/lastAt`]: api.serverTimestamp(),
+          }).catch(() => {});
+        }
+      },
+      // Admin-only: read and summarize the visitor analytics for the dashboard.
+      async readStatistics() {
+        if (activeProvider !== 'firebase') return summarizeVisitors({});
+        try {
+          const users = await readPath('users');
+          return summarizeVisitors(users || {});
+        } catch (error) {
+          console.warn('Pavia visitor analytics read failed.', error);
+          return summarizeVisitors({});
+        }
+      },
+      // Admin-only: live updates as visitors arrive. Notifies with no args; the
+      // dashboard re-reads via readStatistics().
+      subscribeStatistics(listener) {
+        if (activeProvider !== 'firebase') return () => {};
+        return subscribePath('users', listener);
       },
     },
 
@@ -825,6 +965,43 @@
 
     setAdminUnlocked(value) {
       adminUnlocked = Boolean(value);
+    },
+
+    // Sign in as the configured admin with Firebase Email/Password using the
+    // unlock password. This is the real trust boundary: the database rules only
+    // grant admin writes to auth.token.email === the configured admin email.
+    async signInAdmin(password) {
+      if (activeProvider === 'local') {
+        adminUnlocked = true;
+        return { uid: 'local-admin' };
+      }
+      if (!adminEmail) {
+        throw new Error('Admin email is not configured in backend-config.js.');
+      }
+      if (!firebaseState.authApi || !firebaseState.auth) {
+        throw new Error('Firebase auth is not ready.');
+      }
+      const credential = await firebaseState.authApi.signInWithEmailAndPassword(
+        firebaseState.auth,
+        adminEmail,
+        password,
+      );
+      adminUnlocked = true;
+      return { uid: credential.user?.uid || '' };
+    },
+
+    // Drop the admin credential and restore a low-privilege anonymous session
+    // (so the storefront-style identity is back in place after locking).
+    async lockAdmin() {
+      adminUnlocked = false;
+      if (activeProvider === 'firebase' && firebaseState.authApi && firebaseState.auth) {
+        try {
+          await firebaseState.authApi.signOut(firebaseState.auth);
+          await firebaseState.authApi.signInAnonymously(firebaseState.auth);
+        } catch (error) {
+          console.warn('Failed to restore anonymous session after lock.', error);
+        }
+      }
     },
 
     onAuthChanged(listener) {

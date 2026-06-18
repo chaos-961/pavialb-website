@@ -22,7 +22,10 @@ test('runtime files do not use excluded Firebase products or auth providers', as
     /firestore/i,
     /firebase-storage/i,
     /getStorage|uploadBytes|ref\(.*storage/i,
-    /signInWithEmailAndPassword|createUserWithEmailAndPassword|GoogleAuthProvider|PhoneAuthProvider/i,
+    // Admin now signs in with Email/Password (signInWithEmailAndPassword is
+    // expected and allowed). Client-side account creation and other providers
+    // remain forbidden.
+    /createUserWithEmailAndPassword|GoogleAuthProvider|PhoneAuthProvider/i,
     /customClaims|getIdTokenResult/i,
   ];
 
@@ -135,14 +138,28 @@ test('Realtime Database rules keep critical paths gated and parse as JSON', asyn
   const rules = JSON.parse(rulesText);
   assert.equal(rules.rules['.read'], false);
   assert.equal(rules.rules['.write'], false);
-  // P12 password-only model: writes require any signed-in user; the UID allowlist was removed.
+  // Admin-identity model: admin reads/writes require the configured admin email
+  // (auth.token.email), not merely any signed-in (anonymous) session.
   assert.equal(rulesText.includes('adminUids'), false, 'rules should no longer reference the removed adminUids allowlist');
   assert.match(rules.rules.products['.read'], /auth != null/);
+  assert.match(rules.rules.products['.read'], /auth\.token\.email == 'paviadata@gmail\.com'/);
   assert.match(rules.rules.publicProducts['.read'], /auth != null/);
-  assert.match(rules.rules.orders['.read'], /auth != null/);
+  assert.match(rules.rules.orders['.read'], /auth\.token\.email == 'paviadata@gmail\.com'/);
+  // The admin write gate is the email identity, and the customer stock-decrement
+  // branch is preserved alongside it.
+  assert.match(rules.rules.products.$productId['.write'], /auth\.token\.email == 'paviadata@gmail\.com'/);
+  assert.match(rules.rules.publicProducts.$productId.stock['.write'], /newData\.val\(\) <= data\.val\(\)/);
+  assert.match(rules.rules.storeSettings['.write'], /auth\.token\.email == 'paviadata@gmail\.com'/);
   assert.match(rules.rules.subscribers.$subscriberId['.validate'], /consent/);
   assert.match(rules.rules.products.$productId['.validate'], /google_drive/);
   assert.match(rules.rules.products.$productId['.validate'], /clientSecret/);
+  // Visitor analytics: admin-only read; anonymous self-write with increment +
+  // timestamp validation (mirrors the sibling marketing sites).
+  assert.ok(rules.rules.users, 'rules must expose the users analytics node');
+  assert.match(rules.rules.users['.read'], /auth\.token\.email == 'paviadata@gmail\.com'/);
+  assert.match(rules.rules.users.$uid.visits['.write'], /auth\.uid === \$uid/);
+  assert.match(rules.rules.users.$uid.visits['.write'], /sign_in_provider === 'anonymous'/);
+  assert.match(rules.rules.users.$uid.visits['.validate'], /data\.child\('count'\)\.val\(\) \+ 1/);
 });
 
 test('storefront-facing rules reject markup and bound the order discount (P13)', async () => {

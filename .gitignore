@@ -11,6 +11,11 @@ Desktop.ini
 *.log
 .env
 .env.*
+.env.local
+# Local-only admin password / secrets (never commit)
+*.secret
+*.secret.local
+admin-secrets.local.*
 firebase-debug.log*
 firestore-debug.log*
 database-debug.log*

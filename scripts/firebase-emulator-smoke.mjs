@@ -55,6 +55,29 @@ if (!identity.localId || !identity.idToken) {
 }
 console.log(`Anonymous Auth issued test UID ${identity.localId}.`);
 
+// Admin identity: Email/Password sign-in whose token carries the configured
+// admin email claim. The database rules grant admin reads/writes only to this
+// email, so admin operations below must use adminToken, while customer flows
+// (orders, stock decrement, newsletter) keep using the anonymous identity.
+const adminEmail = 'paviadata@gmail.com';
+const adminSignInResponse = await fetch(
+  'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-pavia-local',
+  {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: adminEmail, password: 'smoke-admin-password', returnSecureToken: true }),
+  },
+);
+if (!adminSignInResponse.ok) {
+  throw new Error(`Admin Email/Password emulator sign-in failed with HTTP ${adminSignInResponse.status}.`);
+}
+const adminIdentity = await adminSignInResponse.json();
+const adminToken = adminIdentity.idToken;
+if (!adminIdentity.localId || !adminToken) {
+  throw new Error('Admin Email/Password sign-in did not return a UID and ID token.');
+}
+console.log(`Admin Email/Password issued test UID ${adminIdentity.localId} for ${adminEmail}.`);
+
 function databaseUrl(path, token = '') {
   const query = new URLSearchParams({ ns: databaseNamespace });
   if (token) query.set('auth', token);
@@ -81,11 +104,16 @@ if (anonymousPublicRead.status !== 401) {
   throw new Error(`Expected unauthenticated public read denial; received ${anonymousPublicRead.status}.`);
 }
 
-// P12 password-only model: any signed-in user may read/write admin data; rules
-// only require auth != null. The private product read is therefore allowed.
-const privateRead = await fetch(databaseUrl('products', identity.idToken));
+// Admin-identity model: an anonymous (non-admin) signed-in session must NOT be
+// able to read the private products node...
+const anonPrivateRead = await fetch(databaseUrl('products', identity.idToken));
+if (anonPrivateRead.status !== 401) {
+  throw new Error(`Expected anonymous private product read denial; received ${anonPrivateRead.status}.`);
+}
+// ...but the admin Email/Password session can.
+const privateRead = await fetch(databaseUrl('products', adminToken));
 if (!privateRead.ok) {
-  throw new Error(`Authenticated private product read failed with HTTP ${privateRead.status}.`);
+  throw new Error(`Admin private product read failed with HTTP ${privateRead.status}.`);
 }
 
 // Unauthenticated writes must still be denied (auth != null is required).
@@ -96,6 +124,18 @@ const anonymousWrite = await fetch(databaseUrl('publicProducts/anon-write-test')
 });
 if (anonymousWrite.status !== 401) {
   throw new Error(`Expected unauthenticated public write denial; received ${anonymousWrite.status}.`);
+}
+
+// An anonymous (non-admin) signed-in session must NOT be able to author a full
+// admin product projection; only the admin email may. (Stock-only decrements,
+// tested later, remain allowed for the customer checkout flow.)
+const anonAdminWrite = await fetch(databaseUrl('publicProducts/anon-admin-test', identity.idToken), {
+  method: 'PUT',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ id: 'anon-admin-test', name: 'Should be denied', price: 1, stock: 1, active: true, imageProvider: 'local_legacy' }),
+});
+if (anonAdminWrite.ok) {
+  throw new Error('Expected anonymous (non-admin) full product write to be denied.');
 }
 
 const phase07RequestId = `phase07-${Date.now()}`;
@@ -199,45 +239,30 @@ if (!storefrontOrderWrite.ok) {
   throw new Error(`Valid storefront order write failed with HTTP ${storefrontOrderWrite.status}.`);
 }
 
-// The password-gated dashboard uses its own anonymous Firebase session. Verify
-// that a separate signed-in session can list and display the storefront order.
-const adminSignInResponse = await fetch(
-  'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-pavia-local',
-  {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ returnSecureToken: true }),
-  },
-);
-if (!adminSignInResponse.ok) {
-  throw new Error(`Admin test session sign-in failed with HTTP ${adminSignInResponse.status}.`);
-}
-const adminIdentity = await adminSignInResponse.json();
-const adminOrdersRead = await fetch(databaseUrl('orders', adminIdentity.idToken));
+// The admin (Email/Password) session can list and display the storefront order.
+const adminOrdersRead = await fetch(databaseUrl('orders', adminToken));
 if (!adminOrdersRead.ok) {
-  throw new Error(`Admin test session could not read orders: HTTP ${adminOrdersRead.status}.`);
+  throw new Error(`Admin session could not read orders: HTTP ${adminOrdersRead.status}.`);
 }
 const adminOrders = await adminOrdersRead.json();
 if (adminOrders?.[phase07OrderId]?.orderNumber !== validStorefrontOrder.orderNumber) {
-  throw new Error('The storefront order was not visible to the admin test session.');
+  throw new Error('The storefront order was not visible to the admin session.');
 }
 console.log(`Admin order list received test order ${validStorefrontOrder.orderNumber}.`);
 
-// NOTE: under the P12 password-only model, RTDB rules no longer reject tampered
-// order totals, fake prices, payment-status escalation, or credential-shaped
-// fields from a signed-in client. That server-side tamper protection was
-// intentionally removed when the UID allowlist was dropped; the encrypted admin
-// password only gates the admin UI, not the database.
+// An anonymous (non-admin) session must NOT be able to read the private orders
+// node under the admin-identity model.
+const anonOrdersRead = await fetch(databaseUrl('orders', identity.idToken));
+if (anonOrdersRead.status !== 401) {
+  throw new Error(`Expected anonymous orders read denial; received ${anonOrdersRead.status}.`);
+}
 
 const app = getApps()[0];
 const database = getDatabase(app);
 
-const adminPrivateRead = await fetch(databaseUrl('products', identity.idToken));
-if (!adminPrivateRead.ok) {
-  throw new Error(`Authenticated private product read failed with HTTP ${adminPrivateRead.status}.`);
-}
-
-const adminCancelOrder = await fetch(databaseUrl('', identity.idToken), {
+// Admin cancellation restores (increases) stock — only the admin email may do
+// this; the customer stock branch allows decrements only.
+const adminCancelOrder = await fetch(databaseUrl('', adminToken), {
   method: 'PATCH',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -246,13 +271,13 @@ const adminCancelOrder = await fetch(databaseUrl('', identity.idToken), {
     [`orders/${phase07OrderId}/stockRestored`]: true,
     [`orders/${phase07OrderId}/stockRestoredAt`]: new Date().toISOString(),
     [`orders/${phase07OrderId}/updatedAt`]: new Date().toISOString(),
-    [`orders/${phase07OrderId}/updatedBy`]: identity.localId,
+    [`orders/${phase07OrderId}/updatedBy`]: adminIdentity.localId,
     'products/blue-pearl-blouse/stock': 9,
     'publicProducts/blue-pearl-blouse/stock': 9,
   }),
 });
 if (!adminCancelOrder.ok) {
-  throw new Error(`Authenticated admin cancellation stock restore failed with HTTP ${adminCancelOrder.status}.`);
+  throw new Error(`Admin cancellation stock restore failed with HTTP ${adminCancelOrder.status}.`);
 }
 const restoredStock = await (await fetch(databaseUrl('publicProducts/blue-pearl-blouse/stock', identity.idToken))).json();
 if (restoredStock !== 9) {
@@ -263,8 +288,8 @@ const product = publicProducts['blue-pearl-blouse'];
 const adminProduct = {
   ...product,
   name: 'Phase 04 Rules Smoke Blouse',
-  createdBy: identity.localId,
-  updatedBy: identity.localId,
+  createdBy: adminIdentity.localId,
+  updatedBy: adminIdentity.localId,
   updatedAt: new Date().toISOString(),
 };
 const publicProduct = {
@@ -275,14 +300,14 @@ const publicProduct = {
 delete publicProduct.createdBy;
 delete publicProduct.updatedBy;
 const auditId = `phase04-${Date.now()}`;
-const adminProductUpdate = await fetch(databaseUrl('', identity.idToken), {
+const adminProductUpdate = await fetch(databaseUrl('', adminToken), {
   method: 'PATCH',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
     'products/blue-pearl-blouse': adminProduct,
     'publicProducts/blue-pearl-blouse': publicProduct,
     [`auditLogs/${auditId}`]: {
-      actorUid: identity.localId,
+      actorUid: adminIdentity.localId,
       action: 'product.upsert',
       targetType: 'product',
       targetId: 'blue-pearl-blouse',
@@ -314,7 +339,7 @@ const driveImageProduct = {
     updatedAt: new Date().toISOString(),
   },
 };
-const driveImageUpdate = await fetch(databaseUrl('products/drive-image-product', identity.idToken), {
+const driveImageUpdate = await fetch(databaseUrl('products/drive-image-product', adminToken), {
   method: 'PUT',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify(driveImageProduct),
@@ -323,7 +348,7 @@ if (!driveImageUpdate.ok) {
   throw new Error(`Expected Google Drive image product write to succeed, got HTTP ${driveImageUpdate.status}.`);
 }
 
-const settingsUpdate = await fetch(databaseUrl('', identity.idToken), {
+const settingsUpdate = await fetch(databaseUrl('', adminToken), {
   method: 'PATCH',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -403,7 +428,7 @@ const promoSmoke = {
   updatedAt: new Date().toISOString(),
   updatedBy: identity.localId,
 };
-const promoUpdate = await fetch(databaseUrl('', identity.idToken), {
+const promoUpdate = await fetch(databaseUrl('', adminToken), {
   method: 'PATCH',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -456,7 +481,7 @@ await database.ref(`orders/${orderId}`).set({
   updatedAt: new Date().toISOString(),
   createdBy: identity.localId,
 });
-const orderUpdate = await fetch(databaseUrl('', identity.idToken), {
+const orderUpdate = await fetch(databaseUrl('', adminToken), {
   method: 'PATCH',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -470,7 +495,7 @@ const orderUpdate = await fetch(databaseUrl('', identity.idToken), {
 if (!orderUpdate.ok) {
   throw new Error(`Authenticated admin order workflow update failed with HTTP ${orderUpdate.status}.`);
 }
-const updatedOrder = await (await fetch(databaseUrl(`orders/${orderId}`, identity.idToken))).json();
+const updatedOrder = await (await fetch(databaseUrl(`orders/${orderId}`, adminToken))).json();
 if (updatedOrder.status !== 'confirmed' || updatedOrder.paymentStatus !== 'paid') {
   throw new Error('Order workflow update was not persisted.');
 }
@@ -527,7 +552,7 @@ if (!singleNode || singleNode.id !== 'blue-pearl-blouse') {
 }
 
 // An admin save bumps the product rev and the manifest so storefronts detect the delta.
-const revBumpWrite = await fetch(databaseUrl('', identity.idToken), {
+const revBumpWrite = await fetch(databaseUrl('', adminToken), {
   method: 'PATCH',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -550,7 +575,7 @@ console.log('RTDB P14 cache: manifest seeded (12 revs), single-node fetch, and r
 // The clean control proves the only difference (angle brackets / discount bound)
 // is what triggers each denial, not some unrelated validation failure.
 const cleanPublicProduct = { ...publicProduct, id: 'p13-clean', slug: 'p13-clean', name: 'Clean P13 Product' };
-const cleanProductWrite = await fetch(databaseUrl('publicProducts/p13-clean', identity.idToken), {
+const cleanProductWrite = await fetch(databaseUrl('publicProducts/p13-clean', adminToken), {
   method: 'PUT',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify(cleanPublicProduct),
@@ -560,7 +585,7 @@ if (!cleanProductWrite.ok) {
 }
 
 const xssPublicProduct = { ...publicProduct, id: 'p13-xss', slug: 'p13-xss', name: 'Hostile <img src=x onerror=alert(1)>' };
-const xssProductWrite = await fetch(databaseUrl('publicProducts/p13-xss', identity.idToken), {
+const xssProductWrite = await fetch(databaseUrl('publicProducts/p13-xss', adminToken), {
   method: 'PUT',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify(xssPublicProduct),
@@ -569,7 +594,7 @@ if (xssProductWrite.ok) {
   throw new Error('Expected publicProducts angle-bracket name to be rejected by .validate.');
 }
 
-const xssSettingsWrite = await fetch(databaseUrl('publicStoreSettings', identity.idToken), {
+const xssSettingsWrite = await fetch(databaseUrl('publicStoreSettings', adminToken), {
   method: 'PUT',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ ...publicSettingsSmoke, siteName: 'Pavia <script>alert(1)</script>' }),
@@ -578,7 +603,7 @@ if (xssSettingsWrite.ok) {
   throw new Error('Expected publicStoreSettings angle-bracket siteName to be rejected by .validate.');
 }
 
-const xssPromoWrite = await fetch(databaseUrl('publicPromoCodes/P13XSS', identity.idToken), {
+const xssPromoWrite = await fetch(databaseUrl('publicPromoCodes/P13XSS', adminToken), {
   method: 'PUT',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -591,7 +616,7 @@ if (xssPromoWrite.ok) {
 }
 
 const forgedOrderId = `p13-forged-${Date.now()}`;
-const forgedOrderWrite = await fetch(databaseUrl(`orders/${forgedOrderId}`, identity.idToken), {
+const forgedOrderWrite = await fetch(databaseUrl(`orders/${forgedOrderId}`, adminToken), {
   method: 'PUT',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -608,5 +633,52 @@ if (forgedOrderWrite.ok) {
 }
 console.log('RTDB P13 hardening: angle-bracket name/settings/promo writes and discount>subtotal orders are denied.');
 
-console.log('RTDB P12 password-only model: authed reads/writes, order/subscriber paths, and projections are active.');
+// --- Visitor analytics: anonymous self-write to users/{uid}, admin-only read ---
+const visitNow = Date.now();
+const visitWrite = await fetch(databaseUrl(`users/${identity.localId}`, identity.idToken), {
+  method: 'PATCH',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    'profile/createdAt': visitNow,
+    'activity/lastSeenAt': visitNow,
+    'visits/count': 1,
+    'visits/lastAt': visitNow,
+    'sessionHistory/smoke-session/startedAt': visitNow,
+    'events/product_view/count': 1,
+    'events/product_view/lastAt': visitNow,
+    'eventHistory/smoke-event/type': 'product_view',
+    'eventHistory/smoke-event/at': visitNow,
+  }),
+});
+if (!visitWrite.ok) {
+  throw new Error(`Anonymous visitor analytics write failed with HTTP ${visitWrite.status}.`);
+}
+
+// A visitor cannot tamper with someone else's analytics node.
+const foreignVisitWrite = await fetch(databaseUrl(`users/not-${identity.localId}/visits`, identity.idToken), {
+  method: 'PUT',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ count: 1, lastAt: visitNow }),
+});
+if (foreignVisitWrite.ok) {
+  throw new Error('Expected write to another visitor UID to be denied.');
+}
+
+// Visitors cannot read the analytics node; only the admin email can.
+const anonUsersRead = await fetch(databaseUrl('users', identity.idToken));
+if (anonUsersRead.status !== 401) {
+  throw new Error(`Expected anonymous users read denial; received ${anonUsersRead.status}.`);
+}
+const adminUsersRead = await fetch(databaseUrl('users', adminToken));
+if (!adminUsersRead.ok) {
+  throw new Error(`Admin visitor analytics read failed with HTTP ${adminUsersRead.status}.`);
+}
+const usersData = await adminUsersRead.json();
+if (Number(usersData?.[identity.localId]?.visits?.count) !== 1
+  || Number(usersData?.[identity.localId]?.events?.product_view?.count) !== 1) {
+  throw new Error('Admin could not see the recorded visitor visit/event counts.');
+}
+console.log('RTDB visitor analytics: anonymous self-write, foreign-write denial, and admin-only read verified.');
+
+console.log('RTDB admin-identity model: admin email writes, anonymous customer flows, denials, and projections are active.');
 await Promise.all(getApps().map((app) => deleteApp(app)));

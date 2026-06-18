@@ -85,6 +85,8 @@
   function lockDashboard(message = '') {
     state.unlocked = false;
     BACKEND?.setAdminUnlocked?.(false);
+    // Drop the Firebase admin credential and fall back to an anonymous session.
+    void BACKEND?.lockAdmin?.();
     window.PaviaDriveImages?.disconnect?.();
     clearTimeout(state.inactivityTimer);
     const mount = $('#adminPayloadMount');
@@ -155,6 +157,9 @@
     try {
       const payload = await decryptPayload(ADMIN_USERNAME, password);
       if (!payload?.html || !payload?.code) throw new Error('Invalid admin payload.');
+      // Authenticate to Firebase as the admin so the database rules grant
+      // admin writes. The same password must match the Firebase account.
+      await BACKEND?.signInAdmin?.(password);
       state.failedAttempts = 0;
       state.unlocked = true;
       BACKEND?.setAdminUnlocked?.(true);
@@ -166,7 +171,14 @@
       state.failedAttempts += 1;
       clearSensitiveInputs();
       console.warn('Admin unlock failed.', error);
-      setMessage('Invalid password.', 'error');
+      const code = String(error?.code || '');
+      if (code === 'auth/network-request-failed') {
+        setMessage('Network error reaching Firebase. Check your connection and retry.', 'error');
+      } else if (code.startsWith('auth/')) {
+        setMessage('Password accepted locally, but Firebase admin sign-in failed. Confirm the admin account exists with a matching password.', 'error');
+      } else {
+        setMessage('Invalid password.', 'error');
+      }
     }
   }
 
