@@ -1588,6 +1588,9 @@
       toast('Google Drive tools are unavailable');
       return;
     }
+    // Frame to 4:5 first — what you crop here is exactly what the card shows.
+    file = await openCropper(file, 'Main product image · 4:5');
+    if (!file) return;
     const dropzone = $('#imageDropzone');
     dropzone.classList.add('is-processing');
     showImageResult({ status: 'Optimizing image...' });
@@ -1958,9 +1961,12 @@
       toast(error.message || 'Connect Google Drive first');
       return;
     }
-    $('#libraryDropzone')?.classList.add('is-processing');
     let done = 0;
-    for (const file of list) {
+    for (let i = 0; i < list.length; i += 1) {
+      // Frame each image to 4:5 before it uploads; skip any the owner cancels.
+      const file = await openCropper(list[i], `Library image · 4:5 (${i + 1}/${list.length})`);
+      if (!file) continue;
+      $('#libraryDropzone')?.classList.add('is-processing');
       try {
         setLibraryStatus(`Optimizing ${file.name} (${done + 1}/${list.length})…`);
         const optimized = await drive().optimizeImage(file, imageOptimizationOptions());
@@ -2169,7 +2175,9 @@
       toast(error.message || 'Connect Google Drive first');
       return;
     }
-    for (const file of list) {
+    for (let i = 0; i < list.length; i += 1) {
+      const file = await openCropper(list[i], `Gallery image · 4:5 (${i + 1}/${list.length})`);
+      if (!file) continue;
       try {
         showImageResult({ status: `Optimizing ${file.name}…` });
         const optimized = await drive().optimizeImage(file, imageOptimizationOptions());
@@ -2189,7 +2197,148 @@
     $('#galleryFile').value = '';
   }
 
+  // ============================================================
+  // 4:5 crop / framing step (runs before every image upload so the
+  // owner controls exactly what the product card shows).
+  // ============================================================
+  const CROP_STAGE_W = 320;
+  const CROP_STAGE_H = 400;          // 4:5 — matches the storefront card
+  const CROP_MAX_OUT_W = 1600;
+  let cropBitmap = null;
+  let cropResolve = null;
+  let cropName = 'image';
+  let cropCover = 1;
+  let cropZoom = 1;
+  let cropOX = 0;
+  let cropOY = 0;
+  let cropDragging = false;
+  let cropLastX = 0;
+  let cropLastY = 0;
+
+  function loadCropBitmap(file) {
+    if (window.createImageBitmap) return window.createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => window.createImageBitmap(file));
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('open failed')); };
+      img.src = url;
+    });
+  }
+
+  function clampCropOffsets(dispW, dispH) {
+    cropOX = Math.min(0, Math.max(CROP_STAGE_W - dispW, cropOX));
+    cropOY = Math.min(0, Math.max(CROP_STAGE_H - dispH, cropOY));
+  }
+
+  function drawCrop() {
+    const canvas = $('#cropCanvas');
+    if (!canvas || !cropBitmap) return;
+    const ctx = canvas.getContext('2d');
+    const scale = cropCover * cropZoom;
+    const dispW = cropBitmap.width * scale;
+    const dispH = cropBitmap.height * scale;
+    clampCropOffsets(dispW, dispH);
+    ctx.fillStyle = '#efe6d4';
+    ctx.fillRect(0, 0, CROP_STAGE_W, CROP_STAGE_H);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(cropBitmap, cropOX, cropOY, dispW, dispH);
+  }
+
+  function openCropper(file, label) {
+    return new Promise(async (resolve) => {
+      let bmp;
+      try { bmp = await loadCropBitmap(file); }
+      catch { toast('Could not open that image'); resolve(null); return; }
+      cropBitmap = bmp;
+      cropResolve = resolve;
+      cropName = String(file.name || 'image');
+      cropCover = Math.max(CROP_STAGE_W / bmp.width, CROP_STAGE_H / bmp.height);
+      cropZoom = 1;
+      const scale = cropCover * cropZoom;
+      cropOX = (CROP_STAGE_W - bmp.width * scale) / 2;
+      cropOY = (CROP_STAGE_H - bmp.height * scale) / 2;
+      const zoomEl = $('#cropZoom');
+      if (zoomEl) zoomEl.value = '1';
+      if ($('#cropTitle')) $('#cropTitle').textContent = label || 'Frame your image';
+      $('#cropModal').hidden = false;
+      requestAnimationFrame(drawCrop);
+    });
+  }
+
+  function finishCrop(result) {
+    $('#cropModal').hidden = true;
+    cropBitmap?.close?.();
+    cropBitmap = null;
+    const resolve = cropResolve;
+    cropResolve = null;
+    if (resolve) resolve(result);
+  }
+
+  function confirmCrop() {
+    if (!cropBitmap) { finishCrop(null); return; }
+    const scale = cropCover * cropZoom;
+    const sWidth = CROP_STAGE_W / scale;
+    const sHeight = CROP_STAGE_H / scale;
+    const sx = Math.max(0, -cropOX / scale);
+    const sy = Math.max(0, -cropOY / scale);
+    const outW = Math.max(1, Math.min(CROP_MAX_OUT_W, Math.round(sWidth)));
+    const outH = Math.round(outW * (CROP_STAGE_H / CROP_STAGE_W));
+    const out = document.createElement('canvas');
+    out.width = outW;
+    out.height = outH;
+    const octx = out.getContext('2d', { alpha: false });
+    octx.imageSmoothingEnabled = true;
+    octx.imageSmoothingQuality = 'high';
+    octx.drawImage(cropBitmap, sx, sy, sWidth, sHeight, 0, 0, outW, outH);
+    out.toBlob((blob) => {
+      if (!blob) { toast('Could not process that image'); finishCrop(null); return; }
+      const base = cropName.replace(/\.[^.]+$/, '') || 'image';
+      finishCrop(new File([blob], `${base}.webp`, { type: 'image/webp' }));
+    }, 'image/webp', 0.92);
+  }
+
+  function setupCropper() {
+    const canvas = $('#cropCanvas');
+    $('#cropZoom')?.addEventListener('input', (event) => {
+      const next = Number(event.target.value) || 1;
+      const oldScale = cropCover * cropZoom;
+      const newScale = cropCover * next;
+      const cx = CROP_STAGE_W / 2;
+      const cy = CROP_STAGE_H / 2;
+      const imgX = (cx - cropOX) / oldScale;
+      const imgY = (cy - cropOY) / oldScale;
+      cropZoom = next;
+      cropOX = cx - imgX * newScale;
+      cropOY = cy - imgY * newScale;
+      drawCrop();
+    });
+    canvas?.addEventListener('pointerdown', (event) => {
+      cropDragging = true;
+      cropLastX = event.clientX;
+      cropLastY = event.clientY;
+      canvas.setPointerCapture?.(event.pointerId);
+    });
+    canvas?.addEventListener('pointermove', (event) => {
+      if (!cropDragging) return;
+      cropOX += event.clientX - cropLastX;
+      cropOY += event.clientY - cropLastY;
+      cropLastX = event.clientX;
+      cropLastY = event.clientY;
+      drawCrop();
+    });
+    const endDrag = () => { cropDragging = false; };
+    canvas?.addEventListener('pointerup', endDrag);
+    canvas?.addEventListener('pointercancel', endDrag);
+    $('#cropConfirm')?.addEventListener('click', confirmCrop);
+    $('#cropCancel')?.addEventListener('click', () => finishCrop(null));
+    $('#cropClose')?.addEventListener('click', () => finishCrop(null));
+    $('#cropModal')?.addEventListener('click', (event) => { if (event.target === $('#cropModal')) finishCrop(null); });
+  }
+
   function setupLibrary() {
+    setupCropper();
     refreshLibraryDrivePanel();
     $('#libraryConnectBtn')?.addEventListener('click', () => void connectLibraryDrive());
     $('#libraryRefresh')?.addEventListener('click', () => void loadLibrary());

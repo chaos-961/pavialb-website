@@ -2324,3 +2324,57 @@ body {
   .metric-card:hover { transform: none; }
   .admin-panel.active { animation: none; }
 }
+
+/* =========================================================
+   Image crop / framing modal (4:5 — frames the product card)
+   ========================================================= */
+.crop-modal {
+  position: fixed; inset: 0; z-index: 120;
+  display: grid; place-items: center;
+  padding: 18px;
+  background: rgba(20, 14, 10, 0.55);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.crop-modal[hidden] { display: none; }
+.crop-card {
+  width: min(380px, 100%);
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 20px;
+  background: var(--paper);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+}
+.crop-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.crop-head h3 { margin: 0; font-size: 18px; color: var(--ink); }
+.crop-head small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.crop-head .close-btn {
+  width: 34px; height: 34px; flex: none; border: 0; border-radius: 9px; cursor: pointer;
+  background: var(--cream); color: var(--ink); font-size: 20px; line-height: 1;
+}
+.crop-stage {
+  position: relative;
+  width: 320px; height: 400px;
+  margin-inline: auto;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--line);
+  background: var(--cream);
+}
+#cropCanvas {
+  display: block;
+  width: 320px; height: 400px;
+  cursor: grab;
+  touch-action: none; /* let pointer drag pan instead of scrolling */
+}
+#cropCanvas:active { cursor: grabbing; }
+/* Rule-of-thirds guides over the crop frame. */
+.crop-grid { position: absolute; inset: 0; pointer-events: none; }
+.crop-grid::before, .crop-grid::after {
+  content: ""; position: absolute; background: rgba(255, 255, 255, 0.4);
+}
+.crop-grid::before { left: 33.33%; right: 33.33%; top: 0; bottom: 0; border-left: 1px solid rgba(255,255,255,0.4); border-right: 1px solid rgba(255,255,255,0.4); background: none; }
+.crop-grid::after { top: 33.33%; bottom: 33.33%; left: 0; right: 0; border-top: 1px solid rgba(255,255,255,0.4); border-bottom: 1px solid rgba(255,255,255,0.4); background: none; }
+.crop-zoom { display: flex; align-items: center; gap: 12px; font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.crop-zoom input[type="range"] { flex: 1; accent-color: var(--cocoa); -webkit-appearance: auto; appearance: auto; min-height: 0; }
+.crop-actions { display: flex; justify-content: flex-end; gap: 10px; }

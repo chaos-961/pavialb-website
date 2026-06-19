@@ -570,6 +570,30 @@
   </div>
 </div>
 
+<div class="crop-modal" id="cropModal" hidden role="dialog" aria-modal="true" aria-labelledby="cropTitle">
+  <div class="crop-card">
+    <div class="crop-head">
+      <div>
+        <h3 id="cropTitle">Frame your image</h3>
+        <small id="cropHint">Drag to reposition and zoom to frame. This 4:5 crop is exactly what shows on the product card.</small>
+      </div>
+      <button type="button" class="close-btn" id="cropClose" aria-label="Cancel">×</button>
+    </div>
+    <div class="crop-stage">
+      <canvas id="cropCanvas" width="320" height="400" aria-label="Crop preview"></canvas>
+      <div class="crop-grid" aria-hidden="true"></div>
+    </div>
+    <label class="crop-zoom">
+      <span>Zoom</span>
+      <input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1" />
+    </label>
+    <div class="crop-actions">
+      <button type="button" class="btn btn-ghost" id="cropCancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="cropConfirm">Save &amp; upload</button>
+    </div>
+  </div>
+</div>
+
 <datalist id="categoryOptions"></datalist>
 <datalist id="imageIdOptions"></datalist>
 <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
