@@ -20,8 +20,14 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Warm up the Google Drive image hosts so the first product thumbnail skips
+       the cold DNS/TLS handshake (product images redirect drive.google.com ->
+       lh3.googleusercontent.com). -->
+  <link rel="preconnect" href="https://drive.google.com" crossorigin>
+  <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
+  <link rel="dns-prefetch" href="https://lh3.googleusercontent.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=16" />
+  <link rel="stylesheet" href="css/styles.css?v=17" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -38,8 +44,28 @@
       }]
     }
   </script>
+  <style>
+    /* Loading splash — inlined so it paints before styles.css and never flashes.
+       js/splash.js drives the bar + early dismissal; the paviaSplashCap keyframe
+       is a pure-CSS backstop that reveals the site even if that script fails. */
+    #pavia-splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#faf6ef;color:#1a1612;opacity:1;transition:opacity .5s ease;animation:paviaSplashCap 6s ease forwards;}
+    #pavia-splash.is-hidden{opacity:0;pointer-events:none;}
+    .pavia-splash__inner{display:flex;flex-direction:column;align-items:center;gap:22px;padding:24px;}
+    .pavia-splash__word{font-family:'Fraunces',Georgia,'Times New Roman',serif;font-weight:600;font-size:clamp(34px,9vw,54px);letter-spacing:.42em;text-indent:.42em;line-height:1;}
+    .pavia-splash__track{width:min(180px,52vw);height:2px;border-radius:2px;background:rgba(26,22,18,.12);overflow:hidden;}
+    .pavia-splash__bar{height:100%;width:8%;border-radius:2px;background:#5a3e30;transition:width .3s ease;}
+    @keyframes paviaSplashCap{0%,82%{opacity:1;visibility:visible;}100%{opacity:0;visibility:hidden;}}
+    @media (prefers-reduced-motion:reduce){#pavia-splash,.pavia-splash__bar{transition:none;}}
+  </style>
 </head>
 <body>
+  <div id="pavia-splash" role="status" aria-live="polite" aria-label="Loading Pavia">
+    <div class="pavia-splash__inner">
+      <div class="pavia-splash__word">PAVIA</div>
+      <div class="pavia-splash__track"><div class="pavia-splash__bar" id="pavia-splash-bar"></div></div>
+    </div>
+  </div>
+  <script src="js/splash.js?v=1"></script>
   <a class="skip-link" href="#shop">Skip to shop</a>
   <div class="offline-banner" data-offline-banner role="status" aria-live="polite" hidden>
     You're offline — showing your last saved view.
@@ -250,7 +276,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Crafted with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.1.6</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.1.7</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -410,15 +436,15 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=21"></script>
+  <script defer src="js/config.js?v=22"></script>
   <script defer src="js/firebase-config.js?v=10"></script>
   <script defer src="js/backend-config.js?v=14"></script>
   <script defer src="js/image-catalog.js?v=11"></script>
   <script defer src="js/store-core.js?v=7"></script>
-  <script defer src="js/catalog-cache.js?v=2"></script>
+  <script defer src="js/catalog-cache.js?v=3"></script>
   <script defer src="js/backend.js?v=17"></script>
-  <script defer src="js/backend-firebase.js?v=25"></script>
+  <script defer src="js/backend-firebase.js?v=26"></script>
   <script defer src="js/products.js?v=11"></script>
-  <script defer src="js/app.js?v=22"></script>
+  <script defer src="js/app.js?v=23"></script>
 </body>
 </html>

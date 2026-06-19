@@ -1,5 +1,5 @@
 window.PAVIA_CONFIG = {
-  version: '0.1.6', // bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0)
+  version: '0.1.7', // bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0)
   siteName: 'Pavia',
   siteTitle: 'Pavia Lebanon',
   location: 'Beirut',

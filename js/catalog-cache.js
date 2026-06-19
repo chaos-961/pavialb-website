@@ -26,9 +26,12 @@
   // bytes are NOT stored here — cross-origin Drive thumbnails live in the
   // browser HTTP cache, which is sized in hundreds of MB and auto-managed.
   const IMAGE_CACHE_MAX = 1000;
+  // Run the (full-scan) prune only once every this many resolved-URL writes.
+  const PRUNE_INTERVAL = 50;
   const hasIDB = typeof indexedDB !== 'undefined';
 
   let dbPromise = null;
+  let putsSincePrune = 0;
 
   function openDb() {
     if (!hasIDB) return Promise.resolve(null);
@@ -191,7 +194,14 @@
       } catch {
         return;
       }
-      await pruneImages();
+      // Pruning does a full getAll(), so don't run it on every write — that would
+      // be O(n^2) when resolving a large catalog on first load. Amortize it: prune
+      // once every PRUNE_INTERVAL writes (and only then if actually over the cap).
+      putsSincePrune += 1;
+      if (putsSincePrune >= PRUNE_INTERVAL) {
+        putsSincePrune = 0;
+        await pruneImages();
+      }
     },
 
     pruneImages,

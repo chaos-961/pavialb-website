@@ -4,11 +4,14 @@
   const BACKEND = window.PaviaBackend;
   const PAYLOAD = window.PAVIA_ADMIN_PAYLOAD;
   const ADMIN_USERNAME = 'admin';
+  const WARN_SECONDS = 60; // show the "stay signed in" prompt this long before locking
   const textEncoder = new TextEncoder();
   const state = {
     backendReady: false,
     unlocked: false,
     inactivityTimer: 0,
+    warnTimer: 0,
+    warnInterval: 0,
     failedAttempts: 0,
     injectedScript: null,
   };
@@ -77,13 +80,50 @@
     }
   }
 
+  function clearLockWarning() {
+    if (state.warnInterval) { clearInterval(state.warnInterval); state.warnInterval = 0; }
+    document.getElementById('adminLockWarning')?.remove();
+  }
+
+  function showLockWarning() {
+    if (!state.unlocked || document.getElementById('adminLockWarning')) return;
+    let left = WARN_SECONDS;
+    const banner = document.createElement('div');
+    banner.id = 'adminLockWarning';
+    banner.setAttribute('role', 'alertdialog');
+    banner.setAttribute('aria-live', 'assertive');
+    banner.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;'
+      + 'display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:12px;'
+      + 'background:#1a1612;color:#faf6ef;font:500 14px/1.4 system-ui,-apple-system,sans-serif;'
+      + 'box-shadow:0 10px 30px rgba(0,0,0,.28);max-width:92vw;';
+    banner.innerHTML = '<span>Locking in <b id="adminLockCount">' + left + '</b>s for inactivity.</span>';
+    const stay = document.createElement('button');
+    stay.type = 'button';
+    stay.textContent = 'Stay signed in';
+    stay.style.cssText = 'background:#5a3e30;color:#faf6ef;border:none;border-radius:8px;'
+      + 'padding:8px 14px;font:600 13px system-ui,-apple-system,sans-serif;cursor:pointer;';
+    stay.addEventListener('click', resetInactivityTimer);
+    banner.appendChild(stay);
+    document.body.appendChild(banner);
+    state.warnInterval = window.setInterval(() => {
+      left -= 1;
+      const count = document.getElementById('adminLockCount');
+      if (count) count.textContent = String(Math.max(0, left));
+      if (left <= 0) { clearInterval(state.warnInterval); state.warnInterval = 0; }
+    }, 1000);
+  }
+
   function resetInactivityTimer() {
     clearTimeout(state.inactivityTimer);
+    clearTimeout(state.warnTimer);
+    clearLockWarning();
     if (!state.unlocked) return;
     const minutes = Number(PAYLOAD?.lockAfterMinutes) || 15;
+    const totalMs = minutes * 60 * 1000;
+    state.warnTimer = window.setTimeout(showLockWarning, Math.max(0, totalMs - WARN_SECONDS * 1000));
     state.inactivityTimer = window.setTimeout(() => {
       lockDashboard('Locked after inactivity. Enter the admin credentials again.');
-    }, minutes * 60 * 1000);
+    }, totalMs);
   }
 
   function bindInactivityEvents() {
@@ -112,6 +152,8 @@
     void BACKEND?.lockAdmin?.();
     window.PaviaDriveImages?.disconnect?.();
     clearTimeout(state.inactivityTimer);
+    clearTimeout(state.warnTimer);
+    clearLockWarning();
     const mount = $('#adminPayloadMount');
     mount.hidden = true;
     mount.replaceChildren();

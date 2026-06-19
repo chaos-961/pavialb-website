@@ -568,13 +568,24 @@
         const uid = firebaseState.auth?.currentUser?.uid;
         if (!uid) throw new Error('Anonymous sign-in is required before placing an order.');
         const requestId = safeKey(order.requestId, `req-${Date.now()}`);
-        const orderId = safeKey(order.id, `order-${Date.now()}`);
+        let orderId = safeKey(order.id, `order-${Date.now()}`);
         const now = new Date().toISOString();
         const existingRequest = await readPath(`orderRequests/${requestId}`);
         if (existingRequest?.orderId) {
           const existingOrder = await readPath(`orders/${existingRequest.orderId}`);
+          // Already created → return it so a retry (e.g. a response lost to a
+          // dropped connection) is an idempotent no-op, never a duplicate order.
           if (existingOrder) return clone(existingOrder);
-          throw new Error('This order request is already being processed.');
+          // A very recent 'creating' stub means another attempt is genuinely
+          // in flight (e.g. a second tab) — let it finish rather than racing it.
+          const ageMs = Date.now() - Date.parse(existingRequest.createdAt || '');
+          if (existingRequest.status === 'creating' && ageMs >= 0 && ageMs < 15000) {
+            throw new Error('This order is already being placed. Please wait a moment.');
+          }
+          // Otherwise the prior attempt failed or was interrupted with no order
+          // written: re-attempt under the SAME orderId, which the database rules
+          // and this dedupe both key on.
+          orderId = existingRequest.orderId;
         }
 
         await firebaseState.databaseApi.set(databaseReference(`orderRequests/${requestId}`), {
@@ -584,32 +595,35 @@
           createdAt: now,
         });
 
-        const items = normalizeOrderItems(order.items);
-        if (!items.length) throw new Error('Your bag is empty.');
-
-        const publicProducts = {};
-        for (const item of items) {
-          const product = await readPath(`publicProducts/${item.id}`);
-          if (!product || product.active !== true) throw new Error(`${item.name || item.id} is no longer available.`);
-          if (Number(product.stock || 0) < item.qty) throw new Error(`${product.name} has only ${product.stock || 0} left.`);
-          publicProducts[item.id] = product;
-        }
-
-        const pricingItems = items.map((item) => ({
-          ...item,
-          name: publicProducts[item.id].name || item.name,
-          price: Number(publicProducts[item.id].price) || 0,
-        }));
-        const subtotal = pricingItems.reduce((sum, item) => sum + item.price * item.qty, 0);
-        const settings = (await readPath('publicStoreSettings')) || {};
-        const customer = order.customer || {};
-        const deliveryArea = customer.deliveryArea === 'beirut' ? 'beirut' : 'lebanon';
-        const discount = 0;
-        const delivery = calculateDelivery(settings);
-        const total = subtotal + delivery;
+        // Everything below runs inside the try so ANY failure (validation, stock,
+        // or write) rolls back reserved stock and marks the request 'failed',
+        // leaving it safe to recover on a later retry.
         const reserved = [];
-
         try {
+          const items = normalizeOrderItems(order.items);
+          if (!items.length) throw new Error('Your bag is empty.');
+
+          const publicProducts = {};
+          for (const item of items) {
+            const product = await readPath(`publicProducts/${item.id}`);
+            if (!product || product.active !== true) throw new Error(`${item.name || item.id} is no longer available.`);
+            if (Number(product.stock || 0) < item.qty) throw new Error(`${product.name} has only ${product.stock || 0} left.`);
+            publicProducts[item.id] = product;
+          }
+
+          const pricingItems = items.map((item) => ({
+            ...item,
+            name: publicProducts[item.id].name || item.name,
+            price: Number(publicProducts[item.id].price) || 0,
+          }));
+          const subtotal = pricingItems.reduce((sum, item) => sum + item.price * item.qty, 0);
+          const settings = (await readPath('publicStoreSettings')) || {};
+          const customer = order.customer || {};
+          const deliveryArea = customer.deliveryArea === 'beirut' ? 'beirut' : 'lebanon';
+          const discount = 0;
+          const delivery = calculateDelivery(settings);
+          const total = subtotal + delivery;
+
           for (const item of pricingItems) {
             await transactStock(`products/${item.id}/stock`, -item.qty);
             reserved.push({ path: `products/${item.id}/stock`, qty: item.qty });

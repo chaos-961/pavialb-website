@@ -33,6 +33,10 @@
   const DRAFT_KEY = 'PAVIA_PRODUCT_DRAFT';
 
   let productsCache = [];
+  // Revision the open product had when the editor loaded it. Compared at save
+  // time against the live (subscription-updated) rev to catch a concurrent edit
+  // from another device before silently overwriting it. null = new product.
+  let editingBaseRev = null;
   let ordersCache = [];
   let settingsCache = {};
   let statsCache = null;
@@ -125,8 +129,20 @@
   function whatsappLink(value, order) {
     const phone = normalizePhone(value).replace(/^\+/, '');
     if (!phone) return '';
-    const text = encodeURIComponent(`Hello from Pavia about order #${order.id || order.orderNumber || ''}`);
-    return `https://wa.me/${phone}?text=${text}`;
+    const ref = order.orderNumber || order.id || '';
+    const firstName = String(order.customer?.name || order.customerName || '').trim().split(/\s+/)[0] || '';
+    const lines = (order.items || []).map((item) => {
+      const color = typeof item.color === 'string' ? item.color : item.color?.name || '';
+      const opts = [item.size, color].filter(Boolean).join('/');
+      return `• ${item.qty || 1}× ${item.name}${opts ? ` (${opts})` : ''}`;
+    });
+    const body = [
+      `Hello${firstName ? ` ${firstName}` : ''}, this is Pavia about your order${ref ? ` #${ref}` : ''}.`,
+      lines.length ? '' : null,
+      ...lines,
+      Number.isFinite(Number(order.total)) ? `\nTotal: ${fmt(order.total)}` : null,
+    ].filter((line) => line !== null).join('\n');
+    return `https://wa.me/${phone}?text=${encodeURIComponent(body)}`;
   }
 
   function toast(message) {
@@ -142,6 +158,57 @@
       setTimeout(() => element.remove(), 250);
     }, 2400);
   }
+
+  // ---- New-order alerts ----
+  // The orders subscription fires live. Announce genuinely new orders with a
+  // toast, a soft beep, and a (N) title badge cleared when the owner refocuses
+  // the tab. A 2-minute recency guard means pre-existing orders never alert,
+  // even if the baseline snapshot is taken at an awkward moment.
+  let knownOrderIds = null;
+  let unseenOrders = 0;
+  let orderAudioCtx = null;
+  const adminBaseTitle = document.title || 'Pavia Studio';
+  const NEW_ORDER_RECENT_MS = 2 * 60 * 1000;
+
+  function updateOrderTitleBadge() {
+    document.title = unseenOrders > 0 ? `(${unseenOrders}) ${adminBaseTitle}` : adminBaseTitle;
+  }
+  function clearOrderBadge() { if (unseenOrders) { unseenOrders = 0; updateOrderTitleBadge(); } }
+  function orderBeep() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      orderAudioCtx = orderAudioCtx || new Ctx();
+      if (orderAudioCtx.state === 'suspended') orderAudioCtx.resume();
+      const osc = orderAudioCtx.createOscillator();
+      const gain = orderAudioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.06;
+      osc.connect(gain);
+      gain.connect(orderAudioCtx.destination);
+      const t = orderAudioCtx.currentTime;
+      osc.start(t);
+      osc.stop(t + 0.18);
+    } catch { /* audio may be blocked — the toast + badge still notify */ }
+  }
+  function detectNewOrders() {
+    const ids = ordersCache.map((order) => order.id).filter(Boolean);
+    if (knownOrderIds === null) { knownOrderIds = new Set(ids); return; } // baseline, no alert
+    const fresh = ordersCache.filter((order) => order.id && !knownOrderIds.has(order.id));
+    fresh.forEach((order) => knownOrderIds.add(order.id));
+    const now = Date.now();
+    const reallyNew = fresh.filter((order) => {
+      const t = Date.parse(order.createdAt || order.date || '');
+      return Number.isFinite(t) && (now - t) < NEW_ORDER_RECENT_MS;
+    });
+    if (!reallyNew.length) return;
+    toast(`${reallyNew.length} new order${reallyNew.length === 1 ? '' : 's'} received`);
+    orderBeep();
+    if (!document.hasFocus()) { unseenOrders += reallyNew.length; updateOrderTitleBadge(); }
+  }
+  window.addEventListener('focus', clearOrderBadge);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) clearOrderBadge(); });
 
   // ---- P15: save feedback, dirty tracking, draft autosave ----
   function setButtonLoading(button, loading, text) {
@@ -1015,6 +1082,7 @@
 
   function resetForm() {
     suppressDirty = true;
+    editingBaseRev = null;
     $('#productForm').reset();
     $('#prodId').value = '';
     $('#prodSlug').value = '';
@@ -1053,6 +1121,7 @@
     if (!confirmDiscardIfDirty('Discard unsaved changes and edit this product?')) return;
     suppressDirty = true;
     setFormStatus('productFormStatus', '');
+    editingBaseRev = Number(product.rev) || 0;
     $('#prodId').value = product.id;
     $('#prodSlug').value = product.slug || product.id;
     $('#prodName').value = product.name;
@@ -1131,6 +1200,21 @@
       setFormStatus('productFormStatus', 'Fix the highlighted fields and try again.', 'error');
       toast('Fix the highlighted product fields');
       return;
+    }
+
+    // Concurrent-edit guard: if this product's stored revision advanced past the
+    // one we opened (another device/tab saved in the meantime), don't silently
+    // clobber it — confirm first. productsCache is kept live by the subscription.
+    if (existing && editingBaseRev !== null && (Number(existing.rev) || 0) > editingBaseRev) {
+      const proceed = window.confirm(
+        'This product was changed elsewhere since you opened it. Save anyway and overwrite those changes?',
+      );
+      if (!proceed) {
+        setFormStatus('productFormStatus', 'Save cancelled — reopen the product to load the latest version.', 'error');
+        toast('Save cancelled — product changed elsewhere');
+        return;
+      }
+      editingBaseRev = Number(existing.rev) || 0; // accept current as the new base
     }
 
     if (savingProduct) return; // double-submit guard
@@ -2485,6 +2569,7 @@
       await BACKEND.init({ defaultProducts: window.PAVIA_DEFAULT_PRODUCTS || [] });
       BACKEND.orders.subscribe(async () => {
         await loadOrders();
+        detectNewOrders();
         renderOrders();
         renderMetrics();
       });

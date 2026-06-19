@@ -1,5 +1,5 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v41';
+const CACHE = 'pavia-v42';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const IMAGE_CACHE_MAX = 120;
 
@@ -15,17 +15,18 @@ async function trimImageCache(cache) {
 const ASSETS = [
   './',
   './index.html',
-  './js/config.js?v=21',
+  './js/splash.js?v=1',
+  './js/config.js?v=22',
   './js/firebase-config.js?v=10',
   './js/backend-config.js?v=14',
   './js/image-catalog.js?v=11',
   './js/store-core.js?v=7',
-  './js/catalog-cache.js?v=2',
+  './js/catalog-cache.js?v=3',
   './js/backend.js?v=17',
-  './js/backend-firebase.js?v=25',
-  './css/styles.css?v=16',
+  './js/backend-firebase.js?v=26',
+  './css/styles.css?v=17',
   './js/products.js?v=11',
-  './js/app.js?v=22',
+  './js/app.js?v=23',
   './manifest.webmanifest',
   './assets/logo.svg',
 ];
@@ -99,7 +100,11 @@ self.addEventListener('fetch', (event) => {
             return response;
           })
           .catch(() => null);
-        return cached || (await networked) || fetch(req);
+        // Serve cache instantly; otherwise wait for the network. If both miss
+        // (offline, uncached image) return a network-error response rather than
+        // firing a second doomed fetch — the page's <img> error handler then
+        // shows the branded placeholder.
+        return cached || (await networked) || Response.error();
       }),
     );
     return;

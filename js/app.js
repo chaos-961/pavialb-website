@@ -12,7 +12,11 @@
     cart:        'PAVIA_CART',
     wishlist:    'PAVIA_WISHLIST',
     orders:      'PAVIA_ORDERS',
-    recent:      'PAVIA_RECENT'
+    recent:      'PAVIA_RECENT',
+    // Identity of the order currently being placed, so a retry after a lost
+    // response reuses the same requestId/orderId and the backend dedupes it
+    // instead of creating a duplicate. Cleared once the order is confirmed.
+    pendingOrder:'PAVIA_PENDING_ORDER'
   };
 
   const SITE_CONFIG = window.PAVIA_CONFIG || {};
@@ -137,6 +141,12 @@
   // Drive requests low: the grid shows MAIN images only; gallery images are
   // created (and therefore only requested) when the product modal opens.
   const IMG_MAX_CONCURRENCY = 4;
+  // Drive's thumbnail endpoint is occasionally flaky/rate-limited, so a single
+  // transient failure shouldn't permanently pin the placeholder. Retry once after
+  // a short backoff before giving up. While a retry is pending, data-managed-retry
+  // tells the global error handler to stay out of the way (see bindEvents).
+  const IMG_MAX_RETRIES = 1;
+  const IMG_RETRY_DELAY = 800;
   let imgInFlight = 0;
   const imgQueue = [];
   function pumpImgQueue() {
@@ -145,11 +155,28 @@
       imgQueue.shift()();
     }
   }
-  function loadImg(img, url) {
+  function loadImg(img, url, attempt = 0) {
+    img.dataset.managedRetry = '1';
     imgQueue.push(() => {
-      const done = () => { imgInFlight -= 1; pumpImgQueue(); };
-      img.addEventListener('load', () => { img.classList.add('is-loaded'); done(); }, { once: true });
-      img.addEventListener('error', done, { once: true }); // global handler swaps to placeholder
+      const settle = () => { imgInFlight -= 1; pumpImgQueue(); };
+      const onLoad = () => {
+        img.classList.add('is-loaded');
+        delete img.dataset.managedRetry;
+        settle();
+      };
+      const onError = () => {
+        if (attempt < IMG_MAX_RETRIES) {
+          settle(); // free the slot during backoff so other images keep loading
+          window.setTimeout(() => loadImg(img, url, attempt + 1), IMG_RETRY_DELAY);
+          return;
+        }
+        delete img.dataset.managedRetry;
+        img.dataset.placeheld = '1';
+        img.src = placeholderImage(img.alt || img.closest('[data-product-id]')?.dataset.productId || 'pavia');
+        settle();
+      };
+      img.addEventListener('load', onLoad, { once: true });
+      img.addEventListener('error', onError, { once: true });
       img.src = url;
     });
     pumpImgQueue();
@@ -704,6 +731,16 @@
     DELIVERY_FEE = Number.isFinite(fee) ? Math.max(0, fee) : 3;
   }
 
+  // Tell the inline splash screen (index.html) that real content is on screen so
+  // it can finish its progress bar and fade out. Fires at most once; the splash
+  // also has its own time cap so it never traps the user if this never fires.
+  let readySignaled = false;
+  function signalReady() {
+    if (readySignaled) return;
+    readySignaled = true;
+    try { window.dispatchEvent(new Event('pavia:ready')); } catch { /* noop */ }
+  }
+
   async function init() {
     $('[data-year]').textContent = new Date().getFullYear();
     // Ask the browser to keep our cached catalog/images from being evicted under
@@ -716,6 +753,7 @@
       renderProducts();
       renderRecent();
       applyHeroImages();
+      signalReady(); // cached content is already on screen — drop the splash
     } else {
       showSkeletons();
     }
@@ -746,11 +784,14 @@
         renderProducts();
         renderRecent();
         applyHeroImages();
+        signalReady();
       }, 250);
     }
+    signalReady(); // safety: never let the splash outlive a completed init
     renderCart();
     renderWishlist();
     bindEvents();
+    openDeepLinkedProduct(); // honor a shared/bookmarked ?product= link
     setupRevealObserver();
     registerServiceWorker();
     updateStructuredData();
@@ -767,6 +808,7 @@
     document.addEventListener('error', (event) => {
       const img = event.target;
       if (!(img instanceof HTMLImageElement) || img.dataset.placeheld) return;
+      if (img.dataset.managedRetry) return; // loadImg owns retry/fallback for this image
       if (img.src.startsWith('data:')) return; // placeholder itself can't fail
       img.dataset.placeheld = '1';
       img.src = placeholderImage(img.alt || img.closest('[data-product-id]')?.dataset.productId || 'pavia');
@@ -1139,10 +1181,78 @@
   }
 
   // ---------- Product modal ----------
+  // ---- Deep-linking & sharing (P-phase3) ----
+  // Each product gets a shareable, bookmarkable URL (?product=<slug>). Opening a
+  // modal reflects it in the address bar (replaceState — no history spam) and
+  // publishes a per-product JSON-LD; closing restores the base URL.
+  const productSlug = (p) => String(p?.slug || p?.id || '').trim();
+  function productShareUrl(p) {
+    const slug = productSlug(p);
+    return slug
+      ? `${location.origin}${location.pathname}?product=${encodeURIComponent(slug)}`
+      : location.href;
+  }
+  function syncProductUrl(p) {
+    if (!history.replaceState) return;
+    try { history.replaceState(null, '', productShareUrl(p)); } catch { /* noop */ }
+  }
+  function clearProductUrl() {
+    if (!history.replaceState) return;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch { /* noop */ }
+  }
+  function setProductJsonLd(p) {
+    const data = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: p.name,
+      description: p.description || '',
+      category: p.category || '',
+      image: /^https:\/\//i.test(p.image) ? p.image : undefined,
+      offers: {
+        '@type': 'Offer',
+        price: Number(p.price) || 0,
+        priceCurrency: SITE_CONFIG.currency || 'USD',
+        availability: p.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        url: productShareUrl(p),
+      },
+    };
+    let script = document.querySelector('script[data-product-detail-jsonld]');
+    if (!script) {
+      script = document.createElement('script');
+      script.type = 'application/ld+json';
+      script.setAttribute('data-product-detail-jsonld', '');
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify(data);
+  }
+  function clearProductJsonLd() {
+    document.querySelector('script[data-product-detail-jsonld]')?.remove();
+  }
+  async function shareProduct(p) {
+    const url = productShareUrl(p);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${p.name} · ${SITE_CONFIG.siteTitle || 'Pavia'}`, text: p.name, url });
+        return;
+      } catch { /* cancelled or unsupported → fall back to copy */ }
+    }
+    try { await navigator.clipboard.writeText(url); toast('Link copied'); }
+    catch { toast('Could not copy the link'); }
+  }
+  // Open the product named in ?product=<slug> on load (shared/bookmarked link).
+  function openDeepLinkedProduct() {
+    const slug = new URLSearchParams(location.search).get('product');
+    if (!slug) return;
+    const match = products.find((x) => productSlug(x) === slug) || getProduct(slug);
+    if (match) openProductModal(match.id);
+  }
+
   async function openProductModal(id) {
     const p = getProduct(id);
     if (!p) return;
     modalProduct = p;
+    syncProductUrl(p);
+    setProductJsonLd(p);
     selectedSize = p.sizes[0] || '';
     selectedColor = (p.colors[0] && p.colors[0].name) || '';
     selectedQty = 1;
@@ -1182,7 +1292,7 @@
     setHtml(n.modalContent, html`
       <div class="modal-product">
         <div class="image-wrap">
-          <img src="${pickImage(selectedImage || p.image, p.id)}" alt="${p.name}" decoding="async" width="720" height="780" />
+          <img src="${pickImage(selectedImage || p.image, p.id)}" alt="${p.name}" decoding="async" width="720" height="780" data-modal-zoom />
           ${gallery.length > 1 ? html`
             <div class="modal-gallery" aria-label="Product images">
               ${gallery.map((src, index) => html`
@@ -1195,7 +1305,13 @@
         </div>
         <div class="modal-details">
           <span class="eyebrow">${p.category}${p.badge ? html` · ${p.badge}` : ''}</span>
-          <h2 id="modalTitle">${p.name}</h2>
+          <div class="modal-title-row">
+            <h2 id="modalTitle">${p.name}</h2>
+            <button type="button" class="modal-share" data-modal-share aria-label="Share this product">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v13"/></svg>
+              <span>Share</span>
+            </button>
+          </div>
           <p class="muted modal-desc">${p.description}</p>
           <div class="modal-price-row">
             <span class="now">${money(p.price)}</span>
@@ -1260,6 +1376,20 @@
           : `Add to bag - ${money(p.price * selectedQty)}`;
     }
     eagerLoadLazyImages(n.modalContent);
+    $('[data-modal-share]', n.modalContent)?.addEventListener('click', () => shareProduct(p));
+    // Tap-to-zoom the main image toward the click point; tap again to reset.
+    const zoomImg = $('[data-modal-zoom]', n.modalContent);
+    zoomImg?.addEventListener('click', (event) => {
+      const zoomed = zoomImg.classList.toggle('is-zoomed');
+      if (zoomed) {
+        const rect = zoomImg.getBoundingClientRect();
+        const ox = Math.min(100, Math.max(0, ((event.clientX - rect.left) / rect.width) * 100));
+        const oy = Math.min(100, Math.max(0, ((event.clientY - rect.top) / rect.height) * 100));
+        zoomImg.style.transformOrigin = `${ox}% ${oy}%`;
+      } else {
+        zoomImg.style.transformOrigin = '';
+      }
+    });
     $$('[data-gallery-src]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedImage = b.dataset.gallerySrc; renderProductModal(); }));
     $$('[data-size]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedSize = b.dataset.size; renderProductModal(); }));
     $$('[data-color]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedColor = b.dataset.color; renderProductModal(); }));
@@ -1282,6 +1412,8 @@
     n.modal.classList.remove('is-open');
     n.modal.setAttribute('aria-hidden', 'true');
     if (!n.checkoutModal.classList.contains('is-open')) document.body.classList.remove('no-scroll');
+    clearProductUrl();
+    clearProductJsonLd();
     lastFocusedElement?.focus?.();
   }
 
@@ -1598,10 +1730,16 @@
     const subtotal = cartSubtotal();
     const delivery = deliveryFee();
     const total = subtotal + delivery;
-    const requestId = makeRequestId();
-    const orderNumber = `PAV-${Date.now().toString().slice(-6)}`;
+    // Reuse a pending order identity across retries (e.g. after a dropped
+    // connection) so the backend dedupes instead of creating a duplicate. A
+    // brand-new submission gets fresh ids; we clear this once the order lands.
+    const pending = readJSON(STORE_KEYS.pendingOrder, null);
+    const requestId = pending?.requestId || makeRequestId();
+    const orderId = pending?.orderId || `order-${Date.now()}`;
+    const orderNumber = pending?.orderNumber || `PAV-${Date.now().toString().slice(-6)}`;
+    writeJSON(STORE_KEYS.pendingOrder, { requestId, orderId, orderNumber });
     const order = {
-      id: `order-${Date.now()}`,
+      id: orderId,
       requestId,
       orderNumber,
       date: new Date().toISOString(),
@@ -1653,6 +1791,9 @@
       return;
     }
     void BACKEND?.analytics.recordEvent('order_created');
+
+    // Order landed — retire the pending identity so the next order gets fresh ids.
+    writeJSON(STORE_KEYS.pendingOrder, null);
 
     // Order is saved. Show a clean confirmation — no automatic WhatsApp redirect.
     const customerName = String(formData.get('name') || '').trim().split(/\s+/)[0] || '';
@@ -1807,5 +1948,6 @@
     renderCart();
     renderWishlist();
     bindEvents();
+    signalReady(); // even on failure, reveal the (fallback) site
   });
 })();
