@@ -1655,13 +1655,13 @@
       button.disabled = true;
       return;
     }
-    button.disabled = false;
     const connected = Boolean(drive().accessToken?.());
     setLibraryDriveStatus(
       connected ? 'Image library connected' : 'Connect the image library',
-      connected ? 'The access token is in memory only and is forgotten on lock or reload.' : 'Connect once to browse and upload images.',
+      connected ? 'Ready to browse and upload images.' : 'Connect once to browse and upload images.',
     );
-    button.textContent = connected ? 'Reconnect' : 'Connect Google Drive';
+    button.disabled = connected;
+    button.textContent = connected ? 'Google Drive connected' : 'Connect Google Drive';
   }
 
   function setLibraryStatus(message, isError = false) {

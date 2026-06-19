@@ -1774,7 +1774,12 @@
       window.location.reload();
     });
 
-    navigator.serviceWorker.register('service-worker.js').then((registration) => {
+    // updateViaCache: 'none' stops the browser from serving service-worker.js
+    // itself from the HTTP cache, so a new SW (and its fresh caches) is detected
+    // promptly instead of lingering for up to 24h. update() forces an immediate
+    // check on every load.
+    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).then((registration) => {
+      registration.update().catch(() => null);
       if (registration.waiting && navigator.serviceWorker.controller) {
         showUpdateReady(registration.waiting);
       }

@@ -1,10 +1,21 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v39';
+const CACHE = 'pavia-v40';
 const IMAGE_CACHE = 'pavia-product-images-v1';
+const IMAGE_CACHE_MAX = 120;
+
+// Drop the oldest cached images once the store grows past the cap. cache.keys()
+// preserves insertion order, so the head of the list is the least-recently put.
+async function trimImageCache(cache) {
+  const keys = await cache.keys();
+  if (keys.length <= IMAGE_CACHE_MAX) return;
+  await Promise.all(
+    keys.slice(0, keys.length - IMAGE_CACHE_MAX).map((key) => cache.delete(key)),
+  );
+}
 const ASSETS = [
   './',
   './index.html',
-  './js/config.js?v=19',
+  './js/config.js?v=20',
   './js/firebase-config.js?v=10',
   './js/backend-config.js?v=14',
   './js/image-catalog.js?v=11',
@@ -14,7 +25,7 @@ const ASSETS = [
   './js/backend-firebase.js?v=25',
   './css/styles.css?v=16',
   './js/products.js?v=11',
-  './js/app.js?v=20',
+  './js/app.js?v=21',
   './manifest.webmanifest',
   './assets/logo.svg',
 ];
@@ -66,27 +77,29 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (req.destination === 'image') {
+    // Stale-while-revalidate: serve the cached image instantly for speed/offline,
+    // but ALWAYS re-fetch in the background and overwrite the cache with fresh
+    // bytes. This means an updated image can never stay pinned — the next view
+    // shows the new image with no manual cache reset. Product images additionally
+    // carry a ?pv=<imageVersion> buster, so a re-uploaded image is a fresh URL
+    // (cache miss) and shows immediately on the very first view.
     event.respondWith(
       caches.open(IMAGE_CACHE).then(async (cache) => {
         const cached = await cache.match(req);
-        if (cached) return cached;
-        const response = await fetch(req);
-        if (response.ok) {
-          const url = new URL(req.url);
-          const version = url.searchParams.get('pv');
-          if (version) {
-            const existing = await cache.keys();
-            await Promise.all(existing.map((entry) => {
-              const cachedUrl = new URL(entry.url);
-              const isOlderVersion = cachedUrl.origin === url.origin
-                && cachedUrl.pathname === url.pathname
-                && cachedUrl.searchParams.get('pv') !== version;
-              return isOlderVersion ? cache.delete(entry) : null;
-            }));
-          }
-          await cache.put(req, response.clone());
-        }
-        return response;
+        const networked = fetch(req)
+          .then((response) => {
+            // Only same-origin / CORS responses are cacheable. Cross-origin Drive
+            // thumbnails come back opaque (ok === false); those are left to the
+            // browser HTTP cache, which busts on the ?pv= image version.
+            if (response && response.ok) {
+              cache.put(req, response.clone())
+                .then(() => trimImageCache(cache))
+                .catch(() => null);
+            }
+            return response;
+          })
+          .catch(() => null);
+        return cached || (await networked) || fetch(req);
       }),
     );
     return;
