@@ -14,48 +14,69 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="../css/styles.css?v=11" />
-    <link rel="stylesheet" href="../css/admin.css?v=14" />
+    <link rel="stylesheet" href="../css/admin.css?v=15" />
   </head>
   <body>
     <div class="admin-shell">
-      <section id="adminGate" class="login-card" hidden>
-        <p class="admin-kicker">Pavia Studio</p>
-        <h1>Studio unlock</h1>
-        <p class="sub">Enter the admin password to open the store tools.</p>
-
-        <div class="auth-card compact-auth">
-          <div>
-            <span>Access</span>
-            <strong data-auth-state>Checking authorization</strong>
-          </div>
-        </div>
-
-        <details class="auth-details">
-          <summary>Authorization details</summary>
-          <div>
-            <span>Provider</span>
-            <strong data-auth-provider>Initializing</strong>
-          </div>
-          <div class="uid-row">
-            <span>Anonymous UID</span>
-            <code data-admin-uid>Loading</code>
-          </div>
-        </details>
-
-        <div id="unlockPanel" hidden>
-          <form id="loginForm" autocomplete="off">
-            <label for="loginPass">
-              Password
-              <input id="loginPass" type="password" required autocomplete="current-password" />
-            </label>
-            <div id="loginError" class="login-error" role="alert"></div>
-            <button type="submit" class="btn btn-primary full">Unlock Studio</button>
-          </form>
-          <p class="security-note">
-            The password decrypts the admin tools in this browser. Keep it private: anyone with this
-            password can manage the store. Use the Lock button when you finish.
+      <section id="adminGate" class="admin-login" hidden aria-labelledby="admin-title">
+        <div class="admin-login-copy">
+          <p class="eyebrow">Admin access</p>
+          <h1 id="admin-title">Studio</h1>
+          <p class="admin-login-sub">
+            Sign in to manage products, orders, and promos — and watch live visitor analytics.
           </p>
         </div>
+
+        <form id="loginForm" class="admin-form" autocomplete="off">
+          <div class="admin-form-head">
+            <span>Sign in</span>
+            <span class="admin-form-lock">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+              Encrypted
+            </span>
+          </div>
+
+          <label class="admin-field">
+            <span>Name</span>
+            <input id="adminName" name="name" type="text" inputmode="text" autocomplete="username" placeholder="admin" value="admin" required />
+          </label>
+
+          <label class="admin-field">
+            <span>Password</span>
+            <span class="admin-password-wrap">
+              <input id="loginPass" type="password" required autocomplete="current-password" placeholder="••••••••" />
+              <button type="button" class="admin-password-toggle" id="adminPasswordToggle" aria-label="Show password" aria-pressed="false">Show</button>
+            </span>
+          </label>
+
+          <button type="submit" class="admin-submit" id="adminSubmit">
+            <span>Log in</span>
+            <svg class="admin-submit-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 12h15M13 5l7 7-7 7"/></svg>
+          </button>
+
+          <p id="loginError" class="admin-status" role="status" aria-live="polite"></p>
+
+          <details class="auth-details">
+            <summary>Session details</summary>
+            <div>
+              <span>Access</span>
+              <strong data-auth-state>Checking authorization</strong>
+            </div>
+            <div>
+              <span>Provider</span>
+              <strong data-auth-provider>Initializing</strong>
+            </div>
+            <div class="uid-row">
+              <span>Anonymous UID</span>
+              <code data-admin-uid>Loading</code>
+            </div>
+          </details>
+
+          <p class="security-note">
+            The password decrypts the admin tools in this browser and signs you in to Firebase. Keep it
+            private — anyone with it can manage the store. Use Lock Studio when you finish.
+          </p>
+        </form>
       </section>
 
       <button id="lockBtn" type="button" class="btn btn-secondary admin-lock-button" hidden>Lock Studio</button>
@@ -71,6 +92,6 @@
     <script src="../js/backend-firebase.js?v=21"></script>
     <script src="../js/products.js?v=10"></script>
     <script src="../js/drive-images.js?v=2"></script>
-    <script src="../js/admin.js?v=15"></script>
+    <script src="../js/admin.js?v=16"></script>
   </body>
 </html>

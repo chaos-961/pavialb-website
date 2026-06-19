@@ -35,16 +35,20 @@
     if (!element) return;
     element.textContent = message || '';
     element.dataset.type = type;
-    element.classList.toggle('show', Boolean(message));
+    element.classList.toggle('is-error', type === 'error' && Boolean(message));
   }
 
   function updateAuthState() {
     const uid = BACKEND?.authUid || '';
     $$('[data-admin-uid]').forEach((element) => { element.textContent = uid || 'Unavailable'; });
     const provider = state.backendReady ? (BACKEND?.provider || 'local') : 'initializing';
-    $('[data-auth-provider]').textContent = provider;
-    $('[data-auth-state]').textContent = provider === 'initializing' ? 'Checking access' : 'Ready for password';
-    $('#unlockPanel').hidden = provider === 'initializing';
+    const providerEl = $('[data-auth-provider]');
+    if (providerEl) providerEl.textContent = provider;
+    const stateEl = $('[data-auth-state]');
+    if (stateEl) stateEl.textContent = provider === 'initializing' ? 'Checking access' : 'Ready for password';
+    // Keep the submit disabled until the backend is ready (replaces #unlockPanel).
+    const submit = $('#adminSubmit');
+    if (submit && !state.unlocked) submit.disabled = provider === 'initializing';
     const notAuthorized = $('#notAuthorizedPanel');
     if (notAuthorized) notAuthorized.hidden = true;
   }
@@ -52,6 +56,27 @@
   function clearSensitiveInputs() {
     const password = $('#loginPass');
     if (password) password.value = '';
+  }
+
+  function setLoginBusy(busy) {
+    $('#loginForm')?.classList.toggle('is-busy', busy);
+    const submit = $('#adminSubmit');
+    if (submit) submit.disabled = busy;
+    const name = $('#adminName');
+    if (name) name.disabled = busy;
+    const password = $('#loginPass');
+    if (password) password.disabled = busy;
+  }
+
+  function resetPasswordVisibility() {
+    const password = $('#loginPass');
+    const toggle = $('#adminPasswordToggle');
+    if (password && password.type === 'text') password.type = 'password';
+    if (toggle) {
+      toggle.textContent = 'Show';
+      toggle.setAttribute('aria-pressed', 'false');
+      toggle.setAttribute('aria-label', 'Show password');
+    }
   }
 
   function resetInactivityTimer() {
@@ -97,6 +122,8 @@
     $('#lockBtn').hidden = true;
     $('#adminGate').hidden = false;
     clearSensitiveInputs();
+    resetPasswordVisibility();
+    setLoginBusy(false);
     if (message) setMessage(message, 'info');
     updateAuthState();
   }
@@ -150,7 +177,19 @@
     event.preventDefault();
     setMessage('');
 
+    // The Name field is cosmetic parity with the sibling admin sign-in; the
+    // payload is always derived with the fixed ADMIN_USERNAME, so just validate.
+    const nameInput = $('#adminName');
+    if (nameInput && nameInput.value.trim().toLowerCase() !== ADMIN_USERNAME) {
+      setMessage('Check the name and password.', 'error');
+      nameInput.focus();
+      return;
+    }
+
     const password = $('#loginPass').value;
+    setLoginBusy(true);
+    setMessage('Signing in…', 'info');
+
     const delay = Math.min(state.failedAttempts * 900, 4500);
     if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay));
 
@@ -165,11 +204,15 @@
       BACKEND?.setAdminUnlocked?.(true);
       window.PaviaDriveImages?.setPassword?.(password);
       clearSensitiveInputs();
+      resetPasswordVisibility();
       injectDashboard(payload.html, payload.code);
       resetInactivityTimer();
     } catch (error) {
       state.failedAttempts += 1;
       clearSensitiveInputs();
+      resetPasswordVisibility();
+      setLoginBusy(false);
+      $('#loginPass')?.focus();
       console.warn('Admin unlock failed.', error);
       const code = String(error?.code || '');
       if (code === 'auth/network-request-failed') {
@@ -186,6 +229,17 @@
     $('#adminGate').hidden = false;
     updateAuthState();
     $('#loginForm').addEventListener('submit', handleUnlock);
+    const passwordToggle = $('#adminPasswordToggle');
+    passwordToggle?.addEventListener('click', () => {
+      const password = $('#loginPass');
+      if (!password) return;
+      const reveal = password.type === 'password';
+      password.type = reveal ? 'text' : 'password';
+      passwordToggle.textContent = reveal ? 'Hide' : 'Show';
+      passwordToggle.setAttribute('aria-pressed', String(reveal));
+      passwordToggle.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+      password.focus();
+    });
     $('#resetIdentityBtn')?.addEventListener('click', async () => {
       const confirmed = window.confirm(
         'Resetting this anonymous identity signs this browser out and reloads admin. Continue?',

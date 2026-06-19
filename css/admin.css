@@ -149,6 +149,12 @@ body {
   box-shadow: var(--shadow-md);
 }
 
+/* .btn sets display:flex, which overrides the [hidden] attribute — opt back out
+   so the lock button stays hidden on the login gate until the dashboard opens. */
+.admin-lock-button[hidden] {
+  display: none;
+}
+
 .login-card form {
   display: grid;
   gap: 18px;
@@ -245,6 +251,278 @@ body {
 
 .login-error.show {
   display: block;
+}
+
+/* =========================================================================
+   ADMIN LOGIN — sibling-style sign-in (Pyxole / Nerve Media pattern) in the
+   Pavia cream/cocoa palette. Big editorial heading on the left, an encrypted
+   sign-in card on the right with a name + password (show/hide) and an arrow
+   submit button.
+   ========================================================================= */
+.admin-login {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 430px);
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
+  width: min(1100px, 100%);
+  min-height: min(78vh, 720px);
+  margin: 4vh auto 0;
+}
+
+/* A class-level display overrides the [hidden] attribute, so opt back out. */
+.admin-login[hidden] {
+  display: none;
+}
+
+.admin-login-copy .eyebrow {
+  margin: 0 0 12px;
+  color: var(--cocoa);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.admin-login-copy h1 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: clamp(72px, 13vw, 148px);
+  font-weight: 400;
+  line-height: 0.85;
+  letter-spacing: -0.04em;
+}
+
+.admin-login-sub {
+  max-width: 38ch;
+  margin: 22px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.admin-form {
+  display: grid;
+  gap: 16px;
+  padding: clamp(24px, 4vw, 36px);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+.admin-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-form-head > span:first-child {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.admin-form-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.admin-form-lock svg {
+  width: 13px;
+  height: 13px;
+}
+
+.admin-field {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-field > span {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.admin-field input {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: 500 15px/1.4 var(--sans);
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.admin-field input::placeholder {
+  color: var(--muted);
+}
+
+.admin-field input:focus {
+  outline: 0;
+  background: #fff;
+  border-color: var(--cocoa);
+  box-shadow: 0 0 0 3px rgba(90, 62, 48, 0.1);
+}
+
+.admin-field input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-password-wrap {
+  position: relative;
+  display: block;
+}
+
+.admin-password-wrap input {
+  padding-right: 74px;
+}
+
+.admin-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  transform: translateY(-50%);
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--cocoa);
+  background: rgba(166, 126, 91, 0.12);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: 700 10px/1 var(--sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s, border-color 0.16s;
+}
+
+.admin-password-toggle:hover,
+.admin-password-toggle:focus-visible {
+  color: var(--ink);
+  background: rgba(166, 126, 91, 0.2);
+  outline: 0;
+}
+
+.admin-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 8px;
+  padding: 0 24px;
+  color: var(--paper);
+  background: var(--ink);
+  border: 0;
+  border-radius: 12px;
+  font: 700 14px/1 var(--sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.admin-submit-arrow {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.28s ease;
+}
+
+.admin-submit:hover,
+.admin-submit:focus-visible {
+  transform: translateY(-2px);
+  background: var(--cocoa);
+  outline: 0;
+}
+
+.admin-submit:hover .admin-submit-arrow,
+.admin-submit:focus-visible .admin-submit-arrow {
+  transform: translateX(5px);
+}
+
+.admin-submit:active {
+  transform: translateY(0);
+}
+
+.admin-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.admin-status {
+  min-height: 20px;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-status.is-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #9d2e24;
+}
+
+.admin-status.is-error::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.admin-form.is-busy {
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.admin-form .auth-details {
+  margin: 2px 0 0;
+}
+
+.admin-form .security-note {
+  margin-top: 4px;
+}
+
+@media (max-width: 860px) {
+  .admin-login {
+    grid-template-columns: 1fr;
+    gap: 26px;
+    min-height: 0;
+    margin-top: 2vh;
+  }
+
+  .admin-login-copy h1 {
+    font-size: clamp(60px, 22vw, 104px);
+  }
+
+  .admin-login-sub {
+    max-width: none;
+  }
 }
 
 .admin-header {
