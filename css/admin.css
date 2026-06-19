@@ -702,6 +702,17 @@ body {
   font-size: 12px;
 }
 
+/* The Visitors tab shows six metric cards; a 3-up grid keeps them even. */
+.metrics-grid.visitor-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .metrics-grid.visitor-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .ops-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

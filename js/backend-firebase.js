@@ -92,14 +92,19 @@
   // Pure aggregation of the raw users node into the figures the admin Overview
   // shows. Mirrors the sibling sites' stats-core summarizer.
   function summarizeVisitors(rawUsers, now = Date.now()) {
+    const dayMs = 86400000;
     const startOfDay = startOfLocalDay(now);
     const activeNowStart = now - 15 * 60000;
+    const weekStart = startOfDay - 6 * dayMs;
+    const monthStart = startOfDay - 29 * dayMs;
     const eventTypes = ['product_view', 'add_to_cart', 'checkout_started', 'order_created'];
     const eventTotals = Object.fromEntries(eventTypes.map((type) => [type, 0]));
     const recent = [];
     let totalVisitors = 0;
     let newToday = 0;
     let activeNow = 0;
+    let active7d = 0;
+    let active30d = 0;
     let sessions = 0;
     let todaySessions = 0;
 
@@ -110,6 +115,8 @@
       sessions += Number(user.visits?.count) || 0;
       if (createdAt >= startOfDay) newToday += 1;
       if (lastAt >= activeNowStart) activeNow += 1;
+      if (lastAt >= weekStart) active7d += 1;
+      if (lastAt >= monthStart) active30d += 1;
       Object.values(user.sessionHistory || {}).forEach((entry) => {
         if ((Number(entry?.startedAt) || 0) >= startOfDay) todaySessions += 1;
       });
@@ -122,6 +129,8 @@
       totalVisitors,
       newToday,
       activeNow,
+      active7d,
+      active30d,
       sessions,
       todaySessions,
       events: eventTypes.map((type) => ({ type, count: eventTotals[type] })),

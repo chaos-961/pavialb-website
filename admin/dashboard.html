@@ -15,6 +15,7 @@
 
   <nav class="admin-tabs" role="tablist" aria-label="Admin sections">
     <button class="admin-tab active" data-tab="dashboard">Overview</button>
+    <button class="admin-tab" data-tab="visitors">Visitors</button>
     <button class="admin-tab" data-tab="orders">Orders</button>
     <button class="admin-tab" data-tab="products">Products</button>
     <button class="admin-tab" data-tab="settings">Settings</button>
@@ -24,7 +25,6 @@
 
   <div class="admin-panel active" data-panel="dashboard">
     <div class="metrics-grid" id="metricsGrid"></div>
-    <div class="metrics-grid" id="visitorMetricsGrid"></div>
     <div class="ops-grid">
       <div class="panel-card">
         <div class="panel-heading">
@@ -46,6 +46,19 @@
         </div>
         <div id="lowStockList" class="compact-list"></div>
       </div>
+    </div>
+  </div>
+
+  <div class="admin-panel" data-panel="visitors">
+    <div class="panel-heading">
+      <div>
+        <p class="admin-kicker">Storefront analytics</p>
+        <h2>Visitors</h2>
+        <p class="desc">Live anonymous-visitor totals and engagement recorded from the storefront. Updates in real time.</p>
+      </div>
+    </div>
+    <div class="metrics-grid visitor-metrics" id="visitorMetricsGrid"></div>
+    <div class="ops-grid">
       <div class="panel-card">
         <div class="panel-heading">
           <div>
@@ -55,6 +68,16 @@
           </div>
         </div>
         <div id="visitorEvents" class="compact-list"></div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-heading">
+          <div>
+            <p class="admin-kicker">Most recent</p>
+            <h2>Recent visitors</h2>
+            <p class="desc">The latest anonymous sessions, newest first. IDs are shortened for display.</p>
+          </div>
+        </div>
+        <div id="recentVisitors" class="compact-list"></div>
       </div>
     </div>
   </div>

@@ -551,14 +551,29 @@
       : null;
   }
 
+  function relativeTime(timestamp) {
+    const ts = Number(timestamp) || 0;
+    if (!ts) return 'unknown';
+    const diff = Date.now() - ts;
+    if (diff < 60000) return 'just now';
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hr ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  }
+
   function renderVisitorMetrics() {
     const grid = $('#visitorMetricsGrid');
     if (!grid) return;
-    const stats = statsCache || { totalVisitors: 0, newToday: 0, activeNow: 0, sessions: 0, todaySessions: 0, events: [], recent: [] };
+    const stats = statsCache || { totalVisitors: 0, newToday: 0, activeNow: 0, active7d: 0, active30d: 0, sessions: 0, todaySessions: 0, events: [], recent: [] };
     grid.innerHTML = [
       ['Visitors', stats.totalVisitors, 'Unique anonymous visitors'],
       ['New today', stats.newToday, 'First-time visitors today'],
       ['Active now', stats.activeNow, 'Seen in the last 15 min'],
+      ['Active 7 days', stats.active7d || 0, 'Unique in the last week'],
+      ['Active 30 days', stats.active30d || 0, 'Unique in the last month'],
       ['Sessions', stats.sessions, `${stats.todaySessions} today`],
     ].map(([label, value, detail]) => `
       <article class="metric-card">
@@ -569,16 +584,36 @@
     `).join('');
 
     const events = $('#visitorEvents');
-    if (!events) return;
-    const rows = (stats.events || []).filter((entry) => Number(entry.count) > 0);
-    events.innerHTML = rows.length
-      ? rows.map((entry) => `
-          <div class="compact-row">
-            <div><strong>${escapeHtml(EVENT_LABELS[entry.type] || entry.type)}</strong></div>
-            <b>${escapeHtml(entry.count)}</b>
-          </div>
-        `).join('')
-      : '<div class="empty-state-admin compact-empty"><strong>No visitor activity yet</strong><p>Storefront sessions and engagement events will appear here.</p></div>';
+    if (events) {
+      const rows = (stats.events || []).filter((entry) => Number(entry.count) > 0);
+      events.innerHTML = rows.length
+        ? rows.map((entry) => `
+            <div class="compact-row">
+              <div><strong>${escapeHtml(EVENT_LABELS[entry.type] || entry.type)}</strong></div>
+              <b>${escapeHtml(entry.count)}</b>
+            </div>
+          `).join('')
+        : '<div class="empty-state-admin compact-empty"><strong>No visitor activity yet</strong><p>Storefront sessions and engagement events will appear here.</p></div>';
+    }
+
+    const recent = $('#recentVisitors');
+    if (recent) {
+      const rows = (stats.recent || []).filter((entry) => entry && entry.lastAt);
+      recent.innerHTML = rows.length
+        ? rows.map((entry) => {
+            const visits = Number(entry.visitCount) || 0;
+            return `
+              <div class="compact-row">
+                <div>
+                  <strong>Visitor ${escapeHtml(String(entry.uid || '').slice(0, 6) || '—')}</strong>
+                  <span>${escapeHtml(relativeTime(entry.lastAt))}</span>
+                </div>
+                <b>${escapeHtml(visits)} ${visits === 1 ? 'visit' : 'visits'}</b>
+              </div>
+            `;
+          }).join('')
+        : '<div class="empty-state-admin compact-empty"><strong>No visitors yet</strong><p>Anonymous sessions will appear here as people browse the store.</p></div>';
+    }
   }
 
   function renderMetrics() {
@@ -1734,7 +1769,8 @@
         $$('.admin-panel').forEach((panel) => {
           panel.classList.toggle('active', panel.dataset.panel === target);
         });
-        if (target === 'dashboard') { renderMetrics(); renderVisitorMetrics(); }
+        if (target === 'dashboard') renderMetrics();
+        if (target === 'visitors') renderVisitorMetrics();
         if (target === 'orders') renderOrders();
         if (target === 'products') void renderProductList();
         if (target === 'promos') renderPromos();
