@@ -8,27 +8,26 @@
     products: 'PAVIA_PRODUCTS',
     orders: 'PAVIA_ORDERS',
     settings: 'PAVIA_SETTINGS',
-    promoCodes: 'PAVIA_PROMO_CODES',
   };
   const BACKEND = window.PaviaBackend;
   const LOW_STOCK_AT = 3;
-  const ORDER_STATUSES = ['new', 'confirmed', 'preparing', 'out_for_delivery', 'completed', 'cancelled'];
+  // Simplified order lifecycle (D3 / P1 1.3): pending -> completed (+ cancelled).
+  const ORDER_STATUSES = ['pending', 'completed', 'cancelled'];
   const PAYMENT_STATUSES = ['pending', 'awaiting_confirmation', 'paid', 'failed', 'refunded'];
   const STATUS_LABELS = {
-    new: 'New',
-    confirmed: 'Confirmed',
-    preparing: 'Preparing',
-    out_for_delivery: 'Out for delivery',
+    pending: 'Pending',
     completed: 'Completed',
     cancelled: 'Cancelled',
   };
   const PAYMENT_LABELS = {
-    pending: 'Pending',
+    pending: 'Unpaid',
     awaiting_confirmation: 'Awaiting confirmation',
     paid: 'Paid',
     failed: 'Failed',
     refunded: 'Refunded',
   };
+  const ORDERS_PAGE_SIZE = 12;
+  const CATALOG_PAGE_SIZE = 20;
 
   const CORE = window.PaviaStoreCore || {};
   const DRAFT_KEY = 'PAVIA_PRODUCT_DRAFT';
@@ -43,7 +42,6 @@
     checkout_started: 'Checkout started',
     order_created: 'Orders placed',
   };
-  let promoCache = {};
   let pendingDriveImage = null;
 
   // P15 UX state
@@ -51,10 +49,14 @@
   let suppressDirty = false;
   let savingProduct = false;
   let savingSettings = false;
-  let savingPromo = false;
   let draftTimer = 0;
   let optimizedPreviewUrl = '';
   const selectedProductIds = new Set();
+
+  // P3 list paging / order view state
+  let orderView = 'pending';
+  let orderPage = 0;
+  let catalogPage = 0;
 
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
@@ -102,9 +104,11 @@
   }
 
   function normalizeStatus(status) {
-    const value = norm(status || 'new');
-    if (value === 'available' || value === 'pending') return 'new';
-    return ORDER_STATUSES.includes(value) ? value : 'new';
+    const value = norm(status || 'pending');
+    if (value === 'completed') return 'completed';
+    if (value === 'cancelled' || value === 'canceled') return 'cancelled';
+    // Everything else (new/available/confirmed/preparing/out_for_delivery/…) is still open.
+    return 'pending';
   }
 
   function normalizePaymentStatus(status) {
@@ -191,15 +195,13 @@
       tags: $('#prodTags').value,
       sizes: $('#prodSizes').value,
       colors: $('#prodColors').value,
-      material: $('#prodMaterial').value,
-      fit: $('#prodFit').value,
-      care: $('#prodCare').value,
       imageUrl: $('#prodImageUrl').value,
       imageId: $('#prodImageId').value,
       imageVersion: $('#prodImageVersion').value,
       imageMeta: $('#prodImageMeta').value,
       driveFileId: $('#prodDriveFileId').value,
       imageProvider: $('#prodImageProvider').value,
+      gallery: $('#prodGallery').value,
       savedAt: new Date().toISOString(),
     };
   }
@@ -258,11 +260,10 @@
     $('#prodImageMeta').value = draft.imageMeta || '';
     $('#prodDriveFileId').value = draft.driveFileId || '';
     $('#prodImageProvider').value = draft.imageProvider || '';
+    $('#prodGallery').value = draft.gallery || '';
+    loadGalleryFromProduct({ gallery: parseGalleryField() });
     setSelectedSizes(splitList(draft.sizes));
     setColorRows(parseColors(draft.colors));
-    $('#prodMaterial').value = draft.material || '';
-    $('#prodFit').value = draft.fit || '';
-    $('#prodCare').value = draft.care || '';
     $('#formTitle').textContent = draft.id ? 'Edit product' : 'Add a product';
     $('#formSubmit').textContent = draft.id ? 'Save changes' : 'Add product';
     suppressDirty = false;
@@ -278,7 +279,14 @@
       banner.hidden = true;
       return;
     }
-    $('#draftBannerMeta').textContent = `"${draft.name || 'Untitled'}" saved ${new Date(draft.savedAt || Date.now()).toLocaleString()}`;
+    const name = String(draft.name || '').trim() || 'Untitled product';
+    $('#draftBannerName').textContent = draft.id ? `Editing “${name}”` : name;
+    const saved = new Date(draft.savedAt || Date.now());
+    const time = $('#draftBannerTime');
+    if (time) {
+      time.textContent = `last edited ${relativeTime(saved.getTime())}`;
+      time.title = saved.toLocaleString();
+    }
     banner.hidden = false;
   }
 
@@ -539,12 +547,6 @@
       : readLS(KEYS.settings, window.PAVIA_CONFIG || {});
   }
 
-  async function loadPromos() {
-    promoCache = BACKEND?.promoCodes?.list
-      ? await BACKEND.promoCodes.list()
-      : readLS(KEYS.promoCodes, window.PAVIA_PROMO_CODES || {});
-  }
-
   async function loadStatistics() {
     statsCache = BACKEND?.analytics?.readStatistics
       ? await BACKEND.analytics.readStatistics().catch(() => null)
@@ -617,64 +619,54 @@
   }
 
   function renderMetrics() {
-    const openOrders = ordersCache.filter((order) => !['completed', 'cancelled'].includes(order.status));
-    const pendingPayments = ordersCache.filter((order) => ['pending', 'awaiting_confirmation'].includes(order.paymentStatus));
+    const pending = ordersCache.filter((order) => order.status === 'pending');
+    const completed = ordersCache.filter((order) => order.status === 'completed');
     const today = todayKey();
     const todayOrders = ordersCache.filter((order) => todayKey(order.createdAt || order.date) === today);
-    const lowStock = productsCache.filter((product) => product.stock > 0 && product.stock <= LOW_STOCK_AT);
 
     $('#metricsGrid').innerHTML = [
-      ['Open orders', openOrders.length, 'Orders still in progress'],
-      ['Today', todayOrders.length, 'Orders created today'],
-      ['Pending pay', pendingPayments.length, 'Manual payment checks'],
-      ['Low stock', lowStock.length, `At or below ${LOW_STOCK_AT}`],
-    ].map(([label, value, detail]) => `
-      <article class="metric-card">
+      ['Pending', pending.length, 'Orders awaiting action', 'pending'],
+      ['Today', todayOrders.length, 'Placed today', ''],
+      ['Completed', completed.length, 'Fulfilled to date', 'completed'],
+      ['All orders', ordersCache.length, 'Total received', ''],
+    ].map(([label, value, detail, tone]) => `
+      <article class="metric-card${tone ? ` metric-${tone}` : ''}">
         <span>${escapeHtml(label)}</span>
         <strong>${escapeHtml(value)}</strong>
         <small>${escapeHtml(detail)}</small>
       </article>
     `).join('');
 
-    $('#latestOrders').innerHTML = ordersCache.length
-      ? [...ordersCache]
-        .sort((left, right) => new Date(right.createdAt || right.date || 0) - new Date(left.createdAt || left.date || 0))
-        .slice(0, 5)
-        .map((order) => {
-          const customer = order.customer || {};
-          return `
-            <div class="compact-row">
-              <div>
-                <strong>#${escapeHtml(order.orderNumber || order.id || '')}</strong>
-                <span>${escapeHtml(customer.name || 'Customer')} - ${escapeHtml(STATUS_LABELS[order.status])}</span>
+    const latest = $('#latestOrders');
+    if (latest) {
+      latest.innerHTML = ordersCache.length
+        ? [...ordersCache]
+          .sort((left, right) => new Date(right.createdAt || right.date || 0) - new Date(left.createdAt || left.date || 0))
+          .slice(0, 6)
+          .map((order) => {
+            const customer = order.customer || {};
+            return `
+              <div class="compact-row">
+                <div>
+                  <strong>#${escapeHtml(order.orderNumber || order.id || '')}</strong>
+                  <span>${escapeHtml(customer.name || 'Customer')} · <span class="status-pill status-${escapeHtml(order.status)}">${escapeHtml(STATUS_LABELS[order.status] || order.status)}</span></span>
+                </div>
+                <b>${fmt(order.total)}</b>
               </div>
-              <b>${fmt(order.total)}</b>
-            </div>
-          `;
-        }).join('')
-      : '<div class="empty-state-admin compact-empty"><strong>No orders yet</strong><p>New orders will appear here after checkout is connected.</p></div>';
+            `;
+          }).join('')
+        : '<div class="empty-state-admin compact-empty"><strong>No orders yet</strong><p>New storefront orders will appear here.</p></div>';
+    }
+  }
 
-    $('#lowStockList').innerHTML = lowStock.length
-      ? lowStock
-        .sort((left, right) => left.stock - right.stock)
-        .slice(0, 8)
-        .map((product) => `
-          <div class="compact-row">
-            <div>
-              <strong>${escapeHtml(product.name)}</strong>
-              <span>${escapeHtml(product.sku || product.category)}</span>
-            </div>
-            <b>${product.stock}</b>
-          </div>
-        `).join('')
-      : '<div class="empty-state-admin compact-empty"><strong>Stock looks steady</strong><p>No low-stock products right now.</p></div>';
+  function orderMatchesView(order) {
+    if (orderView === 'all') return true;
+    return order.status === orderView;
   }
 
   function orderMatchesFilters(order) {
-    const query = norm($('#orderSearch').value);
-    const status = $('#orderStatusFilter').value;
-    const payment = $('#paymentStatusFilter').value;
-    const date = $('#orderDateFilter').value;
+    const query = norm($('#orderSearch')?.value || '');
+    const date = $('#orderDateFilter')?.value || '';
     const customer = order.customer || {};
     const haystack = norm([
       order.id,
@@ -682,12 +674,11 @@
       customer.name,
       customer.phone,
       customer.city,
+      customer.area,
       order.status,
-      order.paymentStatus,
     ].join(' '));
-    return (!query || haystack.includes(query))
-      && (!status || order.status === status)
-      && (!payment || order.paymentStatus === payment)
+    return orderMatchesView(order)
+      && (!query || haystack.includes(query))
       && (!date || todayKey(order.createdAt || order.date) === date);
   }
 
@@ -708,16 +699,16 @@
       return `
         <li>
           <span>${escapeHtml(item.name)}${options ? ` <small>${options}</small>` : ''}</span>
-          <strong>${item.qty || 1} x ${fmt(item.price || 0)}</strong>
+          <strong>${item.qty || 1} × ${fmt(item.price || 0)}</strong>
         </li>
       `;
     }).join('');
+    const id = escapeHtml(order.id);
     const disabled = orderManagementEnabled() ? '' : ' disabled';
     const date = new Date(order.date || order.createdAt || Date.now()).toLocaleString();
     const timeline = [
-      ['Created', order.createdAt || order.date],
+      ['Placed', order.createdAt || order.date],
       ['Updated', order.updatedAt],
-      ['Out for delivery', order.outForDeliveryAt],
       ['Completed', order.completedAt],
       ['Cancelled', order.cancelledAt],
     ]
@@ -725,51 +716,71 @@
       .map(([label, value]) => `<li><span>${escapeHtml(label)}</span><time>${escapeHtml(new Date(value).toLocaleString())}</time></li>`)
       .join('');
 
+    // One-click actions tuned to the current status.
+    const quick = [];
+    if (order.status !== 'completed') {
+      quick.push(`<button class="btn btn-primary" data-quick-status="completed" data-order="${id}"${disabled}>Mark completed</button>`);
+    }
+    if (order.status === 'pending') {
+      quick.push(`<button class="btn btn-ghost danger-button" data-quick-status="cancelled" data-order="${id}"${disabled}>Cancel order</button>`);
+    }
+    if (order.status !== 'pending') {
+      quick.push(`<button class="btn btn-secondary" data-quick-status="pending" data-order="${id}"${disabled}>Reopen</button>`);
+    }
+
     return `
-      <article class="order-item" data-order-id="${escapeHtml(order.id)}">
+      <article class="order-item status-${escapeHtml(order.status)}" data-order-id="${id}">
         <div class="order-topline">
-          <div>
+          <div class="order-topline-id">
             <span class="order-id">#${escapeHtml(order.orderNumber || order.id || '')}</span>
+            <span class="status-pill status-${escapeHtml(order.status)}">${escapeHtml(STATUS_LABELS[order.status] || order.status)}</span>
             <time>${escapeHtml(date)}</time>
           </div>
           <strong class="order-total">${fmt(order.total)}</strong>
         </div>
         <div class="order-customer">
           <div><span>Customer</span><strong>${escapeHtml(customer.name || 'Customer')}</strong></div>
-          <div><span>Phone</span><strong>${escapeHtml(phone || '-')}</strong></div>
-          <div><span>Area</span><strong>${escapeHtml(customer.city || customer.area || '-')}</strong></div>
+          <div><span>Phone</span><strong>${escapeHtml(phone || '—')}</strong></div>
+          <div><span>Area</span><strong>${escapeHtml(customer.city || customer.area || '—')}</strong></div>
           <div><span>Payment</span><strong>${escapeHtml(customer.payment || order.paymentMethod || 'Cash on delivery')}</strong></div>
         </div>
         <p class="order-address">${escapeHtml(customer.address || 'No address supplied')}</p>
         ${customer.notes || order.notes ? `<p class="order-note"><strong>Customer notes:</strong> ${escapeHtml(customer.notes || order.notes)}</p>` : ''}
-        ${order.pricingReview ? `<p class="order-note"><strong>Pricing review:</strong> ${escapeHtml(order.pricingReview.status || 'Manual review required')} - expected total ${escapeHtml(fmt(order.pricingReview.expectedTotal || order.total || 0))}</p>` : ''}
+        ${order.cancellationReason ? `<p class="order-note"><strong>Cancelled:</strong> ${escapeHtml(order.cancellationReason)}</p>` : ''}
+        ${order.adminNotes ? `<p class="order-note"><strong>Your notes:</strong> ${escapeHtml(order.adminNotes)}</p>` : ''}
         <ul class="order-products">${items}</ul>
         ${timeline ? `<ul class="order-timeline">${timeline}</ul>` : ''}
-        <div class="order-workflow">
-          <label>
-            Order status
-            <select data-order-status${disabled}>${statusOptions(order.status, STATUS_LABELS)}</select>
-          </label>
-          <label>
-            Payment status
-            <select data-payment-status${disabled}>${statusOptions(order.paymentStatus, PAYMENT_LABELS)}</select>
-          </label>
-          <label>
-            Cancellation reason
-            <input data-cancel-reason type="text" value="${escapeHtml(order.cancellationReason || '')}"${disabled} />
-          </label>
-          <label class="span-2">
-            Admin notes
-            <textarea data-admin-notes rows="2"${disabled}>${escapeHtml(order.adminNotes || '')}</textarea>
-          </label>
-        </div>
         <div class="order-actions">
+          ${quick.join('')}
           ${callHref ? `<a class="btn btn-secondary" href="${escapeHtml(callHref)}">Call</a>` : ''}
           ${waHref ? `<a class="btn btn-secondary" href="${escapeHtml(waHref)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
-          <button class="btn btn-ghost" data-print-order="${escapeHtml(order.id)}">Print</button>
-          <button class="btn btn-ghost" data-export-order="${escapeHtml(order.id)}">Export</button>
-          <button class="btn btn-primary" data-update-order="${escapeHtml(order.id)}"${disabled}>Save workflow</button>
+          <button class="btn btn-ghost" data-print-order="${id}">Print</button>
+          <button class="btn btn-ghost" data-export-order="${id}">Export</button>
         </div>
+        <details class="order-manage">
+          <summary>Manage details</summary>
+          <div class="order-workflow">
+            <label>
+              Order status
+              <select data-order-status${disabled}>${statusOptions(order.status, STATUS_LABELS)}</select>
+            </label>
+            <label>
+              Payment
+              <select data-payment-status${disabled}>${statusOptions(order.paymentStatus, PAYMENT_LABELS)}</select>
+            </label>
+            <label>
+              Cancellation reason
+              <input data-cancel-reason type="text" value="${escapeHtml(order.cancellationReason || '')}"${disabled} />
+            </label>
+            <label class="span-2">
+              Private notes
+              <textarea data-admin-notes rows="2"${disabled}>${escapeHtml(order.adminNotes || '')}</textarea>
+            </label>
+            <div class="order-manage-actions span-2">
+              <button class="btn btn-primary" data-update-order="${id}"${disabled}>Save changes</button>
+            </div>
+          </div>
+        </details>
       </article>
     `;
   }
@@ -785,18 +796,51 @@
     return arr.sort((left, right) => time(right) - time(left));
   }
 
+  function updateOrderViewCounts() {
+    const counts = { pending: 0, completed: 0, cancelled: 0, all: ordersCache.length };
+    ordersCache.forEach((order) => { counts[order.status] = (counts[order.status] || 0) + 1; });
+    $$('[data-view-count]').forEach((el) => {
+      el.textContent = counts[el.dataset.viewCount] ?? 0;
+    });
+    $('#availableOrderCount').textContent = counts.pending;
+  }
+
   function renderOrders() {
-    const orders = sortOrders(ordersCache.filter(orderMatchesFilters));
-    const openCount = ordersCache.filter((order) => !['completed', 'cancelled'].includes(order.status)).length;
-    $('#availableOrderCount').textContent = openCount;
-    $('#availableOrders').innerHTML = orders.length
-      ? orders.map(renderOrderItem).join('')
-      : `
-        <div class="empty-state-admin">
-          <strong>No matching orders</strong>
-          <p>Try clearing filters or wait for new storefront orders.</p>
-        </div>
-      `;
+    updateOrderViewCounts();
+    const matched = sortOrders(ordersCache.filter(orderMatchesFilters));
+    const pages = Math.max(1, Math.ceil(matched.length / ORDERS_PAGE_SIZE));
+    orderPage = Math.min(Math.max(0, orderPage), pages - 1);
+    const slice = matched.slice(orderPage * ORDERS_PAGE_SIZE, orderPage * ORDERS_PAGE_SIZE + ORDERS_PAGE_SIZE);
+
+    const emptyCopy = {
+      pending: ['No pending orders', 'New storefront orders land here, ready to fulfil.'],
+      completed: ['No completed orders yet', 'Orders you mark completed are kept here as history.'],
+      cancelled: ['No cancelled orders', 'Cancelled orders are kept here for your records.'],
+      all: ['No orders yet', 'New storefront orders will appear here.'],
+    };
+    const [emptyTitle, emptyBody] = emptyCopy[orderView] || emptyCopy.all;
+
+    $('#availableOrders').innerHTML = slice.length
+      ? slice.map(renderOrderItem).join('')
+      : (($('#orderSearch')?.value || $('#orderDateFilter')?.value)
+        ? '<div class="empty-state-admin"><strong>No matching orders</strong><p>Try clearing the search or date filter.</p></div>'
+        : `<div class="empty-state-admin"><strong>${emptyTitle}</strong><p>${emptyBody}</p></div>`);
+
+    const pager = $('#orderPager');
+    if (pager) {
+      if (pages > 1) {
+        pager.hidden = false;
+        $('#orderPageInfo').textContent = `Page ${orderPage + 1} of ${pages} · ${matched.length} order${matched.length === 1 ? '' : 's'}`;
+        $('#orderPrev').disabled = orderPage === 0;
+        $('#orderNext').disabled = orderPage >= pages - 1;
+      } else {
+        pager.hidden = true;
+      }
+    }
+
+    $$('[data-quick-status]').forEach((button) => {
+      button.addEventListener('click', () => void quickOrderStatus(button.dataset.order, button.dataset.quickStatus));
+    });
     $$('[data-update-order]').forEach((button) => {
       button.addEventListener('click', () => updateOrder(button.dataset.updateOrder));
     });
@@ -806,6 +850,39 @@
     $$('[data-export-order]').forEach((button) => {
       button.addEventListener('click', () => exportOrder(button.dataset.exportOrder));
     });
+  }
+
+  // One-click status change (Mark completed / Cancel / Reopen) without opening Manage.
+  async function quickOrderStatus(id, status) {
+    if (!orderManagementEnabled()) {
+      toast('Order management is disabled for this session');
+      return;
+    }
+    if (!ORDER_STATUSES.includes(status)) return;
+    const changes = { status };
+    if (status === 'cancelled') {
+      const reason = window.prompt('Reason for cancelling this order? (optional)', '');
+      if (reason === null) return; // cancelled the prompt
+      changes.cancellationReason = String(reason || '').trim();
+    }
+    try {
+      if (BACKEND?.orders?.update) await BACKEND.orders.update(id, changes);
+      else {
+        const order = ordersCache.find((item) => String(item.id) === String(id));
+        if (order) {
+          Object.assign(order, changes, { updatedAt: new Date().toISOString() });
+          if (status === 'completed') order.completedAt = order.updatedAt;
+          if (status === 'cancelled') order.cancelledAt = order.updatedAt;
+          writeLS(KEYS.orders, ordersCache);
+        }
+      }
+      await loadOrders();
+      renderOrders();
+      renderMetrics();
+      toast(status === 'completed' ? 'Order marked completed' : status === 'cancelled' ? 'Order cancelled' : 'Order reopened');
+    } catch (error) {
+      toast(error.message || 'Could not update order');
+    }
   }
 
   async function updateOrder(id) {
@@ -895,7 +972,7 @@
       element.textContent = '';
       element.classList.remove('show');
     });
-    $$('#productForm .is-invalid, #promoForm .is-invalid').forEach((field) => field.classList.remove('is-invalid'));
+    $$('#productForm .is-invalid, #settingsForm .is-invalid').forEach((field) => field.classList.remove('is-invalid'));
   }
 
   function validateProduct(id, product) {
@@ -955,6 +1032,9 @@
     $('#prodImageMeta').value = '';
     $('#prodDriveFileId').value = '';
     $('#prodImageProvider').value = '';
+    $('#prodGallery').value = '';
+    galleryItems = [];
+    renderGalleryStrip();
     $('#imageOptimizationResult').hidden = true;
     clearOptimizedPreview();
     setSelectedSizes(['One size']);
@@ -1002,11 +1082,9 @@
     $('#prodImageMeta').value = product.imageMeta ? JSON.stringify(product.imageMeta) : '';
     $('#prodDriveFileId').value = product.driveFileId || product.imageMeta?.driveFileId || '';
     $('#prodImageProvider').value = product.imageProvider || (product.imageUrl ? 'external' : 'local_legacy');
+    loadGalleryFromProduct(product);
     setSelectedSizes(product.sizes);
     setColorRows(product.colors);
-    $('#prodMaterial').value = product.material;
-    $('#prodFit').value = product.fit;
-    $('#prodCare').value = product.care;
     $('#formTitle').textContent = 'Edit product';
     $('#formSubmit').textContent = 'Save changes';
     void updateProductPreview();
@@ -1050,11 +1128,9 @@
       driveFileId,
       imageVersion: $('#prodImageVersion').value,
       imageMeta: parseImageMeta(),
+      gallery: parseGalleryField(),
       sizes: selectedSizes(),
       colors: parseColors($('#prodColors').value),
-      material: $('#prodMaterial').value.trim(),
-      fit: $('#prodFit').value.trim(),
-      care: $('#prodCare').value.trim(),
       createdAt: existing?.createdAt || new Date().toISOString(),
     });
 
@@ -1144,11 +1220,16 @@
     const comparator = CORE.compareProducts
       ? CORE.compareProducts(productSortKey())
       : (left, right) => (Number(left.sortOrder) || 0) - (Number(right.sortOrder) || 0) || left.name.localeCompare(right.name);
-    const products = getProducts().filter(productMatchesFilters).sort(comparator);
+    const matched = getProducts().filter(productMatchesFilters).sort(comparator);
 
     // Keep the selection set in sync with products that still exist.
     const existingIds = new Set(getProducts().map((product) => product.id));
     [...selectedProductIds].forEach((id) => { if (!existingIds.has(id)) selectedProductIds.delete(id); });
+
+    // Paginate (drag-reorder stays correct because it operates on the full sorted list).
+    const totalPages = Math.max(1, Math.ceil(matched.length / CATALOG_PAGE_SIZE));
+    catalogPage = Math.min(Math.max(0, catalogPage), totalPages - 1);
+    const products = matched.slice(catalogPage * CATALOG_PAGE_SIZE, catalogPage * CATALOG_PAGE_SIZE + CATALOG_PAGE_SIZE);
 
     const imageUrls = await Promise.all(products.map((product) => (
       BACKEND
@@ -1221,6 +1302,18 @@
     });
     if (canReorder) bindReorder();
     updateBulkBar();
+
+    const pager = $('#catalogPager');
+    if (pager) {
+      if (totalPages > 1) {
+        pager.hidden = false;
+        $('#catalogPageInfo').textContent = `Page ${catalogPage + 1} of ${totalPages} · ${matched.length} shown`;
+        $('#catalogPrev').disabled = catalogPage === 0;
+        $('#catalogNext').disabled = catalogPage >= totalPages - 1;
+      } else {
+        pager.hidden = true;
+      }
+    }
   }
 
   function updateBulkBar() {
@@ -1277,40 +1370,51 @@
     }
   }
 
+  // Persist the whole catalog in a single batched write (multi-path update on
+  // Firebase, one localStorage write on the fallback) — avoids per-item write storms.
+  async function saveAllProducts(list) {
+    if (!adminMutationsEnabled()) throw new Error('Catalog editing is disabled for this session.');
+    const normalized = (list || []).map(normalizeProduct);
+    if (BACKEND?.products?.replace) await BACKEND.products.replace(normalized);
+    else writeLS(KEYS.products, normalized);
+    await loadProducts();
+  }
+
   async function runBulkAction(action) {
     if (!adminMutationsEnabled()) {
       toast('Catalog editing is disabled for this session');
       return;
     }
-    const ids = [...selectedProductIds];
-    if (!ids.length) return;
+    const ids = new Set([...selectedProductIds]);
+    if (!ids.size) return;
     let stockValue = null;
     if (action === 'stock') {
       const input = window.prompt('Set stock for the selected products to:', '0');
       if (input === null) return;
       stockValue = Math.max(0, Number(input) || 0);
     }
-    if (action === 'delete' && !window.confirm(`Delete ${ids.length} selected product(s) permanently?`)) return;
+    if (action === 'delete' && !window.confirm(`Delete ${ids.size} selected product(s) permanently?`)) return;
     try {
-      for (const id of ids) {
-        const product = productsCache.find((item) => item.id === id);
-        if (!product) continue;
-        if (action === 'delete') {
-          await removeProduct(id);
-          continue;
-        }
-        const updated = { ...product };
-        if (action === 'publish') updated.active = true;
-        if (action === 'unpublish') updated.active = false;
-        if (action === 'stock') updated.stock = stockValue;
-        await upsertProduct(updated);
+      let next;
+      if (action === 'delete') {
+        next = productsCache.filter((product) => !ids.has(product.id));
+      } else {
+        next = productsCache.map((product) => {
+          if (!ids.has(product.id)) return product;
+          const updated = { ...product };
+          if (action === 'publish') updated.active = true;
+          if (action === 'unpublish') updated.active = false;
+          if (action === 'stock') updated.stock = stockValue;
+          return updated;
+        });
       }
+      const count = ids.size;
+      await saveAllProducts(next);
       selectedProductIds.clear();
-      await loadProducts();
       await renderProductList();
       renderMetrics();
       updateCategoryOptions();
-      toast(`Bulk ${action} applied to ${ids.length} product(s)`);
+      toast(`Bulk ${action} applied to ${count} product(s)`);
     } catch (error) {
       await loadProducts();
       await renderProductList();
@@ -1361,17 +1465,17 @@
     if (from < 0 || to < 0) return;
     const [moved] = ordered.splice(from, 1);
     ordered.splice(to, 0, moved);
-    const changed = [];
+    let changedCount = 0;
     ordered.forEach((item, index) => {
       const newOrder = (index + 1) * 10;
       if (Number(item.sortOrder) !== newOrder) {
         item.sortOrder = newOrder;
-        changed.push({ ...item });
+        changedCount += 1;
       }
     });
+    if (!changedCount) return;
     try {
-      for (const item of changed) await upsertProduct(item);
-      await loadProducts();
+      await saveAllProducts(ordered); // single batched write
       await renderProductList();
       toast('Product order updated');
     } catch (error) {
@@ -1517,7 +1621,8 @@
       $('#prodImageProvider').value = uploaded.imageProvider;
       $('#prodImageMeta').value = JSON.stringify(uploaded.imageMeta);
       markFormDirty();
-      showImageResult({ ...uploaded.imageMeta, status: 'Uploaded to Google Drive; image URL saved to the product' });
+      renderGalleryStrip();
+      showImageResult({ ...uploaded.imageMeta, status: 'Uploaded to Google Drive; set as the main image' });
       await updateProductPreview();
       toast('Image uploaded to Google Drive');
     } catch (error) {
@@ -1560,22 +1665,39 @@
     $('#productPreviewImage').alt = name;
   }
 
+  // Single source for the storefront phone/WhatsApp number, with back-compat for
+  // any legacy split fields still in an old settings record.
+  function settingsPhone() {
+    return String(settingsCache.phone || settingsCache.phoneNumber || settingsCache.whatsappNumber || settingsCache.phoneDisplay || '').trim();
+  }
+
   function fillSettingsForm() {
     $('#settingSiteTitle').value = settingsCache.siteTitle || settingsCache.siteName || 'Pavia Lebanon';
-    $('#settingPhoneDisplay').value = settingsCache.phoneDisplay || '';
-    $('#settingPhoneNumber').value = settingsCache.phoneNumber || '';
-    $('#settingWhatsapp').value = settingsCache.whatsappNumber || '';
-    $('#settingInstagramHandle').value = settingsCache.instagramHandle || '';
-    $('#settingInstagramUrl').value = settingsCache.instagramUrl || '';
     $('#settingLocation').value = settingsCache.location || '';
     $('#settingDeliveryArea').value = settingsCache.deliveryArea || '';
-    $('#settingDeliveryBeirut').value = Number(settingsCache.deliveryBeirut) || 0;
-    $('#settingDeliveryLebanon').value = Number(settingsCache.deliveryLebanon) || 0;
-    $('#settingFreeDeliveryAt').value = Number(settingsCache.freeDeliveryAt) || 0;
+    $('#settingPhone').value = settingsPhone();
+    $('#settingInstagramHandle').value = String(settingsCache.instagramHandle || '').replace(/^@+/, '');
+    $('#settingDeliveryFee').value = settingsCache.deliveryFee !== undefined && settingsCache.deliveryFee !== null
+      ? Number(settingsCache.deliveryFee)
+      : 3;
     $('#settingCheckoutEnabled').checked = settingsCache.checkoutEnabled !== false;
-    $('#settingWhatsappCheckout').checked = settingsCache.whatsappCheckoutEnabled !== false;
     $('#settingCash').checked = settingsCache.paymentMethods?.cash_on_delivery !== false;
     $('#settingWhish').checked = settingsCache.paymentMethods?.whish_money !== false;
+  }
+
+  function validateSettings(phone, deliveryFee) {
+    setFieldError('settingPhone');
+    setFieldError('settingDeliveryFee');
+    let ok = true;
+    if (phone && !/^[+\d][\d\s().-]{5,23}$/.test(phone)) {
+      setFieldError('settingPhone', 'Enter a valid phone number, or leave it blank.');
+      ok = false;
+    }
+    if (!(deliveryFee >= 0) || deliveryFee > 10000) {
+      setFieldError('settingDeliveryFee', 'Delivery fee must be between 0 and 10000.');
+      ok = false;
+    }
+    return ok;
   }
 
   async function handleSettingsSubmit(event) {
@@ -1584,23 +1706,27 @@
       toast('Settings editing is disabled for this session');
       return;
     }
+    const phone = $('#settingPhone').value.trim();
+    const deliveryFee = Number($('#settingDeliveryFee').value);
+    if (!validateSettings(phone, deliveryFee)) {
+      setFormStatus('settingsFormStatus', 'Fix the highlighted fields and try again.', 'error');
+      return;
+    }
+    // Write the cleaned model only; normalizeSettingsRecord drops the legacy fields.
+    const { phoneDisplay, phoneNumber, whatsappNumber, instagramUrl,
+      deliveryBeirut, deliveryLebanon, freeDeliveryAt, whatsappCheckoutEnabled,
+      ...rest } = settingsCache;
     const record = {
-      ...settingsCache,
+      ...rest,
       siteName: 'Pavia',
       siteTitle: $('#settingSiteTitle').value.trim() || 'Pavia Lebanon',
-      phoneDisplay: $('#settingPhoneDisplay').value.trim(),
-      phoneNumber: $('#settingPhoneNumber').value.trim(),
-      whatsappNumber: $('#settingWhatsapp').value.trim(),
-      instagramHandle: $('#settingInstagramHandle').value.trim(),
-      instagramUrl: $('#settingInstagramUrl').value.trim(),
       location: $('#settingLocation').value.trim(),
       deliveryArea: $('#settingDeliveryArea').value.trim(),
+      phone,
+      instagramHandle: $('#settingInstagramHandle').value.trim().replace(/^@+/, ''),
       currency: 'USD',
-      deliveryBeirut: Number($('#settingDeliveryBeirut').value) || 0,
-      deliveryLebanon: Number($('#settingDeliveryLebanon').value) || 0,
-      freeDeliveryAt: Number($('#settingFreeDeliveryAt').value) || 0,
+      deliveryFee: Math.max(0, deliveryFee || 0),
       checkoutEnabled: $('#settingCheckoutEnabled').checked,
-      whatsappCheckoutEnabled: $('#settingWhatsappCheckout').checked,
       paymentMethods: {
         cash_on_delivery: $('#settingCash').checked,
         whish_money: $('#settingWhish').checked,
@@ -1610,14 +1736,17 @@
     savingSettings = true;
     const button = event.submitter || $('#settingsForm button[type="submit"]');
     setButtonLoading(button, true, 'Saving...');
+    setFormStatus('settingsFormStatus', 'Saving…', 'info');
     try {
       settingsCache = BACKEND?.settings?.update
         ? await BACKEND.settings.update(record)
         : record;
       if (!BACKEND?.settings?.update) writeLS(KEYS.settings, settingsCache);
       fillSettingsForm();
+      setFormStatus('settingsFormStatus', 'Settings saved and published.', 'success');
       toast('Settings saved');
     } catch (error) {
+      setFormStatus('settingsFormStatus', error.message || 'Could not save settings.', 'error');
       toast(error.message || 'Could not save settings');
     } finally {
       savingSettings = false;
@@ -1625,155 +1754,486 @@
     }
   }
 
-  function resetPromoForm() {
-    $('#promoForm').reset();
-    $('#promoOriginalCode').value = '';
-    $('#promoActive').checked = true;
-    $('#promoSubmit').textContent = 'Save promo';
-    clearProductErrors();
-  }
+  // ============================================================
+  // P2: Image Library + multi-image gallery
+  // ============================================================
+  const LIBRARY_PAGE_SIZE = 18;
+  let libraryCache = [];
+  let libraryPage = 0;
+  let libraryLoading = false;
+  let galleryItems = [];          // EXTRA images only (main lives in #prodImage* fields)
+  let libraryPickerMode = 'gallery';
+  let galleryDragIndex = -1;
 
-  function promoRows() {
-    return Object.values(promoCache || {}).sort((left, right) => String(left.code).localeCompare(String(right.code)));
-  }
+  function drive() { return window.PaviaDriveImages; }
 
-  function renderPromos() {
-    const promos = promoRows();
-    $('#promoList').innerHTML = promos.length
-      ? promos.map((promo) => `
-        <article class="product-row promo-row">
-          <div class="promo-code">${escapeHtml(promo.code)}</div>
-          <div class="product-row-info">
-            <div class="product-row-title">
-              <strong>${escapeHtml(promo.label || promo.code)}</strong>
-              <span class="status-pill ${promo.active !== false ? 'published' : 'draft'}">${promo.active !== false ? 'Active' : 'Inactive'}</span>
-            </div>
-            <p>${escapeHtml(promo.type)} - ${Number(promo.value) || 0}${promo.type === 'percent' ? '%' : ''} - min ${fmt(promo.minSubtotal)}</p>
-            <div class="product-row-meta">
-              <span>Used ${Number(promo.usageCount) || 0}${promo.usageLimit ? ` / ${promo.usageLimit}` : ''}</span>
-              ${promo.startsAt ? `<span>Starts ${escapeHtml(promo.startsAt)}</span>` : ''}
-              ${promo.endsAt ? `<span>Ends ${escapeHtml(promo.endsAt)}</span>` : ''}
-            </div>
-          </div>
-          <div class="product-row-actions">
-            <button class="btn btn-secondary" data-edit-promo="${escapeHtml(promo.code)}">Edit</button>
-            <button class="btn btn-ghost danger-button" data-delete-promo="${escapeHtml(promo.code)}">Delete</button>
-          </div>
-        </article>
-      `).join('')
-      : '<div class="empty-state-admin"><strong>No promo codes</strong><p>Create a code to expose it to the storefront.</p></div>';
-    $$('[data-edit-promo]').forEach((button) => {
-      button.addEventListener('click', () => loadPromoIntoForm(button.dataset.editPromo));
-    });
-    $$('[data-delete-promo]').forEach((button) => {
-      button.addEventListener('click', () => void deletePromo(button.dataset.deletePromo));
-    });
-  }
-
-  function loadPromoIntoForm(code) {
-    const promo = promoCache[code];
-    if (!promo) return;
-    $('#promoOriginalCode').value = promo.code;
-    $('#promoCode').value = promo.code;
-    $('#promoLabel').value = promo.label || '';
-    $('#promoType').value = promo.type || 'percent';
-    $('#promoValue').value = Number(promo.value) || 0;
-    $('#promoMinSubtotal').value = Number(promo.minSubtotal) || 0;
-    $('#promoUsageLimit').value = Number(promo.usageLimit) || 0;
-    $('#promoStartsAt').value = promo.startsAt || '';
-    $('#promoEndsAt').value = promo.endsAt || '';
-    $('#promoActive').checked = promo.active !== false;
-    $('#promoSubmit').textContent = 'Update promo';
-  }
-
-  async function handlePromoSubmit(event) {
-    event.preventDefault();
-    if (!adminMutationsEnabled()) {
-      toast('Promo editing is disabled for this session');
-      return;
-    }
-    clearProductErrors();
-    const originalCode = $('#promoOriginalCode').value.trim().toUpperCase();
-    const code = $('#promoCode').value.trim().toUpperCase();
-    if (!/^[A-Z0-9_-]{3,24}$/.test(code)) {
-      setFieldError('promoCode', 'Use 3-24 letters, numbers, underscores, or hyphens.');
-      return;
-    }
-    if (!originalCode && promoCache[code]) {
-      setFieldError('promoCode', 'This promo code already exists.');
-      return;
-    }
-    const promo = {
-      ...(promoCache[originalCode || code] || {}),
-      code,
-      label: $('#promoLabel').value.trim() || code,
-      type: $('#promoType').value,
-      value: Number($('#promoValue').value) || 0,
-      minSubtotal: Number($('#promoMinSubtotal').value) || 0,
-      usageLimit: Number($('#promoUsageLimit').value) || 0,
-      startsAt: $('#promoStartsAt').value,
-      endsAt: $('#promoEndsAt').value,
-      active: $('#promoActive').checked,
+  // Map of driveFileId -> [product names] using it (main image or a gallery entry).
+  function driveImageUsage() {
+    const usage = new Map();
+    const add = (id, name) => {
+      const key = String(id || '').trim();
+      if (!key) return;
+      if (!usage.has(key)) usage.set(key, new Set());
+      usage.get(key).add(name);
     };
-    if (savingPromo) return;
-    savingPromo = true;
-    const button = $('#promoSubmit');
-    const originalText = button.textContent;
-    setButtonLoading(button, true, 'Saving...');
+    productsCache.forEach((product) => {
+      const name = product.name || product.id;
+      add(product.driveFileId || product.imageMeta?.driveFileId, name);
+      (Array.isArray(product.gallery) ? product.gallery : []).forEach((entry) => add(entry?.driveFileId, name));
+    });
+    const out = new Map();
+    usage.forEach((set, key) => out.set(key, [...set]));
+    return out;
+  }
+
+  // ---- Library Drive status ----
+  function setLibraryDriveStatus(message, detail = '') {
+    if ($('#libraryDriveStatus')) $('#libraryDriveStatus').textContent = message;
+    if ($('#libraryDriveDetail')) $('#libraryDriveDetail').textContent = detail;
+  }
+  function refreshLibraryDrivePanel() {
+    const button = $('#libraryConnectBtn');
+    if (!button) return;
+    if (!drive()?.configured?.()) {
+      setLibraryDriveStatus('Google Drive not configured', 'Add the OAuth client ID and Drive folder ID in js/backend-config.js.');
+      button.disabled = true;
+      return;
+    }
+    button.disabled = false;
+    const connected = Boolean(drive().accessToken?.());
+    setLibraryDriveStatus(
+      connected ? 'Google Drive connected' : 'Google Drive not connected',
+      connected ? 'The access token is in memory only and is forgotten on lock or reload.' : 'Connect Google Drive to browse and upload images.',
+    );
+    button.textContent = connected ? 'Reconnect' : 'Connect Google Drive';
+  }
+
+  function setLibraryStatus(message, isError = false) {
+    const el = $('#libraryUploadStatus');
+    if (!el) return;
+    if (!message) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    el.classList.toggle('is-error', Boolean(isError));
+    el.innerHTML = `<strong>${escapeHtml(message)}</strong>`;
+  }
+
+  // ---- Load + render the library grid ----
+  async function loadLibrary({ silent = false } = {}) {
+    if (!drive()?.configured?.()) { libraryCache = []; renderLibrary(); refreshLibraryDrivePanel(); return; }
+    refreshLibraryDrivePanel();
+    if (!drive().accessToken?.()) { renderLibrary(); return; }
+    if (libraryLoading) return;
+    libraryLoading = true;
+    if (!silent) setLibraryStatus('Loading library…');
     try {
-      if (originalCode && originalCode !== code && BACKEND?.promoCodes?.remove) {
-        await BACKEND.promoCodes.remove(originalCode);
-      }
-      const saved = BACKEND?.promoCodes?.upsert
-        ? await BACKEND.promoCodes.upsert(code, promo)
-        : promo;
-      promoCache[code] = saved;
-      if (originalCode && originalCode !== code) delete promoCache[originalCode];
-      if (!BACKEND?.promoCodes?.upsert) writeLS(KEYS.promoCodes, promoCache);
-      renderPromos();
-      resetPromoForm();
-      setButtonLoading(button, false);
-      toast('Promo saved');
+      libraryCache = await drive().listFiles({ pageSize: 300 });
+      libraryPage = 0;
+      if (!silent) setLibraryStatus('');
     } catch (error) {
-      setButtonLoading(button, false);
-      button.textContent = originalText;
-      toast(error.message || 'Could not save promo');
+      setLibraryStatus(error.message || 'Could not load the library', true);
     } finally {
-      savingPromo = false;
+      libraryLoading = false;
+      renderLibrary();
     }
   }
 
-  async function deletePromo(code) {
-    if (!adminMutationsEnabled()) {
-      toast('Promo editing is disabled for this session');
+  function libraryTileHtml(file, usage, picker) {
+    const used = usage.get(file.id) || [];
+    const dims = file.width && file.height ? ` · ${file.width}×${file.height}` : '';
+    const usageText = used.length ? `Used by ${used.length} product${used.length === 1 ? '' : 's'}` : 'Unused';
+    const actions = picker
+      ? '<div class="library-tile-actions"><button type="button" class="btn btn-secondary" data-lib-pick>Use this image</button></div>'
+      : `<div class="library-tile-actions">
+           <button type="button" class="btn btn-ghost" data-lib-copy>Copy URL</button>
+           <button type="button" class="btn btn-ghost danger-button" data-lib-delete${used.length ? ' title="In use — remove from products first"' : ''}>Delete</button>
+         </div>`;
+    return `
+      <figure class="library-tile" data-file-id="${escapeHtml(file.id)}">
+        <div class="library-thumb"><img src="${escapeHtml(file.imageUrl)}" alt="${escapeHtml(file.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" /></div>
+        <figcaption>
+          <strong title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</strong>
+          <span>${escapeHtml(formatBytes(file.size))}${escapeHtml(dims)}</span>
+          <span class="library-usage ${used.length ? 'is-used' : 'is-free'}" title="${escapeHtml(used.join(', '))}">${escapeHtml(usageText)}</span>
+        </figcaption>
+        ${actions}
+      </figure>`;
+  }
+
+  function renderLibrary() {
+    const grid = $('#libraryGrid');
+    const pager = $('#libraryPager');
+    if (!grid) return;
+    $('#libraryCount').textContent = libraryCache.length;
+
+    if (!drive()?.configured?.()) {
+      grid.innerHTML = '<div class="empty-state-admin"><strong>Google Drive not configured</strong><p>Add the OAuth client ID and Drive folder ID in js/backend-config.js.</p></div>';
+      pager.hidden = true;
       return;
     }
-    if (!window.confirm(`Delete promo code "${code}"?`)) return;
-    try {
-      if (BACKEND?.promoCodes?.remove) await BACKEND.promoCodes.remove(code);
-      delete promoCache[code];
-      if (!BACKEND?.promoCodes?.remove) writeLS(KEYS.promoCodes, promoCache);
-      renderPromos();
-      resetPromoForm();
-      toast('Promo deleted');
-    } catch (error) {
-      toast(error.message || 'Could not delete promo');
+    if (!drive().accessToken?.()) {
+      grid.innerHTML = '<div class="empty-state-admin"><strong>Connect Google Drive</strong><p>Connect to browse the images your studio uploaded.</p></div>';
+      pager.hidden = true;
+      return;
     }
+    if (!libraryCache.length) {
+      grid.innerHTML = '<div class="empty-state-admin"><strong>No images yet</strong><p>Upload images above, or add them while editing a product.</p></div>';
+      pager.hidden = true;
+      return;
+    }
+
+    const usage = driveImageUsage();
+    const pages = Math.max(1, Math.ceil(libraryCache.length / LIBRARY_PAGE_SIZE));
+    libraryPage = Math.min(libraryPage, pages - 1);
+    const start = libraryPage * LIBRARY_PAGE_SIZE;
+    const slice = libraryCache.slice(start, start + LIBRARY_PAGE_SIZE);
+    grid.innerHTML = slice.map((file) => libraryTileHtml(file, usage, false)).join('');
+
+    $$('[data-lib-delete]', grid).forEach((button) => {
+      button.addEventListener('click', () => {
+        const id = button.closest('[data-file-id]')?.dataset.fileId;
+        void deleteLibraryImage(id);
+      });
+    });
+    $$('[data-lib-copy]', grid).forEach((button) => {
+      button.addEventListener('click', async () => {
+        const id = button.closest('[data-file-id]')?.dataset.fileId;
+        const file = libraryCache.find((item) => item.id === id);
+        if (!file) return;
+        try { await navigator.clipboard.writeText(file.imageUrl); toast('Image URL copied'); }
+        catch { toast('Could not copy URL'); }
+      });
+    });
+
+    if (pages > 1) {
+      pager.hidden = false;
+      $('#libraryPageInfo').textContent = `Page ${libraryPage + 1} of ${pages}`;
+      $('#libraryPrev').disabled = libraryPage === 0;
+      $('#libraryNext').disabled = libraryPage >= pages - 1;
+    } else {
+      pager.hidden = true;
+    }
+  }
+
+  async function deleteLibraryImage(id) {
+    const fileId = String(id || '').trim();
+    if (!fileId) return;
+    const file = libraryCache.find((item) => item.id === fileId);
+    const used = driveImageUsage().get(fileId) || [];
+    if (used.length) {
+      window.alert(`This image is still used by: ${used.join(', ')}.\n\nRemove it from those products first, then delete it here.`);
+      return;
+    }
+    if (!window.confirm(`Delete "${file?.name || 'this image'}" from Google Drive permanently?`)) return;
+    try {
+      await drive().deleteFile(fileId);
+      libraryCache = libraryCache.filter((item) => item.id !== fileId);
+      renderLibrary();
+      toast('Image deleted from Drive');
+    } catch (error) {
+      toast(error.message || 'Could not delete the image');
+    }
+  }
+
+  async function connectLibraryDrive() {
+    try {
+      $('#libraryConnectBtn').disabled = true;
+      setLibraryDriveStatus('Connecting Google Drive…', 'Approve the Google permission popup.');
+      await drive().connect();
+      refreshLibraryDrivePanel();
+      refreshDrivePanel();
+      await loadLibrary();
+    } catch (error) {
+      refreshLibraryDrivePanel();
+      toast(error.message || 'Google Drive connection failed');
+    }
+  }
+
+  async function handleLibraryUpload(files) {
+    const list = Array.from(files || []).filter(Boolean);
+    if (!list.length) return;
+    if (!drive()) { toast('Google Drive tools are unavailable'); return; }
+    try {
+      if (!drive().accessToken?.()) { await drive().connect(); refreshLibraryDrivePanel(); }
+    } catch (error) {
+      toast(error.message || 'Connect Google Drive first');
+      return;
+    }
+    $('#libraryDropzone')?.classList.add('is-processing');
+    let done = 0;
+    for (const file of list) {
+      try {
+        setLibraryStatus(`Optimizing ${file.name} (${done + 1}/${list.length})…`);
+        const optimized = await drive().optimizeImage(file, imageOptimizationOptions());
+        setLibraryStatus(`Uploading ${file.name} (${done + 1}/${list.length})…`);
+        const uploaded = await drive().uploadOptimizedImage(optimized);
+        libraryCache.unshift({
+          id: uploaded.driveFileId,
+          name: uploaded.imageMeta?.optimizedName || file.name,
+          mimeType: uploaded.imageMeta?.mimeType || 'image/webp',
+          size: Number(uploaded.imageMeta?.byteSize) || 0,
+          createdTime: new Date().toISOString(),
+          width: Number(uploaded.imageMeta?.width) || 0,
+          height: Number(uploaded.imageMeta?.height) || 0,
+          imageUrl: uploaded.imageUrl,
+        });
+        done += 1;
+        libraryPage = 0;
+        renderLibrary();
+      } catch (error) {
+        toast(error.message || `Could not upload ${file.name}`);
+      }
+    }
+    setLibraryStatus(done ? `Uploaded ${done} image${done === 1 ? '' : 's'} to the library.` : '');
+    $('#libraryDropzone')?.classList.remove('is-processing');
+    $('#libraryFile').value = '';
+  }
+
+  // ---- Library picker (used from the product editor) ----
+  function libraryItemFromFile(file) {
+    return { imageUrl: file.imageUrl, driveFileId: file.id, imageVersion: '', imageMeta: { driveFileId: file.id, optimizedName: file.name, byteSize: file.size, provider: 'google_drive', publicUrl: file.imageUrl } };
+  }
+  async function openLibraryPicker(mode) {
+    libraryPickerMode = mode === 'main' ? 'main' : 'gallery';
+    const picker = $('#libraryPicker');
+    $('#libraryPickerTitle').textContent = libraryPickerMode === 'main' ? 'Choose the main image' : 'Add gallery images';
+    $('#libraryPickerHint').textContent = libraryPickerMode === 'main' ? 'Pick the photo shown on the product card.' : 'Pick a photo to add to the gallery.';
+    picker.hidden = false;
+    const grid = $('#libraryPickerGrid');
+    grid.innerHTML = '<div class="empty-state-admin"><strong>Loading…</strong></div>';
+    if (!drive()?.accessToken?.()) {
+      try { await drive().connect(); refreshLibraryDrivePanel(); } catch { /* ignore */ }
+    }
+    if (!libraryCache.length) await loadLibrary({ silent: true });
+    renderLibraryPicker();
+  }
+  function closeLibraryPicker() { $('#libraryPicker').hidden = true; }
+  function renderLibraryPicker() {
+    const grid = $('#libraryPickerGrid');
+    if (!grid) return;
+    if (!libraryCache.length) {
+      grid.innerHTML = '<div class="empty-state-admin"><strong>No images yet</strong><p>Upload images in the Library tab first.</p></div>';
+      return;
+    }
+    const usage = driveImageUsage();
+    grid.innerHTML = libraryCache.map((file) => libraryTileHtml(file, usage, true)).join('');
+    $$('[data-lib-pick]', grid).forEach((button) => {
+      button.addEventListener('click', () => {
+        const id = button.closest('[data-file-id]')?.dataset.fileId;
+        const file = libraryCache.find((item) => item.id === id);
+        if (!file) return;
+        if (libraryPickerMode === 'main') setMainImage(libraryItemFromFile(file));
+        else addGalleryItem(libraryItemFromFile(file));
+        closeLibraryPicker();
+      });
+    });
+  }
+
+  // ---- Main image + gallery state ----
+  function currentMainItem() {
+    const imageUrl = $('#prodImageUrl').value.trim();
+    if (!imageUrl) return null;
+    return { imageUrl, driveFileId: $('#prodDriveFileId').value.trim(), imageVersion: $('#prodImageVersion').value.trim() };
+  }
+  function setMainImage(item) {
+    $('#prodImageUrl').value = item.imageUrl || '';
+    $('#prodImageId').value = '';
+    $('#prodImage').value = item.imageUrl || '';
+    $('#prodImageVersion').value = item.imageVersion || '';
+    $('#prodDriveFileId').value = item.driveFileId || '';
+    $('#prodImageProvider').value = item.driveFileId ? 'google_drive' : (item.imageUrl ? 'external' : 'local_legacy');
+    if (item.imageMeta) $('#prodImageMeta').value = JSON.stringify(item.imageMeta);
+    markFormDirty();
+    renderGalleryStrip();
+    void updateProductPreview();
+  }
+  function syncGalleryField() {
+    $('#prodGallery').value = JSON.stringify(galleryItems);
+    markFormDirty();
+  }
+  function addGalleryItem(item) {
+    if (!item?.imageUrl) return;
+    if (!currentMainItem()) { setMainImage(item); return; } // no main yet → becomes main
+    const exists = galleryItems.some((g) => g.imageUrl === item.imageUrl)
+      || $('#prodImageUrl').value.trim() === item.imageUrl;
+    if (exists) { toast('That image is already used'); return; }
+    galleryItems.push({ imageUrl: item.imageUrl, driveFileId: item.driveFileId || '', imageVersion: item.imageVersion || '' });
+    syncGalleryField();
+    renderGalleryStrip();
+  }
+  function removeGalleryItem(index) {
+    galleryItems.splice(index, 1);
+    syncGalleryField();
+    renderGalleryStrip();
+  }
+  function moveGalleryItem(from, to) {
+    if (to < 0 || to >= galleryItems.length || from === to) return;
+    const [item] = galleryItems.splice(from, 1);
+    galleryItems.splice(to, 0, item);
+    syncGalleryField();
+    renderGalleryStrip();
+  }
+  function promoteGalleryItem(index) {
+    const item = galleryItems[index];
+    if (!item) return;
+    const oldMain = currentMainItem();
+    galleryItems.splice(index, 1);
+    if (oldMain) galleryItems.unshift(oldMain);
+    setMainImage(item);
+    syncGalleryField();
+    renderGalleryStrip();
+  }
+
+  function galleryTileHtml(item, index, isMain) {
+    return `
+      <div class="gallery-item${isMain ? ' is-main' : ''}" data-gallery-index="${index}"${isMain ? '' : ' draggable="true"'}>
+        <img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+        ${isMain ? '<span class="gallery-badge">Main</span>' : ''}
+        <div class="gallery-item-actions">
+          ${isMain ? '' : '<button type="button" data-gallery-main title="Make main">★</button>'}
+          ${isMain ? '' : `<button type="button" data-gallery-left title="Move earlier" ${index === 0 ? 'disabled' : ''}>‹</button>`}
+          ${isMain ? '' : `<button type="button" data-gallery-right title="Move later" ${index === galleryItems.length - 1 ? 'disabled' : ''}>›</button>`}
+          <button type="button" data-gallery-remove title="Remove">×</button>
+        </div>
+      </div>`;
+  }
+  function renderGalleryStrip() {
+    const strip = $('#galleryStrip');
+    if (!strip) return;
+    const main = currentMainItem();
+    const tiles = [];
+    if (main) tiles.push(galleryTileHtml(main, -1, true));
+    galleryItems.forEach((item, index) => tiles.push(galleryTileHtml(item, index, false)));
+    strip.innerHTML = tiles.length
+      ? tiles.join('')
+      : '<p class="gallery-empty">No images yet. Upload a main photo or add from the library.</p>';
+
+    $$('[data-gallery-remove]', strip).forEach((button) => {
+      button.addEventListener('click', () => {
+        const tile = button.closest('[data-gallery-index]');
+        const index = Number(tile.dataset.galleryIndex);
+        if (index < 0) { // removing the main image
+          setMainImage({ imageUrl: '', driveFileId: '', imageVersion: '' });
+          $('#prodImageMeta').value = '';
+        } else {
+          removeGalleryItem(index);
+        }
+      });
+    });
+    $$('[data-gallery-main]', strip).forEach((button) => {
+      button.addEventListener('click', () => promoteGalleryItem(Number(button.closest('[data-gallery-index]').dataset.galleryIndex)));
+    });
+    $$('[data-gallery-left]', strip).forEach((button) => {
+      button.addEventListener('click', () => { const i = Number(button.closest('[data-gallery-index]').dataset.galleryIndex); moveGalleryItem(i, i - 1); });
+    });
+    $$('[data-gallery-right]', strip).forEach((button) => {
+      button.addEventListener('click', () => { const i = Number(button.closest('[data-gallery-index]').dataset.galleryIndex); moveGalleryItem(i, i + 1); });
+    });
+    // Drag-to-reorder for the extra (non-main) tiles.
+    $$('.gallery-item[draggable="true"]', strip).forEach((tile) => {
+      tile.addEventListener('dragstart', () => { galleryDragIndex = Number(tile.dataset.galleryIndex); tile.classList.add('is-dragging'); });
+      tile.addEventListener('dragend', () => { galleryDragIndex = -1; tile.classList.remove('is-dragging'); });
+      tile.addEventListener('dragover', (event) => event.preventDefault());
+      tile.addEventListener('drop', (event) => {
+        event.preventDefault();
+        const to = Number(tile.dataset.galleryIndex);
+        if (galleryDragIndex >= 0 && to >= 0) moveGalleryItem(galleryDragIndex, to);
+      });
+    });
+  }
+
+  function loadGalleryFromProduct(product) {
+    const list = Array.isArray(product?.gallery) ? product.gallery : [];
+    galleryItems = list
+      .map((entry) => (CORE.normalizeGalleryEntry ? CORE.normalizeGalleryEntry(entry) : entry))
+      .filter((entry) => entry && entry.imageUrl);
+    $('#prodGallery').value = JSON.stringify(galleryItems);
+    renderGalleryStrip();
+  }
+  function parseGalleryField() {
+    try {
+      const list = JSON.parse($('#prodGallery').value || '[]');
+      return CORE.normalizeGallery ? CORE.normalizeGallery(list) : (Array.isArray(list) ? list : []);
+    } catch {
+      return [];
+    }
+  }
+
+  async function handleGalleryUpload(files) {
+    const list = Array.from(files || []).filter(Boolean);
+    if (!list.length) return;
+    if (!drive()) { toast('Google Drive tools are unavailable'); return; }
+    try {
+      if (!drive().accessToken?.()) { await connectDrive(); }
+      if (!drive().accessToken?.()) throw new Error('Connect Google Drive before uploading.');
+    } catch (error) {
+      toast(error.message || 'Connect Google Drive first');
+      return;
+    }
+    for (const file of list) {
+      try {
+        showImageResult({ status: `Optimizing ${file.name}…` });
+        const optimized = await drive().optimizeImage(file, imageOptimizationOptions());
+        showImageResult({ status: `Uploading ${file.name}…` });
+        const uploaded = await drive().uploadOptimizedImage(optimized);
+        addGalleryItem({ imageUrl: uploaded.imageUrl, driveFileId: uploaded.driveFileId, imageVersion: uploaded.imageVersion });
+        libraryCache.unshift({
+          id: uploaded.driveFileId, name: uploaded.imageMeta?.optimizedName || file.name, mimeType: uploaded.imageMeta?.mimeType || 'image/webp',
+          size: Number(uploaded.imageMeta?.byteSize) || 0, createdTime: new Date().toISOString(),
+          width: Number(uploaded.imageMeta?.width) || 0, height: Number(uploaded.imageMeta?.height) || 0, imageUrl: uploaded.imageUrl,
+        });
+        showImageResult({ ...uploaded.imageMeta, status: 'Added to gallery' });
+      } catch (error) {
+        toast(error.message || `Could not upload ${file.name}`);
+      }
+    }
+    $('#galleryFile').value = '';
+  }
+
+  function setupLibrary() {
+    refreshLibraryDrivePanel();
+    $('#libraryConnectBtn')?.addEventListener('click', () => void connectLibraryDrive());
+    $('#libraryRefresh')?.addEventListener('click', () => void loadLibrary());
+    $('#libraryPrev')?.addEventListener('click', () => { if (libraryPage > 0) { libraryPage -= 1; renderLibrary(); } });
+    $('#libraryNext')?.addEventListener('click', () => { libraryPage += 1; renderLibrary(); });
+    $('#libraryFile')?.addEventListener('change', (event) => void handleLibraryUpload(event.target.files));
+    const dz = $('#libraryDropzone');
+    dz?.addEventListener('dragover', (event) => { event.preventDefault(); dz.classList.add('is-dragging'); });
+    dz?.addEventListener('dragleave', () => dz.classList.remove('is-dragging'));
+    dz?.addEventListener('drop', (event) => { event.preventDefault(); dz.classList.remove('is-dragging'); void handleLibraryUpload(event.dataTransfer.files); });
+
+    // Gallery + picker controls in the product editor
+    $('#chooseMainFromLibrary')?.addEventListener('click', () => void openLibraryPicker('main'));
+    $('#galleryAddFromLibrary')?.addEventListener('click', () => void openLibraryPicker('gallery'));
+    $('#galleryFile')?.addEventListener('change', (event) => void handleGalleryUpload(event.target.files));
+    $('#libraryPickerClose')?.addEventListener('click', closeLibraryPicker);
+    $('#libraryPicker')?.addEventListener('click', (event) => { if (event.target === $('#libraryPicker')) closeLibraryPicker(); });
+  }
+
+  function activateTab(target) {
+    $$('.admin-tab').forEach((item) => {
+      const on = item.dataset.tab === target;
+      item.classList.toggle('active', on);
+      item.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    $$('.admin-panel').forEach((panel) => {
+      panel.classList.toggle('active', panel.dataset.panel === target);
+    });
+    if (target === 'dashboard') renderMetrics();
+    if (target === 'visitors') renderVisitorMetrics();
+    if (target === 'orders') renderOrders();
+    if (target === 'products') void renderProductList();
+    if (target === 'library') void loadLibrary();
   }
 
   function setupTabs() {
     $$('.admin-tab').forEach((tab) => {
-      tab.addEventListener('click', () => {
-        const target = tab.dataset.tab;
-        $$('.admin-tab').forEach((item) => item.classList.toggle('active', item === tab));
-        $$('.admin-panel').forEach((panel) => {
-          panel.classList.toggle('active', panel.dataset.panel === target);
-        });
-        if (target === 'dashboard') renderMetrics();
-        if (target === 'visitors') renderVisitorMetrics();
-        if (target === 'orders') renderOrders();
-        if (target === 'products') void renderProductList();
-        if (target === 'promos') renderPromos();
+      tab.addEventListener('click', () => activateTab(tab.dataset.tab));
+    });
+    // In-panel buttons that jump to another tab (e.g. Overview → Orders).
+    $$('[data-tab-link]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activateTab(button.dataset.tabLink);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
   }
@@ -1837,14 +2297,36 @@
   }
 
   function setupFilters() {
-    ['#orderSearch', '#orderStatusFilter', '#paymentStatusFilter', '#orderDateFilter', '#orderSort'].forEach((selector) => {
-      $(selector).addEventListener('input', renderOrders);
-      $(selector).addEventListener('change', renderOrders);
+    const ordersChanged = () => { orderPage = 0; renderOrders(); };
+    ['#orderSearch', '#orderDateFilter', '#orderSort'].forEach((selector) => {
+      $(selector)?.addEventListener('input', ordersChanged);
+      $(selector)?.addEventListener('change', ordersChanged);
     });
+    const catalogChanged = () => { catalogPage = 0; void renderProductList(); };
     ['#productSearch', '#stockFilter', '#imageMigrationFilter', '#productSort'].forEach((selector) => {
-      $(selector).addEventListener('input', () => void renderProductList());
-      $(selector).addEventListener('change', () => void renderProductList());
+      $(selector)?.addEventListener('input', catalogChanged);
+      $(selector)?.addEventListener('change', catalogChanged);
     });
+
+    // Order status views (segmented control).
+    $$('[data-order-view]').forEach((button) => {
+      button.addEventListener('click', () => {
+        orderView = button.dataset.orderView;
+        orderPage = 0;
+        $$('[data-order-view]').forEach((item) => {
+          const on = item === button;
+          item.classList.toggle('is-active', on);
+          item.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        renderOrders();
+      });
+    });
+
+    // List pagers.
+    $('#orderPrev')?.addEventListener('click', () => { if (orderPage > 0) { orderPage -= 1; renderOrders(); } });
+    $('#orderNext')?.addEventListener('click', () => { orderPage += 1; renderOrders(); });
+    $('#catalogPrev')?.addEventListener('click', () => { if (catalogPage > 0) { catalogPage -= 1; void renderProductList(); } });
+    $('#catalogNext')?.addEventListener('click', () => { catalogPage += 1; void renderProductList(); });
   }
 
   function setupAdminUx() {
@@ -1883,7 +2365,6 @@
       if ((event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S')) {
         if (activePanel === 'products') { event.preventDefault(); $('#productForm').requestSubmit(); }
         else if (activePanel === 'settings') { event.preventDefault(); $('#settingsForm').requestSubmit(); }
-        else if (activePanel === 'promos') { event.preventDefault(); $('#promoForm').requestSubmit(); }
       }
       if (event.key === 'Escape' && activePanel === 'products') {
         if (confirmDiscardIfDirty('Discard unsaved product changes?')) resetForm();
@@ -1894,7 +2375,7 @@
   }
 
   async function refreshAll() {
-    await Promise.all([loadOrders(), loadProducts(), loadSettings(), loadPromos(), loadStatistics()]);
+    await Promise.all([loadOrders(), loadProducts(), loadSettings(), loadStatistics()]);
     updateCategoryOptions();
     updateImageOptions();
     fillSettingsForm();
@@ -1902,7 +2383,6 @@
     renderVisitorMetrics();
     renderOrders();
     await renderProductList();
-    renderPromos();
     await updateProductPreview();
   }
 
@@ -1924,10 +2404,6 @@
         await loadSettings();
         fillSettingsForm();
       });
-      BACKEND.promoCodes?.subscribe?.(async () => {
-        await loadPromos();
-        renderPromos();
-      });
       BACKEND.analytics?.subscribeStatistics?.(async () => {
         await loadStatistics();
         renderVisitorMetrics();
@@ -1947,16 +2423,14 @@
       if (confirmDiscardIfDirty('Discard unsaved changes?')) resetForm();
     });
     $('#settingsForm').addEventListener('submit', handleSettingsSubmit);
-    $('#promoForm').addEventListener('submit', handlePromoSubmit);
-    $('#promoReset').addEventListener('click', resetPromoForm);
     setupTabs();
     setupProductPreview();
     setupVariantBuilders();
     setupImageUploader();
+    setupLibrary();
     setupFilters();
     setupAdminUx();
     resetForm();
-    resetPromoForm();
     $('#dashboard').hidden = false;
   });
 })();

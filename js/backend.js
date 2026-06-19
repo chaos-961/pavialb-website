@@ -9,7 +9,6 @@
     products: 'PAVIA_PRODUCTS',
     orders: 'PAVIA_ORDERS',
     settings: 'PAVIA_SETTINGS',
-    promoCodes: 'PAVIA_PROMO_CODES',
     statistics: 'PAVIA_STATISTICS',
     subscribers: 'PAVIA_SUBSCRIBERS',
     orderRequests: 'PAVIA_ORDER_REQUESTS',
@@ -18,7 +17,6 @@
     products: new Set(),
     orders: new Set(),
     settings: new Set(),
-    promoCodes: new Set(),
   };
   const objectUrls = new Map();
   const channel = 'BroadcastChannel' in window
@@ -68,9 +66,6 @@
     }
     if (event.key === keys.settings) {
       listeners.settings.forEach((listener) => listener());
-    }
-    if (event.key === keys.promoCodes) {
-      listeners.promoCodes.forEach((listener) => listener());
     }
   });
 
@@ -277,9 +272,6 @@
       if (localStorage.getItem(keys.settings) === null) {
         write(keys.settings, clone(window.PAVIA_CONFIG || {}));
       }
-      if (localStorage.getItem(keys.promoCodes) === null) {
-        write(keys.promoCodes, clone(window.PAVIA_PROMO_CODES || {}));
-      }
       if (localStorage.getItem(keys.subscribers) === null) {
         write(keys.subscribers, []);
       }
@@ -421,36 +413,6 @@
       },
       subscribe(listener) {
         return subscribe('settings', listener);
-      },
-    },
-
-    promoCodes: {
-      async list() {
-        return clone(read(keys.promoCodes, window.PAVIA_PROMO_CODES || {}));
-      },
-      async upsert(code, promo) {
-        const promos = read(keys.promoCodes, window.PAVIA_PROMO_CODES || {});
-        const normalizedCode = String(code || promo?.code || '').trim().toUpperCase();
-        if (!normalizedCode) throw new Error('Promo code is required.');
-        promos[normalizedCode] = {
-          ...promos[normalizedCode],
-          ...clone(promo || {}),
-          code: normalizedCode,
-          updatedAt: new Date().toISOString(),
-          createdAt: promos[normalizedCode]?.createdAt || new Date().toISOString(),
-        };
-        write(keys.promoCodes, promos);
-        emit('promoCodes');
-        return clone(promos[normalizedCode]);
-      },
-      async remove(code) {
-        const promos = read(keys.promoCodes, window.PAVIA_PROMO_CODES || {});
-        delete promos[String(code || '').trim().toUpperCase()];
-        write(keys.promoCodes, promos);
-        emit('promoCodes');
-      },
-      subscribe(listener) {
-        return subscribe('promoCodes', listener);
       },
     },
 

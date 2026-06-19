@@ -2,7 +2,7 @@
   "name": "Pavia Elegant Store",
   "short_name": "Pavia",
   "id": "/index.html",
-  "description": "Refined Lebanese fashion boutique — order direct via WhatsApp.",
+  "description": "Refined Lebanese fashion boutique with delivery across Lebanon.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

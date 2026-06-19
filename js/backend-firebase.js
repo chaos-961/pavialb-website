@@ -198,7 +198,7 @@
       databaseReference(path),
       () => listener(),
       (error) => {
-        const optionalPublicPath = /^public(?:Products|StoreSettings|PromoCodes|CatalogManifest)/.test(path);
+        const optionalPublicPath = /^public(?:Products|StoreSettings|CatalogManifest)/.test(path);
         if (optionalPublicPath && error?.code === 'PERMISSION_DENIED') return;
         console.warn(`Pavia Firebase subscription failed for ${path}.`, error);
       },
@@ -235,25 +235,14 @@
     })).filter((item) => item.id && item.qty > 0);
   }
 
-  function calculatePromoDiscount(promo, subtotal) {
-    if (CORE.calculatePromoDiscount) return CORE.calculatePromoDiscount(promo, subtotal);
-    if (!promo || promo.active === false) return 0;
-    if (Number(promo.minSubtotal || 0) > subtotal) return 0;
-    const today = new Date().toISOString().slice(0, 10);
-    if (promo.startsAt && promo.startsAt > today) return 0;
-    if (promo.endsAt && promo.endsAt < today) return 0;
-    if (promo.type === 'percent') return Math.round(subtotal * (Math.max(0, Number(promo.value) || 0) / 100));
-    if (promo.type === 'fixed') return Math.min(subtotal, Math.max(0, Number(promo.value) || 0));
-    return 0;
-  }
-
-  function calculateDelivery(settings, subtotalAfterDiscount, promo, deliveryArea) {
-    if (CORE.calculateDelivery) return CORE.calculateDelivery(settings, subtotalAfterDiscount, promo, deliveryArea);
-    if (promo?.type === 'freeship') return 0;
-    if (subtotalAfterDiscount >= Number(settings.freeDeliveryAt || 0)) return 0;
-    return deliveryArea === 'beirut'
-      ? Math.max(0, Number(settings.deliveryBeirut) || 0)
-      : Math.max(0, Number(settings.deliveryLebanon) || 0);
+  // Single universal flat delivery fee (default $3). No per-area pricing, no
+  // free-delivery threshold, no promos.
+  function calculateDelivery(settings) {
+    if (CORE.calculateDelivery) return CORE.calculateDelivery(settings);
+    const fee = settings && settings.deliveryFee !== undefined && settings.deliveryFee !== null
+      ? Number(settings.deliveryFee)
+      : 3;
+    return Math.max(0, Number.isFinite(fee) ? fee : 3);
   }
 
   async function transactStock(path, delta) {
@@ -314,7 +303,9 @@
       driveFileId,
       imageVersion: product.imageVersion || '',
       imageMeta,
-      gallery: Array.isArray(product.gallery) ? product.gallery : [],
+      gallery: CORE.normalizeGallery
+        ? CORE.normalizeGallery(product.gallery)
+        : (Array.isArray(product.gallery) ? product.gallery : []),
       material: product.material || '',
       fit: product.fit || '',
       care: product.care || '',
@@ -362,6 +353,11 @@
 
   function normalizeSettingsRecord(settings) {
     const paymentMethods = settings.paymentMethods || {};
+    // One phone field (phone == WhatsApp). Map any legacy fields onto it.
+    const phone = String(settings.phone || settings.phoneNumber || settings.phoneDisplay || '').trim();
+    const deliveryFee = settings.deliveryFee !== undefined && settings.deliveryFee !== null
+      ? Math.max(0, Number(settings.deliveryFee) || 0)
+      : 3;
     return {
       siteName: settings.siteName || 'Pavia',
       siteTitle: settings.siteTitle || 'Pavia Lebanon',
@@ -369,17 +365,11 @@
       deliveryArea: settings.deliveryArea || 'Lebanon',
       tagline: settings.tagline || '',
       description: settings.description || '',
-      phoneDisplay: settings.phoneDisplay || '',
-      phoneNumber: settings.phoneNumber || '',
-      whatsappNumber: settings.whatsappNumber || '',
+      phone,
       instagramHandle: settings.instagramHandle || '',
-      instagramUrl: settings.instagramUrl || '',
       currency: settings.currency || 'USD',
-      freeDeliveryAt: Math.max(0, Number(settings.freeDeliveryAt) || 0),
-      deliveryBeirut: Math.max(0, Number(settings.deliveryBeirut) || 0),
-      deliveryLebanon: Math.max(0, Number(settings.deliveryLebanon) || 0),
+      deliveryFee,
       checkoutEnabled: settings.checkoutEnabled !== false,
-      whatsappCheckoutEnabled: settings.whatsappCheckoutEnabled !== false,
       paymentMethods: {
         cash_on_delivery: paymentMethods.cash_on_delivery !== false,
         whish_money: paymentMethods.whish_money !== false,
@@ -393,40 +383,6 @@
   function publicSettings(record) {
     const { updatedBy, ...publicFields } = record;
     return publicFields;
-  }
-
-  function normalizePromoRecord(code, promo) {
-    const normalizedCode = String(code || promo?.code || '').trim().toUpperCase();
-    if (!normalizedCode) throw new Error('Promo code is required.');
-    const now = new Date().toISOString();
-    return {
-      code: normalizedCode,
-      active: promo.active !== false,
-      type: ['percent', 'fixed', 'freeship'].includes(promo.type) ? promo.type : 'percent',
-      value: Math.max(0, Number(promo.value) || 0),
-      label: promo.label || normalizedCode,
-      minSubtotal: Math.max(0, Number(promo.minSubtotal) || 0),
-      startsAt: promo.startsAt || '',
-      endsAt: promo.endsAt || '',
-      usageLimit: Math.max(0, Number(promo.usageLimit) || 0),
-      usageCount: Math.max(0, Number(promo.usageCount) || 0),
-      createdAt: promo.createdAt || now,
-      updatedAt: now,
-      updatedBy: firebaseState.auth?.currentUser?.uid || 'admin',
-    };
-  }
-
-  function publicPromo(record) {
-    return {
-      code: record.code,
-      active: record.active,
-      type: record.type,
-      value: record.value,
-      label: record.label,
-      minSubtotal: record.minSubtotal,
-      startsAt: record.startsAt,
-      endsAt: record.endsAt,
-    };
   }
 
   async function writeProduct(product) {
@@ -470,7 +426,6 @@
           orderManagement: adminUnlocked,
           realtimeProducts: true,
           publicSettings: true,
-          publicPromoCodes: true,
           subscribers: true,
         });
       }
@@ -480,7 +435,6 @@
         orderManagement: true,
         realtimeProducts: false,
         publicSettings: false,
-        publicPromoCodes: false,
         subscribers: true,
       });
     },
@@ -638,14 +592,12 @@
           price: Number(publicProducts[item.id].price) || 0,
         }));
         const subtotal = pricingItems.reduce((sum, item) => sum + item.price * item.qty, 0);
-        const promoCode = safeKey(order.promoCode || order.promo || '').toUpperCase();
-        const promo = promoCode ? await readPath(`publicPromoCodes/${promoCode}`) : null;
-        const discount = calculatePromoDiscount(promo, subtotal);
         const settings = (await readPath('publicStoreSettings')) || {};
         const customer = order.customer || {};
         const deliveryArea = customer.deliveryArea === 'beirut' ? 'beirut' : 'lebanon';
-        const delivery = calculateDelivery(settings, Math.max(0, subtotal - discount), promo, deliveryArea);
-        const total = Math.max(0, subtotal - discount) + delivery;
+        const discount = 0;
+        const delivery = calculateDelivery(settings);
+        const total = subtotal + delivery;
         const reserved = [];
 
         try {
@@ -663,7 +615,7 @@
             id: orderId,
             requestId,
             orderNumber: order.orderNumber || `PAV-${Date.now().toString().slice(-6)}`,
-            status: 'new',
+            status: 'pending',
             paymentStatus: 'awaiting_confirmation',
             paymentMethod,
             items: pricingItems,
@@ -680,10 +632,8 @@
             discount,
             delivery,
             total,
-            promoCode: promoCode || '',
             notes: String(order.notes || customer.notes || '').trim().slice(0, 500),
             source: 'web',
-            whatsappText: String(order.whatsappText || '').slice(0, 4000),
             pricingReview: {
               status: 'client_recalculated_from_public_rtdb',
               expectedSubtotal: subtotal,
@@ -815,61 +765,6 @@
       subscribe(listener) {
         if (activeProvider === 'local') return localBackend.settings.subscribe(listener);
         return subscribePath('publicStoreSettings', listener);
-      },
-    },
-
-    promoCodes: {
-      async list() {
-        if (activeProvider === 'local') return localBackend.promoCodes.list();
-        if (adminUnlocked) {
-          await assertAdminReady();
-          return clone((await readPath('promoCodes')) || {});
-        }
-        try {
-          return clone((await readPath('publicPromoCodes')) || {});
-        } catch {
-          return localBackend.promoCodes.list();
-        }
-      },
-      async upsert(code, promo) {
-        if (activeProvider === 'local') return localBackend.promoCodes.upsert(code, promo);
-        await assertAdminReady();
-        const record = normalizePromoRecord(code, promo);
-        const now = new Date().toISOString();
-        await firebaseState.databaseApi.update(databaseReference('/'), {
-          [`promoCodes/${record.code}`]: record,
-          [`publicPromoCodes/${record.code}`]: record.active ? publicPromo(record) : null,
-          [`auditLogs/${Date.now()}-${record.code}`]: {
-            actorUid: firebaseState.auth?.currentUser?.uid || '',
-            action: 'promo.upsert',
-            targetType: 'promoCode',
-            targetId: record.code,
-            createdAt: now,
-          },
-        });
-        return record;
-      },
-      async remove(code) {
-        if (activeProvider === 'local') return localBackend.promoCodes.remove(code);
-        await assertAdminReady();
-        const promoCode = String(code || '').trim().toUpperCase();
-        if (!promoCode) return;
-        const now = new Date().toISOString();
-        await firebaseState.databaseApi.update(databaseReference('/'), {
-          [`promoCodes/${promoCode}`]: null,
-          [`publicPromoCodes/${promoCode}`]: null,
-          [`auditLogs/${Date.now()}-${promoCode}`]: {
-            actorUid: firebaseState.auth?.currentUser?.uid || '',
-            action: 'promo.remove',
-            targetType: 'promoCode',
-            targetId: promoCode,
-            createdAt: now,
-          },
-        });
-      },
-      subscribe(listener) {
-        if (activeProvider === 'local') return localBackend.promoCodes.subscribe(listener);
-        return subscribePath('publicPromoCodes', listener);
       },
     },
 

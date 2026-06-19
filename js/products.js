@@ -224,11 +224,3 @@ window.PAVIA_DEFAULT_PRODUCTS = [
     createdAt: 1
   }
 ];
-
-// Promo codes - these are public so users can find them in source.
-// For real promos, validate server-side.
-window.PAVIA_PROMO_CODES = {
-  'PAVIA10': { type: 'percent', value: 10, label: '10% off' },
-  'WELCOME15': { type: 'percent', value: 15, label: '15% off your first order' },
-  'FREESHIP': { type: 'freeship', value: 0, label: 'Free delivery' }
-};

@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=12" />
+  <link rel="stylesheet" href="css/styles.css?v=15" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -43,6 +43,13 @@
   <a class="skip-link" href="#shop">Skip to shop</a>
   <div class="offline-banner" data-offline-banner role="status" aria-live="polite" hidden>
     You're offline — showing your last saved view.
+  </div>
+  <div class="update-banner" data-update-banner role="status" aria-live="polite" hidden>
+    <span>A new version of Pavia is available.</span>
+    <span class="update-banner-actions">
+      <button type="button" class="update-reload" data-update-reload>Reload</button>
+      <button type="button" class="update-dismiss" data-update-dismiss aria-label="Dismiss">Later</button>
+    </span>
   </div>
 
   <!-- ========== Header ========== -->
@@ -92,45 +99,24 @@
           </div>
         </div>
 
-        <div class="hero-visual reveal reveal-delay-150">
-          <span class="hero-tag">Eid Collection</span>
+        <div class="hero-visual reveal reveal-delay-150" data-hero-visual>
           <div class="hero-card main">
-            <img src="assets/logo.svg" alt="Pavia featured outerwear look" />
+            <img src="assets/logo.svg" alt="Pavia featured look" data-hero-image="0" />
           </div>
           <div class="hero-card float-1">
-            <img src="assets/logo.svg" alt="Pavia blue blouse look" />
+            <img src="assets/logo.svg" alt="Pavia featured look" data-hero-image="1" />
           </div>
           <div class="hero-card float-2">
-            <img src="assets/logo.svg" alt="Pavia satin skirt look" />
+            <img src="assets/logo.svg" alt="Pavia featured look" data-hero-image="2" />
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ========== SHOP — the centerpiece ========== -->
-    <section class="trust-strip" aria-label="Shopping information">
-      <div class="container trust-grid">
-        <div>
-          <strong>Lebanon delivery</strong>
-          <span>Beirut and nationwide handoff options</span>
-        </div>
-        <div>
-          <strong>Manual payment</strong>
-          <span>Cash on delivery or confirmed Whish Money</span>
-        </div>
-        <div>
-          <strong>Order review</strong>
-          <span>Every request is checked before fulfillment</span>
-        </div>
-      </div>
-    </section>
-
+    <!-- ========== SHOP — the centerpiece (directly under the hero) ========== -->
     <section id="shop" class="shop-section">
       <div class="container">
-        <div class="shop-header reveal">
-          <p class="eyebrow">Online boutique</p>
-          <h2>Shop <span data-site-name>Pavia</span></h2>
-        </div>
+        <h2 class="visually-hidden">Shop the collection</h2>
 
         <!-- Sticky toolbar -->
         <div class="toolbar reveal" data-toolbar>
@@ -196,6 +182,27 @@
         </div>
 
         <div class="product-grid" data-product-grid aria-live="polite"></div>
+        <div class="load-more-wrap" data-load-more-wrap hidden>
+          <button type="button" class="btn btn-soft btn-lg" data-load-more>Load more styles</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== Why shop with us ========== -->
+    <section class="trust-strip" aria-label="Shopping information">
+      <div class="container trust-grid">
+        <div>
+          <strong>Lebanon delivery</strong>
+          <span>Beirut and nationwide handoff options</span>
+        </div>
+        <div>
+          <strong>Manual payment</strong>
+          <span>Cash on delivery or confirmed Whish Money</span>
+        </div>
+        <div>
+          <strong>Order review</strong>
+          <span>Every request is checked before fulfillment</span>
+        </div>
       </div>
     </section>
 
@@ -212,7 +219,7 @@
 
     <!-- ========== Visit / contact ========== -->
     <section id="visit" class="visit">
-      <div class="container visit-grid">
+      <div class="container">
         <div class="visit-card reveal">
           <p class="eyebrow">Visit &amp; contact</p>
           <h2 class="visit-title"><span data-site-name>Pavia</span> <span data-site-location>Beirut</span></h2>
@@ -223,20 +230,6 @@
             <a href="https://wa.me/9613017725" target="_blank" rel="noreferrer" data-whatsapp-link><strong>WhatsApp <span data-site-name>Pavia</span></strong><span>Chat →</span></a>
           </div>
         </div>
-
-        <form class="newsletter reveal reveal-delay-100" data-newsletter>
-          <p class="eyebrow">Private drops</p>
-          <h3>Get collection alerts</h3>
-          <p class="newsletter-note">Be first to see new arrivals, restocks, and quiet sales.</p>
-          <label>Email
-            <input type="email" name="email" required placeholder="you@example.com" />
-          </label>
-          <label class="newsletter-consent">
-            <input type="checkbox" name="consent" required />
-            <span>I agree to receive Pavia collection and restock updates.</span>
-          </label>
-          <button class="btn btn-primary full" type="submit">Notify me</button>
-        </form>
       </div>
     </section>
   </main>
@@ -257,7 +250,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Crafted with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.0.5</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.1.0</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -302,14 +295,8 @@
       </div>
       <div class="drawer-body" data-cart-items></div>
       <div class="cart-summary" data-cart-summary>
-        <div class="promo-row">
-          <input type="text" placeholder="Promo code" data-promo-input />
-          <button type="button" data-promo-apply>Apply</button>
-        </div>
-        <div class="promo-applied is-hidden" data-promo-applied></div>
         <div class="summary-line"><span>Subtotal</span><strong data-subtotal>$0</strong></div>
-        <div class="summary-line is-hidden" data-discount-line><span>Discount</span><strong data-discount>-$0</strong></div>
-        <div class="summary-line"><span>Delivery</span><strong data-delivery-estimate>Calculated at checkout</strong></div>
+        <div class="summary-line"><span>Delivery</span><strong data-delivery-estimate>$3</strong></div>
         <div class="summary-line total"><span>Total</span><strong data-total>$0</strong></div>
         <button class="btn btn-primary full btn-lg" data-checkout>Checkout</button>
         <button class="btn btn-ghost full btn-sm stack-gap-sm" data-continue-shopping>Continue shopping</button>
@@ -353,32 +340,25 @@
         <div>
           <p class="eyebrow">Secure order request</p>
           <h2 id="checkoutTitle" class="checkout-title">Checkout</h2>
-          <p class="muted checkout-note">Your order will be sent to <span data-site-name>Pavia</span> via WhatsApp for confirmation.</p>
+          <p class="muted checkout-note">Place your order below — <span data-site-name>Pavia</span> will confirm it with you on WhatsApp or by phone.</p>
         </div>
         <div class="checkout-grid">
           <div class="checkout-fields">
             <div class="field">
               <label>Full name</label>
-              <input name="name" required placeholder="Your full name" />
+              <input name="name" required maxlength="120" placeholder="Your full name" />
             </div>
             <div class="field">
               <label>Phone number</label>
-              <input name="phone" required placeholder="03 000 000" type="tel" inputmode="tel" />
+              <input name="phone" required maxlength="40" placeholder="03 000 000" type="tel" inputmode="tel" />
             </div>
             <div class="field">
               <label>City / Area</label>
-              <input name="city" required placeholder="Beirut, Tripoli, Saida..." />
-            </div>
-            <div class="field">
-              <label>Delivery area</label>
-              <select name="deliveryArea" required>
-                <option value="beirut">Beirut</option>
-                <option value="lebanon">Outside Beirut</option>
-              </select>
+              <input name="city" required maxlength="120" placeholder="Beirut, Tripoli, Saida..." />
             </div>
             <div class="field">
               <label>Detailed address</label>
-              <textarea name="address" required placeholder="Street, building, floor"></textarea>
+              <textarea name="address" required maxlength="400" placeholder="Street, building, floor"></textarea>
             </div>
             <div class="field">
               <label>Payment method</label>
@@ -403,11 +383,11 @@
             </div>
             <div class="field">
               <label>Delivery notes</label>
-              <textarea name="notes" placeholder="Preferred delivery time, sizing notes..."></textarea>
+              <textarea name="notes" maxlength="600" placeholder="Preferred delivery time, sizing notes..."></textarea>
             </div>
             <label class="review-confirm">
               <input type="checkbox" name="reviewConfirmed" required />
-              <span>I reviewed sizes, colors, delivery area, and payment method.</span>
+              <span>I reviewed sizes, colors, address, and payment method.</span>
             </label>
           </div>
 
@@ -429,15 +409,16 @@
   <!-- ========== Toast region ========== -->
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
-  <script src="js/config.js?v=10"></script>
-  <script src="js/firebase-config.js?v=10"></script>
-  <script src="js/backend-config.js?v=12"></script>
-  <script src="js/image-catalog.js?v=11"></script>
-  <script src="js/store-core.js?v=5"></script>
-  <script src="js/catalog-cache.js?v=1"></script>
-  <script src="js/backend.js?v=16"></script>
-  <script src="js/backend-firebase.js?v=22"></script>
-  <script src="js/products.js?v=10"></script>
-  <script src="js/app.js?v=16"></script>
+  <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
+  <script defer src="js/config.js?v=15"></script>
+  <script defer src="js/firebase-config.js?v=10"></script>
+  <script defer src="js/backend-config.js?v=13"></script>
+  <script defer src="js/image-catalog.js?v=11"></script>
+  <script defer src="js/store-core.js?v=7"></script>
+  <script defer src="js/catalog-cache.js?v=1"></script>
+  <script defer src="js/backend.js?v=17"></script>
+  <script defer src="js/backend-firebase.js?v=24"></script>
+  <script defer src="js/products.js?v=11"></script>
+  <script defer src="js/app.js?v=20"></script>
 </body>
 </html>

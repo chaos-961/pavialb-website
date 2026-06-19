@@ -14,38 +14,26 @@
   </header>
 
   <nav class="admin-tabs" role="tablist" aria-label="Admin sections">
-    <button class="admin-tab active" data-tab="dashboard">Overview</button>
-    <button class="admin-tab" data-tab="visitors">Visitors</button>
-    <button class="admin-tab" data-tab="orders">Orders</button>
-    <button class="admin-tab" data-tab="products">Products</button>
-    <button class="admin-tab" data-tab="settings">Settings</button>
-    <button class="admin-tab" data-tab="promos">Promos</button>
-    <button class="admin-tab" data-tab="security">Security</button>
+    <button class="admin-tab active" data-tab="dashboard" role="tab" aria-selected="true">Overview</button>
+    <button class="admin-tab" data-tab="visitors" role="tab" aria-selected="false">Visitors</button>
+    <button class="admin-tab" data-tab="orders" role="tab" aria-selected="false">Orders</button>
+    <button class="admin-tab" data-tab="products" role="tab" aria-selected="false">Products</button>
+    <button class="admin-tab" data-tab="library" role="tab" aria-selected="false">Library</button>
+    <button class="admin-tab" data-tab="settings" role="tab" aria-selected="false">Settings</button>
   </nav>
 
   <div class="admin-panel active" data-panel="dashboard">
     <div class="metrics-grid" id="metricsGrid"></div>
-    <div class="ops-grid">
-      <div class="panel-card">
-        <div class="panel-heading">
-          <div>
-            <p class="admin-kicker">Latest activity</p>
-            <h2>Latest orders</h2>
-            <p class="desc">Newest customer requests and payment confirmations to review.</p>
-          </div>
+    <div class="panel-card">
+      <div class="panel-heading">
+        <div>
+          <p class="admin-kicker">Latest activity</p>
+          <h2>Latest orders</h2>
+          <p class="desc">Your newest customer orders. Open the Orders tab to mark them completed.</p>
         </div>
-        <div id="latestOrders" class="compact-list"></div>
+        <button type="button" class="btn btn-ghost" data-tab-link="orders">View all orders</button>
       </div>
-      <div class="panel-card">
-        <div class="panel-heading">
-          <div>
-            <p class="admin-kicker">Inventory watch</p>
-            <h2>Low stock</h2>
-            <p class="desc">Product-level stock remains the Phase 05 inventory model.</p>
-          </div>
-        </div>
-        <div id="lowStockList" class="compact-list"></div>
-      </div>
+      <div id="latestOrders" class="compact-list"></div>
     </div>
   </div>
 
@@ -88,37 +76,28 @@
         <div>
           <p class="admin-kicker">Store operations</p>
           <h2>Orders</h2>
-          <p class="desc">Search, inspect, contact, print, and update order/payment status.</p>
+          <p class="desc">Review new orders, contact the customer, then mark them completed. Completed and cancelled orders stay here as history.</p>
         </div>
-        <span class="count-badge" id="availableOrderCount">0</span>
+        <span class="count-badge" id="availableOrderCount" title="Orders awaiting action">0</span>
       </div>
-      <div class="admin-toolbar">
+      <div class="segmented" id="orderViews" role="tablist" aria-label="Order status">
+        <button type="button" class="segmented-btn is-active" data-order-view="pending" role="tab" aria-selected="true">
+          Pending <span class="segmented-count" data-view-count="pending">0</span>
+        </button>
+        <button type="button" class="segmented-btn" data-order-view="completed" role="tab" aria-selected="false">
+          Completed <span class="segmented-count" data-view-count="completed">0</span>
+        </button>
+        <button type="button" class="segmented-btn" data-order-view="cancelled" role="tab" aria-selected="false">
+          Cancelled <span class="segmented-count" data-view-count="cancelled">0</span>
+        </button>
+        <button type="button" class="segmented-btn" data-order-view="all" role="tab" aria-selected="false">
+          All <span class="segmented-count" data-view-count="all">0</span>
+        </button>
+      </div>
+      <div class="admin-toolbar orders-toolbar">
         <label>
           Search
           <input id="orderSearch" type="search" placeholder="Customer, phone, order ID" />
-        </label>
-        <label>
-          Status
-          <select id="orderStatusFilter">
-            <option value="">All statuses</option>
-            <option value="new">New</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="preparing">Preparing</option>
-            <option value="out_for_delivery">Out for delivery</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </label>
-        <label>
-          Payment
-          <select id="paymentStatusFilter">
-            <option value="">All payments</option>
-            <option value="pending">Pending</option>
-            <option value="awaiting_confirmation">Awaiting confirmation</option>
-            <option value="paid">Paid</option>
-            <option value="failed">Failed</option>
-            <option value="refunded">Refunded</option>
-          </select>
         </label>
         <label>
           Date
@@ -135,17 +114,29 @@
         </label>
       </div>
       <div id="availableOrders" class="order-list"></div>
+      <div class="library-pager" id="orderPager" hidden>
+        <button type="button" class="btn btn-ghost" id="orderPrev">Previous</button>
+        <span id="orderPageInfo"></span>
+        <button type="button" class="btn btn-ghost" id="orderNext">Next</button>
+      </div>
     </div>
   </div>
 
   <div class="admin-panel" data-panel="products">
-    <div class="draft-banner" id="draftBanner" hidden>
-      <div>
-        <strong>Unsaved product draft found</strong>
-        <span id="draftBannerMeta" class="draft-banner-meta"></span>
+    <div class="draft-banner" id="draftBanner" hidden role="status">
+      <span class="draft-banner-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+      </span>
+      <div class="draft-banner-body">
+        <strong>You have an unfinished product draft</strong>
+        <span class="draft-banner-meta">
+          <b id="draftBannerName">Untitled</b>
+          <span id="draftBannerTime" class="draft-banner-time"></span>
+        </span>
+        <small>Pick up where you left off, or discard it to start fresh.</small>
       </div>
       <div class="draft-banner-actions">
-        <button type="button" class="btn btn-secondary" id="draftRestore">Restore draft</button>
+        <button type="button" class="btn btn-primary" id="draftRestore">Restore draft</button>
         <button type="button" class="btn btn-ghost" id="draftDiscard">Discard</button>
       </div>
     </div>
@@ -271,13 +262,35 @@
                 <label class="image-dropzone" id="imageDropzone">
                   <input id="prodImageFile" type="file" accept="image/jpeg,image/png,image/webp" />
                   <span class="upload-icon" aria-hidden="true">+</span>
-                  <strong>Choose or drop a product photo</strong>
+                  <strong>Choose or drop the main product photo</strong>
                   <small>The optimized file targets about 300 KB, then uploads to your Google Drive folder.</small>
                 </label>
+                <div class="image-or-row">
+                  <button type="button" class="btn btn-ghost" id="chooseMainFromLibrary">Choose main from library</button>
+                </div>
                 <div class="image-preview-row" id="imagePreviewRow" hidden>
                   <img id="imageOptimizedPreview" alt="Optimized product image preview" />
                 </div>
                 <div id="imageOptimizationResult" class="image-result" hidden></div>
+
+                <div class="gallery-manager">
+                  <div class="variant-heading">
+                    <div>
+                      <strong>Gallery images</strong>
+                      <small>Extra photos shown in the product modal. Drag to reorder, or promote one to be the main image.</small>
+                    </div>
+                    <div class="gallery-add-actions">
+                      <button type="button" class="btn btn-secondary" id="galleryAddFromLibrary">Add from library</button>
+                      <label class="btn btn-secondary gallery-upload-btn">
+                        Upload
+                        <input id="galleryFile" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+                      </label>
+                    </div>
+                  </div>
+                  <div id="galleryStrip" class="gallery-strip"></div>
+                  <input id="prodGallery" type="hidden" />
+                </div>
+
                 <details class="image-advanced">
                   <summary>Manual/migration image reference</summary>
                   <div class="form-grid">
@@ -334,24 +347,6 @@
                 <div id="colorBuilder" class="color-builder"></div>
                 <input id="prodColors" type="hidden" />
               </div>
-            </div>
-          </fieldset>
-
-          <fieldset class="form-section">
-            <legend>Product details</legend>
-            <div class="form-grid">
-              <label>
-                Material
-                <input id="prodMaterial" type="text" placeholder="100% cotton" />
-              </label>
-              <label>
-                Fit
-                <input id="prodFit" type="text" placeholder="Relaxed fit; true to size" />
-              </label>
-              <label class="span-2">
-                Care instructions
-                <textarea id="prodCare" rows="3" placeholder="Cold wash, hang dry, do not bleach."></textarea>
-              </label>
             </div>
           </fieldset>
 
@@ -437,6 +432,47 @@
         </div>
       </div>
       <div id="productList" class="product-list"></div>
+      <div class="library-pager" id="catalogPager" hidden>
+        <button type="button" class="btn btn-ghost" id="catalogPrev">Previous</button>
+        <span id="catalogPageInfo"></span>
+        <button type="button" class="btn btn-ghost" id="catalogNext">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-panel" data-panel="library">
+    <div class="panel-card">
+      <div class="panel-heading">
+        <div>
+          <p class="admin-kicker">Media</p>
+          <h2>Image library</h2>
+          <p class="desc">Images your studio uploaded to the Google Drive folder. Reuse them across products or delete the ones nothing uses.</p>
+        </div>
+        <div class="library-head-actions">
+          <span class="count-badge" id="libraryCount">0</span>
+          <button type="button" class="btn btn-secondary" id="libraryRefresh">Refresh</button>
+        </div>
+      </div>
+      <div class="drive-panel" id="libraryDrivePanel">
+        <div>
+          <strong id="libraryDriveStatus">Google Drive not connected</strong>
+          <small id="libraryDriveDetail">Connect Google Drive to browse and upload images.</small>
+        </div>
+        <button type="button" class="btn btn-secondary" id="libraryConnectBtn">Connect Google Drive</button>
+      </div>
+      <label class="image-dropzone" id="libraryDropzone">
+        <input id="libraryFile" type="file" accept="image/jpeg,image/png,image/webp" multiple />
+        <span class="upload-icon" aria-hidden="true">+</span>
+        <strong>Upload image(s) to the library</strong>
+        <small>Each is optimized to about 300 KB, then uploaded to your Drive folder.</small>
+      </label>
+      <div id="libraryUploadStatus" class="image-result" hidden></div>
+      <div id="libraryGrid" class="library-grid"></div>
+      <div class="library-pager" id="libraryPager" hidden>
+        <button type="button" class="btn btn-ghost" id="libraryPrev">Previous</button>
+        <span id="libraryPageInfo"></span>
+        <button type="button" class="btn btn-ghost" id="libraryNext">Next</button>
+      </div>
     </div>
   </div>
 
@@ -446,158 +482,93 @@
         <div>
           <p class="admin-kicker">Store controls</p>
           <h2>Settings</h2>
-          <p class="desc">Keep private settings and public storefront settings synchronized.</p>
+          <p class="desc">These details power the storefront contact links, delivery total, and checkout. Changes publish to the live store when you save.</p>
         </div>
+        <span class="form-status" id="settingsFormStatus" role="status" aria-live="polite"></span>
       </div>
-      <form id="settingsForm" class="product-form compact-form" autocomplete="off">
-        <label>
-          Store title
-          <input id="settingSiteTitle" type="text" required />
-        </label>
-        <label>
-          Display phone
-          <input id="settingPhoneDisplay" type="text" />
-        </label>
-        <label>
-          Phone number
-          <input id="settingPhoneNumber" type="tel" />
-        </label>
-        <label>
-          WhatsApp number
-          <input id="settingWhatsapp" type="tel" />
-        </label>
-        <label>
-          Instagram handle
-          <input id="settingInstagramHandle" type="text" />
-        </label>
-        <label>
-          Instagram URL
-          <input id="settingInstagramUrl" type="url" />
-        </label>
-        <label>
-          Location
-          <input id="settingLocation" type="text" />
-        </label>
-        <label>
-          Delivery area
-          <input id="settingDeliveryArea" type="text" />
-        </label>
-        <label>
-          Beirut delivery ($)
-          <input id="settingDeliveryBeirut" type="number" min="0" step="0.01" />
-        </label>
-        <label>
-          Lebanon delivery ($)
-          <input id="settingDeliveryLebanon" type="number" min="0" step="0.01" />
-        </label>
-        <label>
-          Free delivery threshold ($)
-          <input id="settingFreeDeliveryAt" type="number" min="0" step="0.01" />
-        </label>
-        <label class="toggle-field">
-          <input id="settingCheckoutEnabled" type="checkbox" />
-          <span><strong>Checkout enabled</strong> Allow customers to start checkout.</span>
-        </label>
-        <label class="toggle-field">
-          <input id="settingWhatsappCheckout" type="checkbox" />
-          <span><strong>WhatsApp checkout</strong> Keep WhatsApp as the handoff/fallback.</span>
-        </label>
-        <label class="toggle-field">
-          <input id="settingCash" type="checkbox" />
-          <span><strong>Cash on delivery</strong> Show as an available payment method.</span>
-        </label>
-        <label class="toggle-field">
-          <input id="settingWhish" type="checkbox" />
-          <span><strong>Whish Money</strong> Show as manual confirmation only.</span>
-        </label>
-        <div class="form-actions span-2">
+      <form id="settingsForm" class="product-form settings-form" autocomplete="off" novalidate>
+        <fieldset class="form-section">
+          <legend>Store identity</legend>
+          <div class="form-grid">
+            <label class="span-2">
+              Store title
+              <input id="settingSiteTitle" type="text" required maxlength="80" />
+              <small>Shown in the browser tab and storefront header.</small>
+            </label>
+            <label>
+              Location
+              <input id="settingLocation" type="text" maxlength="80" placeholder="Beirut" />
+            </label>
+            <label>
+              Delivery area label
+              <input id="settingDeliveryArea" type="text" maxlength="80" placeholder="Lebanon" />
+              <small>Text only — shown to customers (e.g. "Delivery across Lebanon").</small>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="form-section">
+          <legend>Contact</legend>
+          <div class="form-grid">
+            <label>
+              Phone &amp; WhatsApp number
+              <input id="settingPhone" type="tel" inputmode="tel" maxlength="24" placeholder="+961 70 000 000" />
+              <small class="field-error" data-error-for="settingPhone"></small>
+              <small>One number for both calls and WhatsApp.</small>
+            </label>
+            <label>
+              Instagram handle
+              <input id="settingInstagramHandle" type="text" maxlength="60" placeholder="pavialb" />
+              <small>Just the handle — the link is built automatically.</small>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="form-section">
+          <legend>Delivery &amp; checkout</legend>
+          <div class="form-grid">
+            <label>
+              Delivery fee ($)
+              <input id="settingDeliveryFee" type="number" min="0" step="0.5" placeholder="3" />
+              <small class="field-error" data-error-for="settingDeliveryFee"></small>
+              <small>Flat fee added to every order.</small>
+            </label>
+            <label class="toggle-field span-2">
+              <input id="settingCheckoutEnabled" type="checkbox" />
+              <span><strong>Checkout enabled</strong> Let customers place orders. Turn off to pause ordering.</span>
+            </label>
+            <label class="toggle-field">
+              <input id="settingCash" type="checkbox" />
+              <span><strong>Cash on delivery</strong> Offer as a payment method at checkout.</span>
+            </label>
+            <label class="toggle-field">
+              <input id="settingWhish" type="checkbox" />
+              <span><strong>Whish Money</strong> Offer as a manual-confirmation payment method.</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="form-actions sticky-actions">
           <button type="submit" class="btn btn-primary">Save settings</button>
         </div>
       </form>
     </div>
   </div>
 
-  <div class="admin-panel" data-panel="promos">
-    <div class="panel-card">
-      <div class="panel-heading">
-        <div>
-          <p class="admin-kicker">Offers</p>
-          <h2>Promo codes</h2>
-          <p class="desc">Create, edit, and deactivate public promo projections.</p>
-        </div>
-        <button id="promoReset" type="button" class="btn btn-ghost">New promo</button>
-      </div>
-      <form id="promoForm" class="product-form compact-form" autocomplete="off" novalidate>
-        <input id="promoOriginalCode" type="hidden" />
-        <label>
-          Code
-          <input id="promoCode" type="text" required placeholder="PAVIA10" />
-          <small class="field-error" data-error-for="promoCode"></small>
-        </label>
-        <label>
-          Label
-          <input id="promoLabel" type="text" required placeholder="10% off" />
-        </label>
-        <label>
-          Type
-          <select id="promoType">
-            <option value="percent">Percent</option>
-            <option value="fixed">Fixed amount</option>
-            <option value="freeship">Free shipping</option>
-          </select>
-        </label>
-        <label>
-          Value
-          <input id="promoValue" type="number" min="0" step="0.01" />
-        </label>
-        <label>
-          Minimum subtotal
-          <input id="promoMinSubtotal" type="number" min="0" step="0.01" />
-        </label>
-        <label>
-          Usage limit
-          <input id="promoUsageLimit" type="number" min="0" step="1" />
-        </label>
-        <label>
-          Starts at
-          <input id="promoStartsAt" type="date" />
-        </label>
-        <label>
-          Ends at
-          <input id="promoEndsAt" type="date" />
-        </label>
-        <label class="toggle-field span-2">
-          <input id="promoActive" type="checkbox" checked />
-          <span><strong>Active</strong> Active promos are exposed in /publicPromoCodes.</span>
-        </label>
-        <div class="form-actions span-2">
-          <button type="submit" class="btn btn-primary" id="promoSubmit">Save promo</button>
-        </div>
-      </form>
-    </div>
-    <div class="panel-card">
-      <div class="panel-heading">
-        <div>
-          <p class="admin-kicker">Promo library</p>
-          <h2>Codes</h2>
-        </div>
-      </div>
-      <div id="promoList" class="product-list"></div>
-    </div>
-  </div>
-
-  <div class="admin-panel" data-panel="security">
-    <div class="panel-card settings-card">
-      <p class="admin-kicker">Security</p>
-      <h2>Password changes</h2>
-      <p class="desc">The admin password is not stored in the browser. To change it, regenerate the admin sign-in data with the documented build command and redeploy the site.</p>
-      <div class="auth-warning">
-        <strong>This password gates the admin UI only, not the database.</strong>
-        <p>Use a strong, unique password. Note: database writes are currently open to any signed-in visitor by owner decision, so the password does not protect the data itself.</p>
-      </div>
-    </div>
-  </div>
 </section>
+
+<div class="library-picker" id="libraryPicker" hidden role="dialog" aria-modal="true" aria-labelledby="libraryPickerTitle">
+  <div class="library-picker-card">
+    <div class="library-picker-head">
+      <div>
+        <h3 id="libraryPickerTitle">Choose from library</h3>
+        <small id="libraryPickerHint">Pick an image to use.</small>
+      </div>
+      <button type="button" class="close-btn" id="libraryPickerClose" aria-label="Close">×</button>
+    </div>
+    <div id="libraryPickerGrid" class="library-grid library-grid-picker"></div>
+  </div>
+</div>
 
 <datalist id="categoryOptions"></datalist>
 <datalist id="imageIdOptions"></datalist>

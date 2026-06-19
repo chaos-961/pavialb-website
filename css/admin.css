@@ -666,20 +666,33 @@ body {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
 
 .metric-card {
+  position: relative;
   display: grid;
   gap: 7px;
-  padding: 18px;
+  padding: 20px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: 0 12px 36px rgba(46, 34, 24, 0.04);
+  overflow: hidden;
 }
+
+/* Accent rail for the status-bearing metric cards. */
+.metric-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: transparent;
+}
+.metric-card.metric-pending::before { background: var(--cocoa); }
+.metric-card.metric-completed::before { background: #2e7d4f; }
 
 .metric-card span {
   color: var(--muted);
@@ -797,6 +810,57 @@ body {
   text-transform: none;
 }
 
+/* Segmented status views (Pending / Completed / Cancelled / All). */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 5px;
+  background: var(--paper);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 16px;
+  color: var(--muted);
+  background: transparent;
+  border-radius: 9px;
+  font: 700 12px/1 var(--sans);
+  letter-spacing: 0.03em;
+  transition: color 0.2s, background 0.2s;
+}
+.segmented-btn:hover { color: var(--ink); }
+.segmented-btn.is-active {
+  color: var(--paper);
+  background: var(--ink);
+}
+.segmented-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  color: var(--ink-soft);
+  background: rgba(46, 34, 24, 0.08);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.segmented-btn.is-active .segmented-count {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* Orders toolbar holds fewer controls now (search / date / sort). */
+.orders-toolbar {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+
 .order-list {
   display: grid;
   gap: 14px;
@@ -821,6 +885,13 @@ body {
 .order-topline > div {
   display: grid;
   gap: 4px;
+}
+
+.order-topline-id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
 .order-id {
@@ -913,11 +984,39 @@ body {
   margin-top: 18px;
 }
 
+/* Collapsible advanced controls so the common path (one-click actions) stays clean. */
+.order-manage {
+  margin-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.order-manage > summary {
+  width: fit-content;
+  padding: 12px 0 2px;
+  color: var(--cocoa);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  list-style: none;
+}
+.order-manage > summary::-webkit-details-marker { display: none; }
+.order-manage > summary::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 7px;
+  transition: transform 0.2s;
+}
+.order-manage[open] > summary::before { transform: rotate(90deg); }
+.order-manage-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .order-workflow {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 12px;
   padding: 14px;
   background: #fff;
   border: 1px solid var(--line-soft);
@@ -1013,20 +1112,66 @@ body {
 }
 
 .toggle-field {
-  grid-template-columns: 22px 1fr;
+  grid-template-columns: 44px 1fr;
   align-items: start;
-  padding: 13px;
+  gap: 14px;
+  padding: 14px 16px;
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
 }
 
-.toggle-field input {
-  width: 18px;
-  min-height: 18px;
-  margin-top: 2px;
-  accent-color: var(--cocoa);
+.toggle-field:hover {
+  border-color: var(--cocoa);
+}
+
+/* styles.css forces appearance:none on every input, which made these checkboxes
+   render as invisible empty boxes (the reported "broken checkboxes"). Re-style
+   them as an explicit, always-visible toggle switch. */
+.toggle-field input[type="checkbox"] {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.toggle-field input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(46, 34, 24, 0.35);
+  transition: transform 0.2s ease;
+}
+
+.toggle-field input[type="checkbox"]:checked {
+  background: var(--cocoa);
+  border-color: var(--cocoa);
+}
+
+.toggle-field input[type="checkbox"]:checked::after {
+  transform: translateX(18px);
+}
+
+.toggle-field input[type="checkbox"]:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(90, 62, 48, 0.18);
 }
 
 .toggle-field span {
@@ -1041,6 +1186,7 @@ body {
 }
 
 .toggle-field strong {
+  display: block;
   color: var(--ink);
   font-size: 13px;
 }
@@ -1485,6 +1631,20 @@ body {
   background: #fff3d8;
 }
 
+/* Order lifecycle pills (pending / completed / cancelled). */
+.status-pill.status-pending {
+  color: #735619;
+  background: #fff3d8;
+}
+.status-pill.status-completed {
+  color: #23633d;
+  background: #e8f5ed;
+}
+.status-pill.status-cancelled {
+  color: #8a2f27;
+  background: #fbe7e4;
+}
+
 .stock-pill {
   display: inline-flex;
   align-items: center;
@@ -1530,21 +1690,6 @@ body {
   background: var(--paper);
   border: 1px solid var(--line-soft);
   border-radius: 12px;
-}
-
-.promo-row {
-  grid-template-columns: 88px minmax(0, 1fr) auto;
-}
-
-.promo-code {
-  display: grid;
-  min-height: 58px;
-  place-items: center;
-  color: var(--paper);
-  background: var(--ink);
-  border-radius: 10px;
-  font: 800 13px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
-  letter-spacing: 0.06em;
 }
 
 .product-row > img {
@@ -1641,7 +1786,7 @@ body {
 
 @media (max-width: 1000px) {
   .metrics-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ops-grid {
@@ -1675,6 +1820,7 @@ body {
 
   .metrics-grid,
   .admin-toolbar,
+  .orders-toolbar,
   .order-workflow {
     grid-template-columns: 1fr;
   }
@@ -1728,15 +1874,12 @@ body {
     margin: 14px auto 0;
   }
 
-  .product-row {
-    grid-template-columns: 68px minmax(0, 1fr);
+  .product-row,
+  #productList .product-row {
+    grid-template-columns: auto 68px minmax(0, 1fr);
   }
 
   .drive-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .promo-row {
     grid-template-columns: 1fr;
   }
 
@@ -1856,25 +1999,55 @@ body {
 .draft-banner {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 16px;
-  padding: 14px 18px;
-  background: rgba(166, 126, 91, 0.1);
-  border: 1px solid var(--line);
+  padding: 16px 18px;
+  background: linear-gradient(180deg, rgba(201, 167, 121, 0.16), rgba(201, 167, 121, 0.08));
+  border: 1px solid rgba(166, 126, 91, 0.3);
   border-radius: var(--r-lg);
 }
-.draft-banner strong { color: var(--ink); }
-.draft-banner-meta {
+.draft-banner-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  color: var(--cocoa);
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+}
+.draft-banner-icon svg { width: 22px; height: 22px; }
+.draft-banner-body {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.draft-banner-body strong {
   display: block;
-  margin-top: 2px;
+  color: var(--ink);
+  font-size: 14px;
+}
+.draft-banner-body small {
+  display: block;
+  margin-top: 3px;
   color: var(--muted);
+  font-size: 12px;
+}
+.draft-banner-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-top: 3px;
+  color: var(--ink-soft);
   font-size: 13px;
 }
+.draft-banner-meta b { color: var(--ink); font-weight: 700; }
+.draft-banner-time { color: var(--muted); font-size: 12px; }
 .draft-banner-actions {
   display: flex;
   gap: 8px;
+  margin-left: auto;
 }
 
 .image-preview-row {
@@ -1914,7 +2087,7 @@ body {
   gap: 8px;
 }
 
-/* Product rows gain a leading select/drag cell; promo rows keep the 3-col layout. */
+/* Product rows gain a leading select/drag cell. */
 #productList .product-row {
   grid-template-columns: auto 78px minmax(0, 1fr) auto;
 }
@@ -1996,3 +2169,158 @@ body {
   color: var(--muted);
 }
 .order-timeline li span { font-weight: 700; color: var(--ink-soft); }
+
+/* =========================================================
+   P2 — Image library + multi-image gallery
+   ========================================================= */
+.image-or-row { display: flex; justify-content: center; margin: 8px 0 2px; }
+
+.gallery-manager { margin-top: 18px; }
+.gallery-add-actions { display: inline-flex; gap: 8px; align-items: center; }
+.gallery-upload-btn { cursor: pointer; display: inline-flex; align-items: center; }
+.gallery-empty { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+.gallery-strip {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px;
+}
+.gallery-item {
+  position: relative;
+  width: 92px; height: 116px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  box-shadow: var(--shadow-sm);
+}
+.gallery-item.is-main { border-color: var(--cocoa); box-shadow: 0 0 0 2px rgba(166, 126, 91, 0.35); }
+.gallery-item[draggable="true"] { cursor: grab; }
+.gallery-item.is-dragging { opacity: 0.5; }
+.gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery-badge {
+  position: absolute; top: 6px; left: 6px;
+  padding: 2px 7px; border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.gallery-item-actions {
+  position: absolute; right: 0; bottom: 0; left: 0;
+  display: flex; gap: 2px; justify-content: flex-end;
+  padding: 4px; background: linear-gradient(transparent, rgba(0,0,0,0.55));
+}
+.gallery-item-actions button {
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 6px; cursor: pointer;
+  background: rgba(255,255,255,0.92); color: var(--ink);
+  font-size: 13px; line-height: 1; font-weight: 700;
+}
+.gallery-item-actions button:hover { background: #fff; }
+.gallery-item-actions button:disabled { opacity: 0.4; cursor: default; }
+
+.library-head-actions { display: inline-flex; gap: 10px; align-items: center; }
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.library-tile {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column;
+}
+.library-thumb { aspect-ratio: 4 / 5; background: var(--cream); }
+.library-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.library-tile figcaption { padding: 9px 11px; display: grid; gap: 3px; }
+.library-tile figcaption strong {
+  font-size: 12px; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.library-tile figcaption span { font-size: 11px; color: var(--muted); }
+.library-usage.is-used { color: #23633d; font-weight: 700; }
+.library-usage.is-free { color: var(--muted); }
+.library-tile-actions {
+  display: flex; gap: 6px; padding: 0 11px 11px;
+}
+.library-tile-actions .btn { padding: 5px 10px; font-size: 11px; }
+
+.library-pager {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin-top: 18px; font-size: 12px; color: var(--muted);
+}
+
+.library-picker {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  padding: 20px;
+  background: rgba(26, 22, 18, 0.5);
+  backdrop-filter: blur(2px);
+}
+.library-picker[hidden] { display: none; }
+.library-picker-card {
+  width: min(880px, 100%); max-height: 86vh;
+  display: flex; flex-direction: column;
+  background: var(--paper);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.library-picker-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px; border-bottom: 1px solid var(--line);
+}
+.library-picker-head h3 { margin: 0; font-size: 18px; color: var(--ink); }
+.library-picker-head small { color: var(--muted); font-size: 12px; }
+.library-picker-head .close-btn {
+  width: 34px; height: 34px; border: 0; border-radius: 9px; cursor: pointer;
+  background: var(--cream); color: var(--ink); font-size: 20px; line-height: 1;
+}
+.library-grid-picker { margin: 0; padding: 18px 20px; overflow-y: auto; }
+.library-grid-picker .library-tile-actions { padding: 0 11px 11px; }
+
+/* =========================================================
+   P5 — scroll/entrance animations (G-ANIM)
+   GPU-friendly (opacity/transform only); fully disabled for
+   prefers-reduced-motion (the rules live inside no-preference).
+   ========================================================= */
+@media (prefers-reduced-motion: no-preference) {
+  /* Staggered rise-in for the active panel's cards + metrics on tab open. */
+  .admin-panel.active .metric-card,
+  .admin-panel.active .panel-card,
+  .admin-panel.active .segmented,
+  .admin-panel.active .order-item {
+    animation: adminRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .admin-panel.active .metric-card:nth-child(2) { animation-delay: 0.05s; }
+  .admin-panel.active .metric-card:nth-child(3) { animation-delay: 0.10s; }
+  .admin-panel.active .metric-card:nth-child(4) { animation-delay: 0.15s; }
+  .admin-panel.active .order-item:nth-child(2) { animation-delay: 0.04s; }
+  .admin-panel.active .order-item:nth-child(3) { animation-delay: 0.08s; }
+  .admin-panel.active .order-item:nth-child(4) { animation-delay: 0.12s; }
+  .admin-panel.active .order-item:nth-child(n+5) { animation-delay: 0.16s; }
+}
+@keyframes adminRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Micro-interactions: gentle lift on the interactive cards. */
+.metric-card,
+.order-item {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.metric-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 44px rgba(46, 34, 24, 0.08);
+}
+.order-item:hover {
+  box-shadow: 0 14px 36px rgba(46, 34, 24, 0.07);
+}
+@media (prefers-reduced-motion: reduce) {
+  .metric-card, .order-item { transition: none; }
+  .metric-card:hover { transform: none; }
+  .admin-panel.active { animation: none; }
+}

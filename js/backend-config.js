@@ -5,7 +5,9 @@
   window.PAVIA_BACKEND_CONFIG = Object.freeze({
     provider: localHost ? 'local' : 'firebase',
     fallbackToLocal: localHost,
-    schemaVersion: 2,
+    // Bump to invalidate the IndexedDB catalog/image caches when the stored data
+    // shape changes. P1 (flat delivery, single phone, promos removed) -> 3.
+    schemaVersion: 3,
     namespace: 'pavia',
     analytics: Object.freeze({
       enabled: true,

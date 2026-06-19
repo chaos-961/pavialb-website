@@ -312,6 +312,67 @@
     };
   }
 
+  // List the images this app created in the configured Drive folder. The
+  // drive.file scope only ever returns files the app itself uploaded, so this is
+  // exactly the Pavia image library (never the owner's whole Drive).
+  async function listFiles({ pageSize = 100 } = {}) {
+    if (!configured()) throw new Error('Google Drive is not configured.');
+    if (!accessToken()) await connect();
+    if (!accessToken()) throw new Error('Connect Google Drive before browsing the library.');
+    const cfg = config();
+    const query = `'${cfg.folderId}' in parents and trashed = false and mimeType contains 'image/'`;
+    const params = new root.URLSearchParams({
+      q: query,
+      pageSize: String(Math.min(1000, Math.max(1, pageSize))),
+      orderBy: 'createdTime desc',
+      fields: 'files(id,name,mimeType,size,createdTime,imageMediaMetadata(width,height))',
+      spaces: 'drive',
+    });
+    const files = [];
+    let pageToken = '';
+    do {
+      if (pageToken) params.set('pageToken', pageToken);
+      const response = await root.fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${accessTokenValue}` },
+      });
+      if (!response.ok) {
+        if (response.status === 401) disconnect();
+        throw new Error(`Could not list Drive images (HTTP ${response.status}).`);
+      }
+      const data = await response.json();
+      (data.files || []).forEach((file) => {
+        files.push({
+          id: file.id,
+          name: file.name || '',
+          mimeType: file.mimeType || '',
+          size: Number(file.size) || 0,
+          createdTime: file.createdTime || '',
+          width: Number(file.imageMediaMetadata?.width) || 0,
+          height: Number(file.imageMediaMetadata?.height) || 0,
+          imageUrl: driveImageUrl(file.id),
+        });
+      });
+      pageToken = data.nextPageToken || '';
+    } while (pageToken && files.length < 1000);
+    return files;
+  }
+
+  async function deleteFile(fileId) {
+    const id = String(fileId || '').trim();
+    if (!id) throw new Error('No Drive file specified.');
+    if (!accessToken()) await connect();
+    if (!accessToken()) throw new Error('Connect Google Drive before deleting images.');
+    const response = await root.fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessTokenValue}` },
+    });
+    if (!response.ok && response.status !== 404) {
+      if (response.status === 401) disconnect();
+      throw new Error(`Could not delete the Drive image (HTTP ${response.status}).`);
+    }
+    return true;
+  }
+
   return Object.freeze({
     configured,
     config,
@@ -323,5 +384,7 @@
     driveImageUrl,
     verifyImageUrl,
     sanitizeFilename,
+    listFiles,
+    deleteFile,
   });
 });

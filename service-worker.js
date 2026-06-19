@@ -1,20 +1,20 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v30';
+const CACHE = 'pavia-v35';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const ASSETS = [
   './',
   './index.html',
-  './js/config.js?v=10',
+  './js/config.js?v=15',
   './js/firebase-config.js?v=10',
-  './js/backend-config.js?v=12',
+  './js/backend-config.js?v=13',
   './js/image-catalog.js?v=11',
-  './js/store-core.js?v=5',
+  './js/store-core.js?v=7',
   './js/catalog-cache.js?v=1',
-  './js/backend.js?v=16',
-  './js/backend-firebase.js?v=22',
-  './css/styles.css?v=12',
-  './js/products.js?v=10',
-  './js/app.js?v=16',
+  './js/backend.js?v=17',
+  './js/backend-firebase.js?v=24',
+  './css/styles.css?v=15',
+  './js/products.js?v=11',
+  './js/app.js?v=20',
   './manifest.webmanifest',
   './assets/logo.svg',
 ];
@@ -23,7 +23,13 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).catch(() => null),
   );
-  self.skipWaiting();
+  // Do NOT skipWaiting() automatically — a freshly installed SW waits so the app
+  // can surface an "update available -> reload" prompt. The page asks this SW to
+  // activate via postMessage('SKIP_WAITING') only when the user accepts.
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {

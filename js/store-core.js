@@ -84,48 +84,75 @@
     };
   }
 
-  function calculatePromoDiscount(promo, subtotal, today = new Date().toISOString().slice(0, 10)) {
-    if (!promo || promo.active === false) return 0;
-    const base = Math.max(0, safeNumber(subtotal));
-    if (safeNumber(promo.minSubtotal) > base) return 0;
-    if (promo.startsAt && promo.startsAt > today) return 0;
-    if (promo.endsAt && promo.endsAt < today) return 0;
-    if (promo.type === 'percent') {
-      return Math.min(base, Math.round(base * (Math.max(0, safeNumber(promo.value)) / 100)));
-    }
-    if (promo.type === 'fixed') {
-      return Math.min(base, Math.max(0, safeNumber(promo.value)));
-    }
-    return 0;
+  // Single universal flat delivery fee (default $3). No per-area pricing, no
+  // free-delivery threshold, no promos.
+  const DEFAULT_DELIVERY_FEE = 3;
+  function calculateDelivery(settings = {}) {
+    const fee = settings && settings.deliveryFee !== undefined && settings.deliveryFee !== null
+      ? safeNumber(settings.deliveryFee, DEFAULT_DELIVERY_FEE)
+      : DEFAULT_DELIVERY_FEE;
+    return Math.max(0, fee);
   }
 
-  function calculateDelivery(settings = {}, subtotalAfterDiscount = 0, promo = null, deliveryArea = 'lebanon') {
-    if (promo?.type === 'freeship' && promo.active !== false) return 0;
-    const threshold = safeNumber(settings.freeDeliveryAt);
-    if (threshold > 0 && safeNumber(subtotalAfterDiscount) >= threshold) return 0;
-    return deliveryArea === 'beirut'
-      ? Math.max(0, safeNumber(settings.deliveryBeirut))
-      : Math.max(0, safeNumber(settings.deliveryLebanon));
-  }
-
-  function calculateOrderTotals({ items = [], promo = null, settings = {}, deliveryArea = 'lebanon' } = {}) {
+  function calculateOrderTotals({ items = [], settings = {} } = {}) {
     const subtotal = items.reduce((sum, item) => {
       return sum + Math.max(0, safeNumber(item.price)) * Math.max(0, safeNumber(item.qty));
     }, 0);
-    const discount = calculatePromoDiscount(promo, subtotal);
-    const delivery = calculateDelivery(settings, Math.max(0, subtotal - discount), promo, deliveryArea);
+    const delivery = calculateDelivery(settings);
     return {
       subtotal,
-      discount,
       delivery,
-      total: Math.max(0, subtotal - discount) + delivery,
+      total: subtotal + delivery,
     };
   }
 
+  // ---- Multi-image gallery model (P2) ----
+  // A product has one MAIN image (imageUrl/driveFileId/imageVersion) plus an
+  // ordered gallery of additional images. Each gallery entry carries its own
+  // driveFileId + imageVersion so it caches and busts independently of the main.
+  const MAX_GALLERY = 12;
+  function normalizeGalleryEntry(entry) {
+    if (!entry) return null;
+    if (typeof entry === 'string') {
+      const url = entry.trim();
+      return url ? { imageUrl: url, driveFileId: '', imageVersion: '' } : null;
+    }
+    if (typeof entry !== 'object') return null;
+    const imageUrl = String(entry.imageUrl || entry.image || entry.url || '').trim();
+    if (!imageUrl) return null;
+    return {
+      imageUrl,
+      driveFileId: String(entry.driveFileId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120),
+      imageVersion: String(entry.imageVersion || '').slice(0, 40),
+    };
+  }
+  function normalizeGallery(list) {
+    const source = Array.isArray(list) ? list : [];
+    const seen = new Set();
+    const out = [];
+    for (const raw of source) {
+      const entry = normalizeGalleryEntry(raw);
+      if (!entry || seen.has(entry.imageUrl)) continue;
+      seen.add(entry.imageUrl);
+      out.push(entry);
+      if (out.length >= MAX_GALLERY) break;
+    }
+    return out;
+  }
+
+  // Derive the public Instagram profile URL from a stored handle (single source).
+  function instagramUrlFromHandle(handle) {
+    const clean = String(handle || '').trim().replace(/^@+/, '').replace(/\s+/g, '');
+    if (!clean) return '';
+    if (/^https?:\/\//i.test(handle || '')) return String(handle).trim();
+    return `https://instagram.com/${clean}`;
+  }
+
   // ---- Output escaping / safe templating (storefront XSS hardening) ----
-  // Under the P12 open-write model any signed-in visitor can store arbitrary
-  // strings in product/settings/promo records. Every value rendered into the
-  // DOM must therefore be escaped. escapeHtml() escapes text and attribute
+  // Database rules lock catalog/settings writes to the admin account, but output
+  // escaping stays as defense in depth: every value rendered into the DOM is
+  // escaped so a compromised record can never inject markup. escapeHtml()
+  // escapes text and attribute
   // contexts; html`` is an auto-escaping tagged template that is safe by
   // default — interpolations are escaped unless they are themselves html``
   // fragments (or html.raw(...)) or arrays of such fragments.
@@ -339,11 +366,13 @@
   const api = Object.freeze({
     calculateDelivery,
     calculateOrderTotals,
-    calculatePromoDiscount,
     colorObject,
     escapeHtml,
     formatMoney,
     html,
+    instagramUrlFromHandle,
+    normalizeGallery,
+    normalizeGalleryEntry,
     normalizeLebanonPhone,
     normalizeOrderItems,
     normalizeProduct,

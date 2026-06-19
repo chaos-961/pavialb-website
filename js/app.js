@@ -1,7 +1,7 @@
 /* =========================================================
    PAVIA — main app
    Storefront logic: catalog, cart, wishlist, orders, modals,
-   recently-viewed, promo codes, smooth UI, and PWA bits.
+   recently-viewed, smooth UI, and PWA bits.
    ========================================================= */
 (() => {
   'use strict';
@@ -11,19 +11,19 @@
     products:    'PAVIA_PRODUCTS',
     cart:        'PAVIA_CART',
     wishlist:    'PAVIA_WISHLIST',
-    subscribers: 'PAVIA_SUBSCRIBERS',
     orders:      'PAVIA_ORDERS',
-    recent:      'PAVIA_RECENT',
-    promo:       'PAVIA_PROMO'
+    recent:      'PAVIA_RECENT'
   };
 
   const SITE_CONFIG = window.PAVIA_CONFIG || {};
   const BACKEND = window.PaviaBackend;
   const CORE = window.PaviaStoreCore || {};
-  const WHATSAPP_NUMBER = SITE_CONFIG.whatsappNumber || '9613017725';
-  let FREE_DELIVERY_AT = 100;
-  let DELIVERY_BEIRUT = 3;
-  let DELIVERY_LEBANON = 5;
+  // Single universal flat delivery fee (default $3); refreshed from settings.
+  let DELIVERY_FEE = Number(SITE_CONFIG.deliveryFee);
+  if (!Number.isFinite(DELIVERY_FEE)) DELIVERY_FEE = 3;
+  // WhatsApp number, derived from the single phone field (digits only). Used for
+  // the optional "Questions? Message us" link — never an automatic redirect.
+  let WHATSAPP_NUMBER = '9613017725';
   const RECENT_LIMIT = 8;
 
   // ---------- Helpers ----------
@@ -81,6 +81,141 @@
   });
   const setHtml = (el, safe) => { if (el) el.innerHTML = String(safe); };
   const prefersReducedMotion = () => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+
+  // ---------- Elegant "no image" placeholder ----------
+  // A tasteful editorial placeholder (gradient + dress-on-hanger line art +
+  // wordmark) rendered as a self-contained data-URI SVG, so it is CSP-safe
+  // (img-src 'self' data:) and never triggers a network request or a 404.
+  // The gradient varies by product so a grid of placeholders looks intentional.
+  const PLACEHOLDER_GRADIENTS = [
+    ['#efe6d4', '#cab694'], // cream -> taupe
+    ['#e9edf1', '#a9bccd'], // pale -> muted sky
+    ['#f0e7e2', '#cab1a3'], // ivory -> mocha
+    ['#e8eae1', '#b6b393'], // stone -> olive
+    ['#f1e8e7', '#cbafa6'], // blush -> clay
+    ['#ece7df', '#bda98c'], // sand -> almond
+  ];
+  function hashString(value) {
+    const str = String(value || 'pavia');
+    let h = 0;
+    for (let i = 0; i < str.length; i += 1) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return h;
+  }
+  function placeholderImage(seed) {
+    const [top, bottom] = PLACEHOLDER_GRADIENTS[hashString(seed) % PLACEHOLDER_GRADIENTS.length];
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 500' preserveAspectRatio='xMidYMid slice'>`
+      + `<defs>`
+      + `<linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='${top}'/><stop offset='1' stop-color='${bottom}'/></linearGradient>`
+      + `<radialGradient id='s' cx='0.5' cy='0.34' r='0.75'><stop offset='0' stop-color='#ffffff' stop-opacity='0.4'/><stop offset='1' stop-color='#ffffff' stop-opacity='0'/></radialGradient>`
+      + `</defs>`
+      + `<rect width='400' height='500' fill='url(#g)'/>`
+      + `<rect width='400' height='500' fill='url(#s)'/>`
+      + `<g fill='none' stroke='#3a2b21' stroke-opacity='0.34' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'>`
+      + `<path d='M200 150 q-7 -11 3 -17 q9 -5 8 5'/>` // hanger hook
+      + `<path d='M200 152 L170 178 L230 178 Z'/>`       // hanger bar
+      + `<path d='M172 180 Q200 197 228 180 L214 250 L249 362 Q200 381 151 362 L186 250 Z'/>` // dress
+      + `<path d='M200 198 L200 360' stroke-opacity='0.18'/>` // soft center seam
+      + `</g>`
+      + `<text x='200' y='426' text-anchor='middle' font-family="Georgia,'Times New Roman',serif" font-size='30' letter-spacing='11' fill='#3a2b21' fill-opacity='0.5'>PAVIA</text>`
+      + `<text x='200' y='452' text-anchor='middle' font-family="Arial,Helvetica,sans-serif" font-size='12' letter-spacing='3.5' fill='#3a2b21' fill-opacity='0.42'>IMAGE COMING SOON</text>`
+      + `</svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  }
+  function isMissingImage(src) {
+    const s = String(src || '').trim();
+    return !s || s === 'assets/logo.svg' || /(^|\/)logo\.svg(\?|#|$)/i.test(s);
+  }
+  // Resolve an <img> source: real image when present, else the elegant placeholder.
+  function pickImage(src, seed) {
+    return isMissingImage(src) ? placeholderImage(seed) : safeImg(src);
+  }
+  const productImage = (product) => pickImage(product?.image, product?.id || product?.name);
+
+  // ---------- Throttled, lazy image loading (G-DRIVE-COST) ----------
+  // Below-the-fold product images load only when near the viewport, and never
+  // more than ~4 actually download at once (the rest queue). This keeps Google
+  // Drive requests low: the grid shows MAIN images only; gallery images are
+  // created (and therefore only requested) when the product modal opens.
+  const IMG_MAX_CONCURRENCY = 4;
+  let imgInFlight = 0;
+  const imgQueue = [];
+  function pumpImgQueue() {
+    while (imgInFlight < IMG_MAX_CONCURRENCY && imgQueue.length) {
+      imgInFlight += 1;
+      imgQueue.shift()();
+    }
+  }
+  function loadImg(img, url) {
+    imgQueue.push(() => {
+      const done = () => { imgInFlight -= 1; pumpImgQueue(); };
+      img.addEventListener('load', () => { img.classList.add('is-loaded'); done(); }, { once: true });
+      img.addEventListener('error', done, { once: true }); // global handler swaps to placeholder
+      img.src = url;
+    });
+    pumpImgQueue();
+  }
+  let lazyObserver = null;
+  function observeLazyImages(container) {
+    if (!container) return;
+    const imgs = $$('img[data-src]', container);
+    if (!('IntersectionObserver' in window)) {
+      imgs.forEach((img) => { const s = img.dataset.src; delete img.dataset.src; loadImg(img, s); });
+      return;
+    }
+    if (!lazyObserver) {
+      lazyObserver = new IntersectionObserver((entries, obs) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const img = entry.target;
+          obs.unobserve(img);
+          const src = img.dataset.src;
+          if (src) { delete img.dataset.src; loadImg(img, src); }
+        });
+      }, { rootMargin: '320px 0px' });
+    }
+    imgs.forEach((img) => lazyObserver.observe(img));
+  }
+  // For the product modal: the gallery is few images the user opened on purpose,
+  // so load them now (still through the ~4-concurrency queue) rather than waiting
+  // on viewport intersection inside the overlay.
+  function eagerLoadLazyImages(container) {
+    if (!container) return;
+    $$('img[data-src]', container).forEach((img) => {
+      const src = img.dataset.src;
+      delete img.dataset.src;
+      loadImg(img, src);
+    });
+  }
+  // Card image markup: placeholder products load instantly (free data-URI);
+  // real images defer to the lazy/throttled loader via data-src.
+  function lazyImgAttrs(realSrc, seed) {
+    if (isMissingImage(realSrc)) return html.raw(`class="lazy-img is-loaded" src="${esc(placeholderImage(seed))}"`);
+    return html.raw(`class="lazy-img" data-src="${esc(safeImg(realSrc))}"`);
+  }
+
+  // Resolve the modal gallery (main + extra images) through the imageVersion-keyed
+  // cache. Called on modal OPEN so gallery images are only fetched then.
+  async function resolveGalleryUrls(product) {
+    const urls = [product.image];
+    const extra = Array.isArray(product.gallery) ? product.gallery : [];
+    for (const raw of extra) {
+      const entry = CORE.normalizeGalleryEntry ? CORE.normalizeGalleryEntry(raw)
+        : (raw && typeof raw === 'object' ? raw : { imageUrl: String(raw || '') });
+      if (!entry || !entry.imageUrl) continue;
+      const key = CORE.imageCacheKey
+        ? CORE.imageCacheKey({ driveFileId: entry.driveFileId, image: entry.imageUrl, imageVersion: entry.imageVersion })
+        : '';
+      let url = key && CatalogCache ? await CatalogCache.getResolvedImage(key) : null;
+      if (!url) {
+        url = BACKEND ? await BACKEND.media.resolveImage(entry.imageUrl, entry.imageVersion) : entry.imageUrl;
+        if (key && CatalogCache && (!CORE.isStableImageUrl || CORE.isStableImageUrl(url))) {
+          await CatalogCache.putResolvedImage(key, url);
+        }
+      }
+      urls.push(url);
+    }
+    return [...new Set(urls.filter(Boolean))];
+  }
 
   // ---------- P16: storefront resilience state ----------
   let loadError = false;          // true when a catalog load truly failed with no data
@@ -151,16 +286,20 @@
   let cart        = readJSON(STORE_KEYS.cart, []);
   let wishlist    = readJSON(STORE_KEYS.wishlist, []);
   let recent      = readJSON(STORE_KEYS.recent, []);
-  let appliedPromo = readJSON(STORE_KEYS.promo, null);
   let activeCategory = 'All';
   let activeAvail = 'all';
   let activePrice = 'all';
+  // Product-grid pagination ("Load more"); reset whenever the filter set changes.
+  const PAGE_SIZE = 8;
+  let visibleCount = PAGE_SIZE;
+  const resetPaging = () => { visibleCount = PAGE_SIZE; };
 
   let modalProduct = null;
   let selectedSize = '';
   let selectedColor = '';
   let selectedQty = 1;
   let selectedImage = '';
+  let modalGallery = [];
   let lastFocusedElement = null;
 
   // ---------- Node references ----------
@@ -179,6 +318,8 @@
     toolbar:          $('[data-toolbar]'),
     filterToggle:     $('[data-filter-toggle]'),
     filterPanel:      $('[data-filter-panel]'),
+    loadMoreWrap:     $('[data-load-more-wrap]'),
+    loadMore:         $('[data-load-more]'),
 
     cartDrawer:       $('[data-cart-drawer]'),
     wishlistDrawer:   $('[data-wishlist-drawer]'),
@@ -191,11 +332,6 @@
     subtotalEl:       $('[data-subtotal]'),
     totalEl:          $('[data-total]'),
     deliveryEl:       $('[data-delivery-estimate]'),
-    discountLine:     $('[data-discount-line]'),
-    discountEl:       $('[data-discount]'),
-    promoInput:       $('[data-promo-input]'),
-    promoApply:       $('[data-promo-apply]'),
-    promoApplied:     $('[data-promo-applied]'),
 
     modal:            $('[data-product-modal]'),
     modalContent:     $('[data-modal-content]'),
@@ -226,14 +362,6 @@
     if (stock <= 3) return `Only ${stock} left`;
     if (stock <= 6) return 'Limited stock';
     return 'In stock';
-  }
-
-  function productGallery(product) {
-    const entries = [
-      product?.image,
-      ...(Array.isArray(product?.gallery) ? product.gallery : []),
-    ].filter(Boolean);
-    return [...new Set(entries.map((entry) => window.PaviaImages?.resolve?.(entry) || entry))];
   }
 
   function normalizeLebanonPhone(value) {
@@ -297,40 +425,31 @@
     }
   }
 
-  // Promo / discount
-  function discountAmount() {
-    if (!appliedPromo) return 0;
-    const codes = window.PAVIA_PROMO_CODES || {};
-    const c = codes[appliedPromo];
-    if (!c) return 0;
-    if (CORE.calculatePromoDiscount) return CORE.calculatePromoDiscount(c, cartSubtotal());
-    if (c.type === 'percent') return Math.round(cartSubtotal() * (c.value / 100));
-    if (c.type === 'fixed') return Math.min(cartSubtotal(), Math.max(0, Number(c.value) || 0));
-    return 0;
-  }
-  function isFreeShipPromo() {
-    if (!appliedPromo) return false;
-    const c = (window.PAVIA_PROMO_CODES || {})[appliedPromo];
-    return c && c.type === 'freeship';
-  }
-
   // ---------- Boot ----------
   function applySiteConfig() {
     const config = {
-      version: '0.0.4',
+      version: '0.0.7',
       siteName: 'Pavia',
       siteTitle: 'Pavia Lebanon',
       location: 'Beirut',
       deliveryArea: 'Lebanon',
       tagline: 'Modern elegant fashion',
       description: '',
-      phoneDisplay: '03 017 725',
-      phoneNumber: '+9613017725',
-      whatsappNumber: WHATSAPP_NUMBER,
+      phone: '03 017 725',
       instagramHandle: '@pavia.leb',
-      instagramUrl: 'https://instagram.com/pavia.leb',
       ...SITE_CONFIG
     };
+
+    // One phone field (phone == WhatsApp). Derive the tel:, wa.me, and display
+    // forms, with back-compat for any legacy phoneNumber/whatsappNumber values.
+    const rawPhone = String(config.phone || config.phoneNumber || config.phoneDisplay || '').trim();
+    const telPhone = (CORE.normalizeLebanonPhone ? CORE.normalizeLebanonPhone(rawPhone) : '')
+      || rawPhone.replace(/[^\d+]/g, '');
+    const whatsappDigits = (telPhone || rawPhone).replace(/\D/g, '') || '9613017725';
+    WHATSAPP_NUMBER = whatsappDigits;
+    const instagramUrl = CORE.instagramUrlFromHandle
+      ? CORE.instagramUrlFromHandle(config.instagramHandle)
+      : `https://instagram.com/${String(config.instagramHandle || '').replace(/^@+/, '')}`;
 
     const setText = (selector, value) => {
       if (!value) return;
@@ -342,7 +461,7 @@
     setText('[data-site-location]', config.location);
     setText('[data-delivery-area]', config.deliveryArea);
     setText('[data-site-tagline]', config.tagline);
-    setText('[data-phone-display]', config.phoneDisplay);
+    setText('[data-phone-display]', rawPhone);
     setText('[data-instagram-handle]', config.instagramHandle);
     setText('[data-site-version]', `v${String(config.version).replace(/^v/i, '')}`);
 
@@ -354,13 +473,13 @@
     }
 
     $$('[data-phone-link]').forEach((el) => {
-      el.href = `tel:${String(config.phoneNumber).replace(/[^\d+]/g, '')}`;
+      el.href = `tel:${String(telPhone).replace(/[^\d+]/g, '')}`;
     });
     $$('[data-whatsapp-link]').forEach((el) => {
-      el.href = `https://wa.me/${String(config.whatsappNumber).replace(/\D/g, '')}`;
+      el.href = `https://wa.me/${whatsappDigits}`;
     });
     $$('[data-instagram-link]').forEach((el) => {
-      el.href = safeUrl(config.instagramUrl, 'https://instagram.com/');
+      el.href = safeUrl(instagramUrl, 'https://instagram.com/');
     });
 
     document.title = `${config.siteTitle} · ${config.tagline}`;
@@ -579,15 +698,10 @@
 
   async function loadBackendPublicConfig() {
     if (!BACKEND) return;
-    const [settings, promoCodes] = await Promise.all([
-      BACKEND.settings?.get?.() || {},
-      BACKEND.promoCodes?.list?.() || {},
-    ]);
-    Object.assign(SITE_CONFIG, settings || {});
-    window.PAVIA_PROMO_CODES = { ...(promoCodes || {}) };
-    FREE_DELIVERY_AT = Number(SITE_CONFIG.freeDeliveryAt) || 100;
-    DELIVERY_BEIRUT = Number(SITE_CONFIG.deliveryBeirut) || 3;
-    DELIVERY_LEBANON = Number(SITE_CONFIG.deliveryLebanon) || 5;
+    const settings = (await (BACKEND.settings?.get?.() || {})) || {};
+    Object.assign(SITE_CONFIG, settings);
+    const fee = Number(SITE_CONFIG.deliveryFee);
+    DELIVERY_FEE = Number.isFinite(fee) ? Math.max(0, fee) : 3;
   }
 
   async function init() {
@@ -598,6 +712,7 @@
       renderCategories();
       renderProducts();
       renderRecent();
+      applyHeroImages();
     } else {
       showSkeletons();
     }
@@ -611,10 +726,6 @@
         applySiteConfig();
         renderCart();
       });
-      BACKEND.promoCodes?.subscribe?.(async () => {
-        await loadBackendPublicConfig();
-        renderCart();
-      });
       void BACKEND.analytics.recordSessionVisit();
     } else {
       await syncCatalog();
@@ -625,11 +736,13 @@
       // Cache already painted; patch in the revalidated catalog immediately.
       renderProducts();
       renderRecent();
+      applyHeroImages();
     } else {
       // Stagger the first render so the skeletons get a moment to breathe.
       setTimeout(() => {
         renderProducts();
         renderRecent();
+        applyHeroImages();
       }, 250);
     }
     renderCart();
@@ -646,17 +759,41 @@
 
   // ---------- Event bindings ----------
   function bindEvents() {
-    // Header scroll state
-    let lastY = 0;
-    window.addEventListener('scroll', () => {
+    // Any product image that fails to load (e.g. a flaky Drive URL) falls back to
+    // the elegant placeholder. `error` doesn't bubble, so listen in capture phase.
+    document.addEventListener('error', (event) => {
+      const img = event.target;
+      if (!(img instanceof HTMLImageElement) || img.dataset.placeheld) return;
+      if (img.src.startsWith('data:')) return; // placeholder itself can't fail
+      img.dataset.placeheld = '1';
+      img.src = placeholderImage(img.alt || img.closest('[data-product-id]')?.dataset.productId || 'pavia');
+    }, true);
+
+    // Header scroll state + subtle hero parallax (GPU transform only, rAF-batched,
+    // direction-agnostic since it derives from scrollY, disabled for reduced motion).
+    const heroCopy = $('.hero-copy');
+    const heroVisual = $('[data-hero-visual]');
+    const allowParallax = heroVisual && !prefersReducedMotion();
+    let scrollTicking = false;
+    const onScrollFrame = () => {
+      scrollTicking = false;
       const y = window.scrollY;
       n.header.classList.toggle('is-scrolled', y > 8);
       if (n.toolbar) n.toolbar.classList.toggle('is-stuck', y > 280);
-      lastY = y;
+      // Only run the parallax math while the hero is plausibly on screen.
+      if (allowParallax && y < 900) {
+        heroVisual.style.transform = `translate3d(0, ${(y * 0.09).toFixed(1)}px, 0)`;
+        if (heroCopy) heroCopy.style.transform = `translate3d(0, ${(y * -0.04).toFixed(1)}px, 0)`;
+      }
+    };
+    window.addEventListener('scroll', () => {
+      if (scrollTicking) return;
+      scrollTicking = true;
+      requestAnimationFrame(onScrollFrame);
     }, { passive: true });
 
-    // Search & filters (debounced for smoothness)
-    const debouncedRender = debounce(renderProducts, 120);
+    // Search & filters (debounced for smoothness). Any filter change resets paging.
+    const debouncedRender = debounce(() => { resetPaging(); renderProducts(); }, 120);
     n.productSearch?.addEventListener('input', () => {
       n.productSearch.parentElement.classList.toggle('has-value', !!n.productSearch.value);
       debouncedRender();
@@ -665,6 +802,7 @@
       n.productSearch.value = '';
       n.productSearch.parentElement.classList.remove('has-value');
       n.productSearch.focus();
+      resetPaging();
       renderProducts();
     });
     [n.sizeFilter, n.sortFilter, n.priceFilter, n.availFilter].forEach(el => {
@@ -672,10 +810,22 @@
         if (el === n.priceFilter) activePrice = el.value;
         if (el === n.availFilter) activeAvail = el.value;
         updateFilterDot();
+        resetPaging();
         renderProducts();
       });
     });
     n.clearFilters?.addEventListener('click', clearAllFilters);
+
+    // Load more (reveals the next page of the current result set).
+    n.loadMore?.addEventListener('click', () => {
+      visibleCount += PAGE_SIZE;
+      renderProducts();
+      // Keep focus sensible: move to the first newly revealed card.
+      requestAnimationFrame(() => {
+        const cards = $$('.product-card', n.productGrid);
+        cards[Math.max(0, visibleCount - PAGE_SIZE)]?.querySelector('[data-quick-view]')?.focus?.();
+      });
+    });
 
     // Filter toggle
     n.filterToggle?.addEventListener('click', () => {
@@ -706,23 +856,11 @@
 
     $('[data-checkout]')?.addEventListener('click', openCheckout);
     n.checkoutForm?.addEventListener('submit', submitCheckout);
-    n.checkoutForm?.querySelector('[name="city"]')?.addEventListener('input', e => renderCheckoutSummary(e.target.value));
-    n.checkoutForm?.querySelector('[name="deliveryArea"]')?.addEventListener('change', () => renderCheckoutSummary());
     n.checkoutForm?.querySelector('[name="phone"]')?.addEventListener('blur', e => {
       const normalized = normalizeLebanonPhone(e.target.value);
       if (normalized) e.target.value = normalized;
     });
     $('[data-copy-order]')?.addEventListener('click', copyOrderText);
-
-    // Promo
-    n.promoApply?.addEventListener('click', applyPromo);
-    n.promoInput?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyPromo(); } });
-
-    // Newsletter
-    $('[data-newsletter]')?.addEventListener('submit', e => {
-      e.preventDefault();
-      subscribeNewsletter(e.currentTarget);
-    });
 
     // ESC closes things
     document.addEventListener('keydown', e => {
@@ -771,6 +909,30 @@
   }
 
   // ---------- Categories ----------
+  // Populate the hero collage with real featured product imagery (falling back to
+  // the elegant placeholder). These three are above the fold, so they load eagerly.
+  function applyHeroImages() {
+    const slots = $$('[data-hero-image]');
+    if (!slots.length || !products.length) return;
+    const featured = products.filter(p => p.featured && p.stock > 0);
+    const pool = (featured.length >= slots.length ? featured : products.filter(p => p.stock > 0))
+      .concat(products);
+    const seen = new Set();
+    const picks = [];
+    for (const p of pool) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      picks.push(p);
+      if (picks.length >= slots.length) break;
+    }
+    slots.forEach((img, i) => {
+      const p = picks[i] || picks[picks.length - 1];
+      if (!p) return;
+      img.src = pickImage(p.image, p.id);
+      img.alt = `${p.name} — Pavia`;
+    });
+  }
+
   function renderCategories() {
     setHtml(n.categoryPills, html`${categories().map(c => html`
       <button type="button" class="${c === activeCategory ? 'is-active' : ''}" data-category="${c}">${c}</button>
@@ -778,6 +940,7 @@
     $$('[data-category]', n.categoryPills).forEach(b => {
       b.addEventListener('click', () => {
         activeCategory = b.dataset.category;
+        resetPaging();
         renderCategories();
         renderProducts();
       });
@@ -856,7 +1019,7 @@
     return html`
       <article class="product-card reveal" data-low-stock="${lowStock}" data-sold-out="${soldOut}" data-product-id="${p.id}">
         <div class="product-media">
-          <img src="${safeImg(p.image)}" alt="${p.name}" loading="lazy" decoding="async" width="640" height="800" />
+          <img ${lazyImgAttrs(p.image, p.id || p.name)} alt="${p.name}" decoding="async" width="640" height="800" />
           <div class="badge-stack">${badges}</div>
           <button class="wish-btn ${wishlist.includes(p.id) ? 'is-active' : ''}" data-wish="${p.id}" aria-label="Save ${p.name}">
             <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>
@@ -913,10 +1076,23 @@
           <button type="button" class="text-btn" id="emptyClear">Clear all filters</button>
         </div>`;
       $('#emptyClear')?.addEventListener('click', clearAllFilters);
+      if (n.loadMoreWrap) n.loadMoreWrap.hidden = true;
       return;
     }
 
-    setHtml(n.productGrid, html`${result.map(productCard)}`);
+    // Show only the first `visibleCount`; "Load more" reveals the next page.
+    visibleCount = Math.min(Math.max(PAGE_SIZE, visibleCount), result.length);
+    const shown = result.slice(0, visibleCount);
+    const remaining = result.length - shown.length;
+    if (n.loadMoreWrap) {
+      n.loadMoreWrap.hidden = remaining <= 0;
+      if (n.loadMore && remaining > 0) {
+        n.loadMore.textContent = `Load more styles (${remaining})`;
+      }
+    }
+
+    setHtml(n.productGrid, html`${shown.map(productCard)}`);
+    observeLazyImages(n.productGrid);
     // Reveal cards; skip the stagger entirely for reduced-motion users.
     const reduce = prefersReducedMotion();
     $$('.product-grid .reveal').forEach((el, i) => {
@@ -954,19 +1130,21 @@
     n.priceFilter.value = 'all';
     n.availFilter.value = 'all';
     updateFilterDot();
+    resetPaging();
     renderCategories();
     renderProducts();
   }
 
   // ---------- Product modal ----------
-  function openProductModal(id) {
+  async function openProductModal(id) {
     const p = getProduct(id);
     if (!p) return;
     modalProduct = p;
     selectedSize = p.sizes[0] || '';
     selectedColor = (p.colors[0] && p.colors[0].name) || '';
     selectedQty = 1;
-    selectedImage = productGallery(p)[0] || p.image;
+    modalGallery = [p.image];
+    selectedImage = p.image;
     lastFocusedElement = document.activeElement;
     addToRecent(id);
     void BACKEND?.analytics.recordEvent('product_view');
@@ -975,6 +1153,16 @@
     n.modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('no-scroll');
     requestAnimationFrame(() => $('[data-modal-add]', n.modalContent)?.focus());
+    // Resolve gallery images only now (modal open) — keeps Drive requests off the grid.
+    try {
+      const urls = await resolveGalleryUrls(p);
+      if (modalProduct === p && urls.length > 1) {
+        modalGallery = urls;
+        renderProductModal();
+      }
+    } catch (error) {
+      /* gallery is best-effort; main image already shows */
+    }
   }
 
   function renderProductModal() {
@@ -985,34 +1173,27 @@
     const soldOut = p.stock <= 0;
     const inBag = cartLineQty(p.id, selectedSize, selectedColor);
     const maxQty = Math.max(0, p.stock - inBag);
-    const gallery = productGallery(p);
+    const gallery = modalGallery.length ? modalGallery : [p.image];
     selectedQty = Math.min(Math.max(1, selectedQty), Math.max(1, maxQty));
 
     setHtml(n.modalContent, html`
       <div class="modal-product">
         <div class="image-wrap">
-          <img src="${safeImg(selectedImage || p.image)}" alt="${p.name}" decoding="async" width="720" height="780" />
+          <img src="${pickImage(selectedImage || p.image, p.id)}" alt="${p.name}" decoding="async" width="720" height="780" />
           ${gallery.length > 1 ? html`
             <div class="modal-gallery" aria-label="Product images">
               ${gallery.map((src, index) => html`
                 <button type="button" class="${src === selectedImage ? 'is-selected' : ''}" data-gallery-src="${safeImg(src)}" aria-label="View image ${index + 1}">
-                  <img src="${safeImg(src)}" alt="" width="64" height="80" loading="lazy" decoding="async" />
+                  <img ${lazyImgAttrs(src, `${p.id}-${index}`)} alt="" width="64" height="80" decoding="async" />
                 </button>
               `)}
             </div>
           ` : ''}
         </div>
         <div class="modal-details">
-          <span class="eyebrow">${p.category} · ${p.badge || ''}</span>
+          <span class="eyebrow">${p.category}${p.badge ? html` · ${p.badge}` : ''}</span>
           <h2 id="modalTitle">${p.name}</h2>
-          <p class="muted">${p.description}</p>
-          ${(p.material || p.fit || p.care) ? html`
-            <dl class="product-extra-details">
-              ${p.material ? html`<div><dt>Material</dt><dd>${p.material}</dd></div>` : ''}
-              ${p.fit ? html`<div><dt>Fit</dt><dd>${p.fit}</dd></div>` : ''}
-              ${p.care ? html`<div><dt>Care</dt><dd>${p.care}</dd></div>` : ''}
-            </dl>
-          ` : ''}
+          <p class="muted modal-desc">${p.description}</p>
           <div class="modal-price-row">
             <span class="now">${money(p.price)}</span>
             ${onSale ? html`<span class="was">${money(p.compareAt)}</span><span class="save">Save ${savePct}%</span>` : ''}
@@ -1056,11 +1237,11 @@
             </div>
             <div>
               <svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>
-              <span>Free delivery on orders over $${FREE_DELIVERY_AT}</span>
+              <span>Flat ${money(DELIVERY_FEE)} delivery · pay cash or Whish</span>
             </div>
             <div>
               <svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.2-5.6A8.4 8.4 0 1 1 21 11.5Z"/></svg>
-              <span>Order via WhatsApp · 24h support</span>
+              <span>We confirm every order by WhatsApp or phone</span>
             </div>
           </div>
         </div>
@@ -1075,6 +1256,7 @@
           ? 'Already in bag'
           : `Add to bag - ${money(p.price * selectedQty)}`;
     }
+    eagerLoadLazyImages(n.modalContent);
     $$('[data-gallery-src]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedImage = b.dataset.gallerySrc; renderProductModal(); }));
     $$('[data-size]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedSize = b.dataset.size; renderProductModal(); }));
     $$('[data-color]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedColor = b.dataset.color; renderProductModal(); }));
@@ -1158,32 +1340,12 @@
     });
 
     const subtotal = cartSubtotal();
-    const discount = discountAmount();
-    const freeShip = isFreeShipPromo() || (subtotal - discount) >= FREE_DELIVERY_AT;
-    const total = Math.max(0, subtotal - discount);
-    const freeShipGap = Math.max(0, FREE_DELIVERY_AT - (subtotal - discount));
+    const delivery = cart.length ? DELIVERY_FEE : 0;
+    const total = subtotal + delivery;
 
     n.subtotalEl.textContent = money(subtotal);
     n.totalEl.textContent = money(total);
-    n.deliveryEl.textContent = freeShip ? 'Free' : `Add ${money(freeShipGap)} for free delivery`;
-
-    if (discount > 0) {
-      n.discountLine.classList.remove('is-hidden');
-      n.discountEl.textContent = `-${money(discount)}`;
-    } else {
-      n.discountLine.classList.add('is-hidden');
-    }
-
-    if (appliedPromo) {
-      const codes = window.PAVIA_PROMO_CODES || {};
-      const c = codes[appliedPromo];
-      if (c) {
-        n.promoApplied.textContent = `✓ ${appliedPromo} — ${c.label}`;
-        n.promoApplied.classList.remove('is-hidden');
-      }
-    } else {
-      n.promoApplied.classList.add('is-hidden');
-    }
+    if (n.deliveryEl) n.deliveryEl.textContent = money(DELIVERY_FEE);
 
     if (!cart.length) {
       n.cartItems.innerHTML = `
@@ -1199,7 +1361,7 @@
 
     setHtml(n.cartItems, html`${cart.map(i => html`
       <article class="cart-row" data-key="${i.key}">
-        <img src="${safeImg(getProduct(i.id)?.image || i.image)}" alt="${i.name}" loading="lazy" decoding="async" width="76" height="96" />
+        <img src="${pickImage(getProduct(i.id)?.image || i.image, i.id)}" alt="${i.name}" loading="lazy" decoding="async" width="76" height="96" />
         <div class="cart-row-content">
           <h3>${i.name}</h3>
           <div class="meta">${i.size} · ${i.color}</div>
@@ -1271,7 +1433,7 @@
     }
     setHtml(n.wishlistItems, html`${items.map(p => html`
       <article class="cart-row">
-        <img src="${safeImg(p.image)}" alt="${p.name}" loading="lazy" decoding="async" width="76" height="96" />
+        <img src="${productImage(p)}" alt="${p.name}" loading="lazy" decoding="async" width="76" height="96" />
         <div class="cart-row-content">
           <h3>${p.name}</h3>
           <div class="meta">${p.category} · ${p.badge || ''}</div>
@@ -1311,7 +1473,7 @@
     n.recentSection.classList.add('is-visible');
     setHtml(n.recentList, html`${items.map(p => html`
       <div class="recent-card" data-recent-view="${p.id}">
-        <img src="${safeImg(p.image)}" alt="${p.name}" loading="lazy" decoding="async" width="140" height="154" />
+        <img src="${productImage(p)}" alt="${p.name}" loading="lazy" decoding="async" width="140" height="154" />
         <div>
           <strong>${p.name}</strong>
           <span>${money(p.price)}</span>
@@ -1341,40 +1503,10 @@
     if (wasOpen) lastDrawerFocus?.focus?.();
   }
 
-  // ---------- Promo ----------
-  function applyPromo() {
-    const code = (n.promoInput.value || '').trim().toUpperCase();
-    if (!code) { toast('Enter a promo code.'); return; }
-    const codes = window.PAVIA_PROMO_CODES || {};
-    if (!codes[code]) {
-      appliedPromo = null;
-      writeJSON(STORE_KEYS.promo, null);
-      toast('Invalid promo code.');
-      renderCart();
-      return;
-    }
-    appliedPromo = code;
-    writeJSON(STORE_KEYS.promo, code);
-    n.promoInput.value = '';
-    renderCart();
-    toast(`Promo applied: ${codes[code].label}`);
-  }
-
   // ---------- Checkout ----------
-  function deliveryFee(city = '', area = '') {
-    const codes = window.PAVIA_PROMO_CODES || {};
-    const promo = appliedPromo ? codes[appliedPromo] : null;
-    const deliveryArea = area || (norm(city).includes('beirut') ? 'beirut' : 'lebanon');
-    if (CORE.calculateDelivery) {
-      return CORE.calculateDelivery({
-        freeDeliveryAt: FREE_DELIVERY_AT,
-        deliveryBeirut: DELIVERY_BEIRUT,
-        deliveryLebanon: DELIVERY_LEBANON,
-      }, cartSubtotal() - discountAmount(), promo, deliveryArea);
-    }
-    if (isFreeShipPromo()) return 0;
-    if (cartSubtotal() - discountAmount() >= FREE_DELIVERY_AT) return 0;
-    return deliveryArea === 'beirut' ? DELIVERY_BEIRUT : DELIVERY_LEBANON;
+  function deliveryFee() {
+    if (CORE.calculateDelivery) return CORE.calculateDelivery({ deliveryFee: DELIVERY_FEE });
+    return Math.max(0, DELIVERY_FEE);
   }
 
   function openCheckout() {
@@ -1384,7 +1516,12 @@
     void BACKEND?.analytics.recordEvent('checkout_started');
     closeDrawer(n.cartDrawer);
     renderCheckoutSummary();
-    n.checkoutSuccess?.classList.add('is-hidden');
+    n.checkoutForm?.classList.remove('is-confirmed');
+    if (n.checkoutSuccess) {
+      n.checkoutSuccess.classList.add('is-hidden');
+      n.checkoutSuccess.classList.remove('is-visible');
+      n.checkoutSuccess.innerHTML = '';
+    }
     n.checkoutModal.classList.add('is-open');
     n.checkoutModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('no-scroll');
@@ -1399,13 +1536,10 @@
     lastFocusedElement?.focus?.();
   }
 
-  function renderCheckoutSummary(city = '', area = '') {
-    const formCity = city || n.checkoutForm?.querySelector('[name="city"]')?.value || '';
-    const deliveryArea = area || n.checkoutForm?.querySelector('[name="deliveryArea"]')?.value || '';
+  function renderCheckoutSummary() {
     const subtotal = cartSubtotal();
-    const discount = discountAmount();
-    const delivery = deliveryFee(formCity, deliveryArea);
-    const total = Math.max(0, subtotal - discount) + delivery;
+    const delivery = deliveryFee();
+    const total = subtotal + delivery;
     setHtml(n.checkoutSummary, html`
       ${cart.map(i => html`
         <div class="summary-line">
@@ -1413,8 +1547,7 @@
           <strong>${money(i.price * i.qty)}</strong>
         </div>`)}
       <div class="summary-line"><span>Subtotal</span><strong>${money(subtotal)}</strong></div>
-      ${discount > 0 ? html`<div class="summary-line"><span>Discount${appliedPromo ? ` (${appliedPromo})` : ''}</span><strong>-${money(discount)}</strong></div>` : ''}
-      <div class="summary-line"><span>Delivery</span><strong>${delivery ? money(delivery) : 'Free'}</strong></div>
+      <div class="summary-line"><span>Delivery</span><strong>${money(delivery)}</strong></div>
       <div class="summary-line total"><span>Total</span><strong>${money(total)}</strong></div>
     `);
   }
@@ -1422,23 +1555,20 @@
   function orderText(formData = null) {
     const v = formData ? Object.fromEntries(formData.entries()) : {};
     const subtotal = cartSubtotal();
-    const discount = discountAmount();
-    const delivery = deliveryFee(v.city || '', v.deliveryArea || '');
-    const total = Math.max(0, subtotal - discount) + delivery;
+    const delivery = deliveryFee();
+    const total = subtotal + delivery;
     const lines = [
       `Hello ${SITE_CONFIG.siteName || 'Pavia'}, I would like to place this order:`,
       '',
       ...cart.map(i => `• ${i.qty}× ${i.name} — ${i.size}, ${i.color} — ${money(i.price * i.qty)}`),
       '',
       `Subtotal: ${money(subtotal)}`,
-      discount > 0 ? `Discount${appliedPromo ? ` (${appliedPromo})` : ''}: -${money(discount)}` : '',
-      `Delivery: ${delivery ? money(delivery) : 'Free'}`,
+      `Delivery: ${money(delivery)}`,
       `Total: ${money(total)}`,
       '',
       v.name ? `Name: ${v.name}` : '',
       v.phone ? `Phone: ${normalizeLebanonPhone(v.phone) || v.phone}` : '',
       v.city ? `City/Area: ${v.city}` : '',
-      v.deliveryArea ? `Delivery area: ${v.deliveryArea === 'beirut' ? 'Beirut' : 'Outside Beirut'}` : '',
       v.address ? `Address: ${v.address}` : '',
       v.payment ? `Payment: ${v.payment}` : '',
       v.notes ? `Notes: ${v.notes}` : ''
@@ -1459,14 +1589,12 @@
     phoneInput.value = normalizedPhone;
     formData.set('phone', normalizedPhone);
     if (!revalidateCart({ notify: true })) {
-      renderCheckoutSummary(formData.get('city'), formData.get('deliveryArea'));
+      renderCheckoutSummary();
       return;
     }
-    const txt = orderText(formData);
     const subtotal = cartSubtotal();
-    const discount = discountAmount();
-    const delivery = deliveryFee(formData.get('city'), formData.get('deliveryArea'));
-    const total = Math.max(0, subtotal - discount) + delivery;
+    const delivery = deliveryFee();
+    const total = subtotal + delivery;
     const requestId = makeRequestId();
     const orderNumber = `PAV-${Date.now().toString().slice(-6)}`;
     const order = {
@@ -1486,15 +1614,12 @@
       })),
       customer: Object.fromEntries(formData.entries()),
       subtotal,
-      promo: appliedPromo,
-      promoCode: appliedPromo,
-      discount,
+      discount: 0,
       delivery,
-      status: 'new',
+      status: 'pending',
       paymentStatus: 'awaiting_confirmation',
       paymentMethod: formData.get('payment') === 'Whish Money' ? 'whish_money' : 'cash_on_delivery',
       source: 'web',
-      whatsappText: txt,
       total
     };
     const submitButton = e.currentTarget.querySelector('[type="submit"]');
@@ -1516,7 +1641,7 @@
       }
     } catch (error) {
       console.warn('Order creation is unavailable.', error);
-      toast('Online order saving is not enabled yet. Your cart is unchanged.');
+      toast('We could not place your order just now. Your bag is unchanged — please try again.');
       if (submitButton) {
         submitButton.disabled = false;
         submitButton.classList.remove('is-loading');
@@ -1526,28 +1651,51 @@
     }
     void BACKEND?.analytics.recordEvent('order_created');
 
-    const whatsappDigits = String(WHATSAPP_NUMBER).replace(/\D/g, '');
-    window.open(`https://wa.me/${whatsappDigits}?text=${encodeURIComponent(txt)}`, '_blank', 'noopener,noreferrer');
-    toast(`Order ${order.orderNumber || orderNumber} prepared.`);
-    if (n.checkoutSuccess) {
-      n.checkoutSuccess.textContent = `Order ${order.orderNumber || orderNumber} is saved. Send the WhatsApp message to confirm with Pavia.`;
-      n.checkoutSuccess.classList.remove('is-hidden');
-    }
+    // Order is saved. Show a clean confirmation — no automatic WhatsApp redirect.
+    const customerName = String(formData.get('name') || '').trim().split(/\s+/)[0] || '';
+    showOrderConfirmation(order.orderNumber || orderNumber, customerName);
+    toast(`Order ${order.orderNumber || orderNumber} sent.`);
 
-    // Clear cart + promo after a successful submission
-    setTimeout(() => {
-      cart = [];
-      appliedPromo = null;
-      writeJSON(STORE_KEYS.cart, cart);
-      writeJSON(STORE_KEYS.promo, null);
-      renderCart();
-      closeCheckout();
-    }, 800);
+    // Clear the bag now that the order is recorded.
+    cart = [];
+    writeJSON(STORE_KEYS.cart, cart);
+    renderCart();
     if (submitButton) {
       submitButton.disabled = false;
       submitButton.classList.remove('is-loading');
       submitButton.textContent = submitButton.dataset.originalText || 'Review and place order';
     }
+  }
+
+  // Animated "Order sent — we'll contact you" confirmation with the order
+  // reference and an optional (non-forced) WhatsApp link.
+  function showOrderConfirmation(orderNumber, customerName) {
+    if (!n.checkoutSuccess) return;
+    const waHref = `https://wa.me/${String(WHATSAPP_NUMBER).replace(/\D/g, '')}`;
+    const greeting = customerName ? `Thank you, ${customerName}!` : 'Thank you!';
+    setHtml(n.checkoutSuccess, html`
+      <div class="order-confirm">
+        <span class="order-confirm-check" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 5 5L20 7"/></svg>
+        </span>
+        <h3>Order sent</h3>
+        <p class="order-confirm-ref">Reference <strong>${orderNumber}</strong></p>
+        <p class="order-confirm-text">${greeting} We'll contact you on WhatsApp or by phone to confirm your order and arrange delivery.</p>
+        <a class="order-confirm-wa" href="${safeUrl(waHref, 'https://wa.me/')}" target="_blank" rel="noreferrer">Questions? Message us on WhatsApp</a>
+        <button type="button" class="btn btn-primary full" data-confirm-done>Continue shopping</button>
+      </div>
+    `);
+    n.checkoutSuccess.classList.remove('is-hidden');
+    // Collapse the form/summary/submit/copy so only the confirmation remains.
+    n.checkoutForm?.classList.add('is-confirmed');
+    requestAnimationFrame(() => n.checkoutSuccess.classList.add('is-visible'));
+    $('[data-confirm-done]', n.checkoutSuccess)?.addEventListener('click', () => {
+      n.checkoutSuccess.classList.add('is-hidden');
+      n.checkoutSuccess.classList.remove('is-visible');
+      n.checkoutForm?.classList.remove('is-confirmed');
+      closeCheckout();
+    });
+    $('[data-confirm-done]', n.checkoutSuccess)?.focus();
   }
 
   async function copyOrderText() {
@@ -1556,35 +1704,6 @@
       toast('Order text copied.');
     } catch {
       toast('Could not copy automatically.');
-    }
-  }
-
-  async function subscribeNewsletter(form) {
-    const formData = new FormData(form);
-    const email = String(formData.get('email') || '').trim().toLowerCase();
-    const consent = formData.get('consent') === 'on';
-    if (!email || !consent) {
-      toast('Email and consent are required.');
-      return;
-    }
-    const record = {
-      email,
-      consent: true,
-      source: 'storefront',
-      createdAt: new Date().toISOString(),
-    };
-    try {
-      if (BACKEND?.subscribers?.create) await BACKEND.subscribers.create(record);
-      else {
-        const subs = readJSON(STORE_KEYS.subscribers, []);
-        subs.push(record);
-        writeJSON(STORE_KEYS.subscribers, subs);
-      }
-      form.reset();
-      toast('Subscribed. We\'ll keep you posted.');
-    } catch (error) {
-      console.warn('Newsletter subscription failed.', error);
-      toast('Subscription could not be saved. Please try again.');
     }
   }
 
@@ -1610,6 +1729,28 @@
   }
 
   // ---------- Service worker ----------
+  // Surface a non-intrusive "update available -> reload" prompt so app-code
+  // updates apply without a manual hard refresh. A new SW installs but waits;
+  // accepting the prompt tells it to activate, then controllerchange reloads.
+  function showUpdateReady(worker) {
+    const banner = $('[data-update-banner]');
+    if (!banner || !worker) return;
+    banner.hidden = false;
+    requestAnimationFrame(() => banner.classList.add('is-visible'));
+    const reloadBtn = $('[data-update-reload]', banner);
+    if (reloadBtn && !reloadBtn.dataset.bound) {
+      reloadBtn.dataset.bound = '1';
+      reloadBtn.addEventListener('click', () => {
+        reloadBtn.disabled = true;
+        worker.postMessage('SKIP_WAITING');
+      });
+    }
+    $('[data-update-dismiss]', banner)?.addEventListener('click', () => {
+      banner.hidden = true;
+      banner.classList.remove('is-visible');
+    }, { once: true });
+  }
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
 
@@ -1626,7 +1767,28 @@
       return;
     }
 
-    navigator.serviceWorker.register('service-worker.js').catch(() => null);
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.register('service-worker.js').then((registration) => {
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        showUpdateReady(registration.waiting);
+      }
+      registration.addEventListener('updatefound', () => {
+        const installing = registration.installing;
+        if (!installing) return;
+        installing.addEventListener('statechange', () => {
+          // "installed" with an existing controller == a pending update.
+          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateReady(registration.waiting || installing);
+          }
+        });
+      });
+    }).catch(() => null);
   }
 
   init().catch((error) => {
