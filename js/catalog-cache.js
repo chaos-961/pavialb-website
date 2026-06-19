@@ -20,7 +20,12 @@
   const STORE_CATALOG = 'catalog';
   const STORE_META = 'meta';
   const STORE_IMAGES = 'images';
-  const IMAGE_CACHE_MAX = 80;
+  // Resolved image URLs are tiny strings (~200 bytes), so this cap can be large:
+  // 1000 entries is well under 1 MB and comfortably covers any realistic catalog
+  // plus gallery images, so URLs never churn out of the cache. The actual image
+  // bytes are NOT stored here — cross-origin Drive thumbnails live in the
+  // browser HTTP cache, which is sized in hundreds of MB and auto-managed.
+  const IMAGE_CACHE_MAX = 1000;
   const hasIDB = typeof indexedDB !== 'undefined';
 
   let dbPromise = null;
@@ -190,6 +195,33 @@
     },
 
     pruneImages,
+
+    // Ask the browser to keep this origin's storage (IndexedDB catalog + the
+    // browser's image cache quota) from being evicted under disk pressure, and
+    // report how much room we have. Best-effort: unsupported browsers no-op.
+    async persist() {
+      const storage = (typeof navigator !== 'undefined' && navigator.storage) || null;
+      if (!storage) return { persisted: false, supported: false };
+      let persisted = false;
+      try {
+        if (storage.persisted) persisted = await storage.persisted();
+        if (!persisted && storage.persist) persisted = await storage.persist();
+      } catch {
+        /* best effort */
+      }
+      let usage = 0;
+      let quota = 0;
+      try {
+        if (storage.estimate) {
+          const estimate = await storage.estimate();
+          usage = Number(estimate.usage) || 0;
+          quota = Number(estimate.quota) || 0;
+        }
+      } catch {
+        /* best effort */
+      }
+      return { persisted, supported: true, usage, quota };
+    },
 
     async clear() {
       const db = await openDb();

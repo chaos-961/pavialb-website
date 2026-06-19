@@ -706,6 +706,9 @@
 
   async function init() {
     $('[data-year]').textContent = new Date().getFullYear();
+    // Ask the browser to keep our cached catalog/images from being evicted under
+    // disk pressure. Fire-and-forget; never blocks first paint.
+    CatalogCache?.persist?.().catch(() => null);
     // Instant first paint from the cached catalog, else skeletons.
     const painted = await paintFromCache();
     if (painted) {
