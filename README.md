@@ -1,92 +1,23 @@
 # Pavia Lebanon
 
-Static boutique storefront for Pavia Lebanon.
+**Modern elegant fashion — curated for every day.**
 
-## Website config
+Pavia is an online fashion boutique based in Beirut, offering refined, modern
+pieces — ruffles, tailoring, and soft neutrals meant to live in your closet for
+years. Browse the collection and order with delivery across Lebanon.
 
-Edit `js/config.js` to change the visible website name, version, location, description, phone, WhatsApp, Instagram, and footer tagline.
+## Highlights
 
-## Data layer
+- Curated seasonal collections
+- Nationwide delivery across Lebanon
+- Easy ordering on WhatsApp
 
-`js/backend.js` provides the browser-local implementation. `js/backend-firebase.js`
-wraps it with an Anonymous Auth plus Realtime Database provider while preserving
-the local implementation as an automatic fallback.
+## Find us
 
-The deployed GitHub Pages site uses the approved `pavia-lb` Realtime Database
-configuration. Localhost remains on the local provider by default so local
-development and browser smoke tests do not touch production data. On localhost,
-append `?backend=firebase` to use the Firebase emulators after starting and
-seeding them.
+- **Shop:** https://chaos-961.github.io/pavialb-website/
+- **WhatsApp:** https://wa.me/9613017725
+- **Instagram:** https://instagram.com/pavia.leb
 
-Firebase Storage is intentionally not used. New production product images go
-through the admin Google Drive image pipeline and are saved as HTTPS `imageUrl`
-values with safe metadata in Realtime Database. Legacy local preset IDs remain
-only as a migration path for older products. See
-[`docs/GOOGLE-DRIVE-IMAGES.md`](docs/GOOGLE-DRIVE-IMAGES.md).
+---
 
-## Local launch
-
-Double-click `launch-pavia.bat` to start the local site and open both the storefront and admin dashboard.
-
-## Firebase development
-
-Firebase Anonymous Auth and Realtime Database emulator setup is documented in
-[`docs/FIREBASE-SETUP.md`](docs/FIREBASE-SETUP.md).
-
-The current P12 owner decision keeps admin access password-only and leaves RTDB
-writes open to any authenticated anonymous user. Firebase Hosting and Firebase
-Storage are not used.
-
-Admin security setup and payload regeneration are documented in
-[`docs/ADMIN-SECURITY.md`](docs/ADMIN-SECURITY.md).
-
-Daily product, order, settings, and promo-code workflows are documented in
-[`docs/ADMIN-OPERATIONS.md`](docs/ADMIN-OPERATIONS.md).
-
-GitHub Pages deployment, rollback, and the deferred Namecheap/Cloudflare domain
-launch plan are documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
-
-Automated quality gates, browser smoke coverage, and final-launch manual checks
-are documented in [`docs/QUALITY-GATES.md`](docs/QUALITY-GATES.md).
-
-Owner operations, launch readiness, backup/restore, and troubleshooting:
-
-- [`docs/OWNER-HANDOFF.md`](docs/OWNER-HANDOFF.md)
-- [`docs/FINAL-LAUNCH-CHECKLIST.md`](docs/FINAL-LAUNCH-CHECKLIST.md)
-- [`docs/BACKUP-RESTORE.md`](docs/BACKUP-RESTORE.md)
-- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
-
-## GitHub Pages
-
-This repository includes a GitHub Actions workflow at `.github/workflows/static.yml`.
-After pushing to GitHub, keep GitHub Pages with **GitHub Actions** as the source.
-
-The site deploys from the `main` branch.
-The workflow runs syntax and Firebase emulator smoke checks before deployment.
-It builds an explicit `_site` artifact so repository files such as this README,
-local launchers, notes, and workflow configuration are not published as website pages.
-The `.nojekyll` file keeps GitHub Pages in plain static-site mode.
-
-## What Ships
-
-The Pages artifact is an allowlisted static bundle: storefront HTML, the public
-admin shell and encrypted payload, CSS, runtime JavaScript, PWA files, and
-`assets/logo.svg`.
-
-Planning notes, repository docs, tests, Firebase rules/tooling, local launch
-helpers, build output, logs, and legacy placeholder/product SVGs stay out of the
-published artifact. New production product photos should be Drive-hosted HTTPS
-URLs saved through the admin flow, not committed image files.
-
-Local artifact checks:
-
-```powershell
-npm run pages:build
-npm run pages:check
-```
-
-Core quality gates:
-
-```powershell
-npm test
-```
+© Pavia Lebanon · Crafted with care

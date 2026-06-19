@@ -62,8 +62,6 @@
     $('#loginForm')?.classList.toggle('is-busy', busy);
     const submit = $('#adminSubmit');
     if (submit) submit.disabled = busy;
-    const name = $('#adminName');
-    if (name) name.disabled = busy;
     const password = $('#loginPass');
     if (password) password.disabled = busy;
   }
@@ -177,15 +175,8 @@
     event.preventDefault();
     setMessage('');
 
-    // The Name field is cosmetic parity with the sibling admin sign-in; the
-    // payload is always derived with the fixed ADMIN_USERNAME, so just validate.
-    const nameInput = $('#adminName');
-    if (nameInput && nameInput.value.trim().toLowerCase() !== ADMIN_USERNAME) {
-      setMessage('Check the name and password.', 'error');
-      nameInput.focus();
-      return;
-    }
-
+    // Password-only sign-in: the admin identity is the fixed ADMIN_USERNAME
+    // const, baked into the payload key derivation and the backend account.
     const password = $('#loginPass').value;
     setLoginBusy(true);
     setMessage('Signing in…', 'info');

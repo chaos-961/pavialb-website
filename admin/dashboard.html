@@ -590,10 +590,10 @@
     <div class="panel-card settings-card">
       <p class="admin-kicker">Security</p>
       <h2>Password changes</h2>
-      <p class="desc">The admin password is not stored in the browser. To change it, regenerate the encrypted admin payload with the documented build command and redeploy the site.</p>
+      <p class="desc">The admin password is not stored in the browser. To change it, regenerate the admin sign-in data with the documented build command and redeploy the site.</p>
       <div class="auth-warning">
         <strong>This password gates the admin UI only, not the database.</strong>
-        <p>The encrypted payload can be downloaded and attacked offline, so use a strong unique password. Note: Realtime Database writes are open to any signed-in visitor by owner decision, so the password does not protect the data itself.</p>
+        <p>Use a strong, unique password. Note: database writes are currently open to any signed-in visitor by owner decision, so the password does not protect the data itself.</p>
       </div>
     </div>
   </div>

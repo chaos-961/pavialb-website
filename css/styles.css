@@ -3,7 +3,7 @@
    Mobile-first stylesheet · Editorial luxury aesthetic
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+/* Fonts are loaded via <link rel="stylesheet"> in the page <head> for faster first paint. */
 
 :root {
   /* Palette */
@@ -336,6 +336,9 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .reveal-delay-100 { transition-delay: 0.1s; }
 .reveal-delay-120 { transition-delay: 0.12s; }
 .reveal-delay-150 { transition-delay: 0.15s; }
+/* Hero is above the fold — paint it immediately so first paint is fast and never
+   waits for scripts. Below-the-fold .reveal items still animate in on scroll. */
+.hero .reveal { opacity: 1; transform: none; transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none; }
   /* Suppress decorative motion across the storefront for reduced-motion users. */

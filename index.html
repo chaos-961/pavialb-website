@@ -3,13 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <!-- Storefront Content-Security-Policy (P13). The storefront loads no Google
-       Identity/Drive scripts (admin-only), so script-src stays strict: 'self' plus
-       the gstatic host for the Firebase modular SDK. connect-src covers Firebase
-       RTDB (https + wss) and Anonymous Auth token endpoints, plus localhost emulator
-       ports for dev. style-src keeps 'unsafe-inline' for inline style attributes.
-       frame-ancestors / HSTS are enforced later at the Cloudflare edge (docs only). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' https://www.gstatic.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com http://127.0.0.1:9099 http://127.0.0.1:9000 ws://127.0.0.1:9000 http://localhost:9099 http://localhost:9000 ws://localhost:9000" />
+  <!-- Content-Security-Policy for the storefront. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' https://www.gstatic.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com" />
   <meta name="theme-color" content="#1a1612" />
   <meta name="description" content="Pavia Lebanon — modern elegant fashion. Crafted for everyday refinement, delivered all over Lebanon." data-site-description />
   <meta property="og:title" content="Pavia Lebanon" />
@@ -25,7 +20,8 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="css/styles.css?v=11" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="css/styles.css?v=12" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -261,7 +257,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Crafted with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.0.4</span>
+      <span class="footer-version" data-site-version>v0.0.5</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -307,7 +303,7 @@
       <div class="drawer-body" data-cart-items></div>
       <div class="cart-summary" data-cart-summary>
         <div class="promo-row">
-          <input type="text" placeholder="Promo code (try PAVIA10)" data-promo-input />
+          <input type="text" placeholder="Promo code" data-promo-input />
           <button type="button" data-promo-apply>Apply</button>
         </div>
         <div class="promo-applied is-hidden" data-promo-applied></div>
