@@ -6,8 +6,9 @@
     provider: localHost ? 'local' : 'firebase',
     fallbackToLocal: localHost,
     // Bump to invalidate the IndexedDB catalog/image caches when the stored data
-    // shape changes. P1 (flat delivery, single phone, promos removed) -> 3.
-    schemaVersion: 3,
+    // shape changes. v0.1.4 clears catalogs whose unchanged rev previously kept
+    // a newly assigned image hidden after reload.
+    schemaVersion: 4,
     namespace: 'pavia',
     analytics: Object.freeze({
       enabled: true,

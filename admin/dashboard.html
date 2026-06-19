@@ -240,38 +240,21 @@
               <div class="image-uploader span-2">
                 <div class="variant-heading">
                   <div>
-                    <strong>Product image</strong>
-                    <small>Optimize product photos and upload them to your Google Drive folder; the public image URL is saved to the product.</small>
+                    <strong>Product images</strong>
+                    <small>Choose photos already prepared in the Image Library. Uploading and image editing live in Library so product editing stays focused.</small>
                   </div>
-                  <label class="optimization-select">
-                    Image size
-                    <select id="imageOptimization">
-                      <option value="compact">Compact - 1400px</option>
-                      <option value="balanced" selected>Balanced - 1600px</option>
-                      <option value="detail">Fabric detail - 1800px</option>
-                    </select>
-                  </label>
                 </div>
-                <div class="drive-panel" id="drivePanel">
-                  <div>
-                    <strong id="driveStatus">Google Drive not connected</strong>
-                    <small id="driveStatusDetail">Connect Google Drive to upload product photos.</small>
-                  </div>
-                  <button type="button" class="btn btn-secondary" id="driveConnectBtn">Connect Google Drive</button>
+                <div class="product-library-actions">
+                  <button type="button" class="btn btn-primary" id="chooseMainFromLibrary">Choose main image</button>
+                  <button type="button" class="btn btn-secondary" id="galleryAddFromLibrary">Add gallery images</button>
                 </div>
-                <label class="image-dropzone" id="imageDropzone">
-                  <input id="prodImageFile" type="file" accept="image/jpeg,image/png,image/webp" />
-                  <span class="upload-icon" aria-hidden="true">+</span>
-                  <strong>Choose or drop the main product photo</strong>
-                  <small>The optimized file targets about 300 KB, then uploads to your Google Drive folder.</small>
-                </label>
-                <div class="image-or-row">
-                  <button type="button" class="btn btn-ghost" id="chooseMainFromLibrary">Choose main from library</button>
+                <div class="product-library-note">
+                  <strong>Library only</strong>
+                  <span>
+                    Need a new photo? Upload and edit it in the Library tab first, then select it here.
+                    <small class="field-error" data-error-for="prodImageUrl"></small>
+                  </span>
                 </div>
-                <div class="image-preview-row" id="imagePreviewRow" hidden>
-                  <img id="imageOptimizedPreview" alt="Optimized product image preview" />
-                </div>
-                <div id="imageOptimizationResult" class="image-result" hidden></div>
 
                 <div class="gallery-manager">
                   <div class="variant-heading">
@@ -279,34 +262,14 @@
                       <strong>Gallery images</strong>
                       <small>Extra photos shown in the product modal. Drag to reorder, or promote one to be the main image.</small>
                     </div>
-                    <div class="gallery-add-actions">
-                      <button type="button" class="btn btn-secondary" id="galleryAddFromLibrary">Add from library</button>
-                      <label class="btn btn-secondary gallery-upload-btn">
-                        Upload
-                        <input id="galleryFile" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
-                      </label>
-                    </div>
                   </div>
                   <div id="galleryStrip" class="gallery-strip"></div>
                   <input id="prodGallery" type="hidden" />
                 </div>
 
-                <details class="image-advanced">
-                  <summary>Manual/migration image reference</summary>
-                  <div class="form-grid">
-                    <label>
-                      Approved HTTPS image URL
-                      <input id="prodImageUrl" type="url" placeholder="https://example.com/product.webp" />
-                      <small class="field-error" data-error-for="prodImageUrl"></small>
-                    </label>
-                    <label>
-                      Legacy preset image ID
-                      <input id="prodImageId" type="text" readonly placeholder="Migration only" />
-                      <small class="field-error" data-error-for="prodImageId"></small>
-                    </label>
-                  </div>
-                  <input id="prodImage" type="hidden" />
-                </details>
+                <input id="prodImageUrl" type="hidden" />
+                <input id="prodImageId" type="hidden" />
+                <input id="prodImage" type="hidden" />
                 <input id="prodImageVersion" type="hidden" />
                 <input id="prodImageMeta" type="hidden" />
                 <input id="prodDriveFileId" type="hidden" />
@@ -455,8 +418,8 @@
       </div>
       <div class="drive-panel" id="libraryDrivePanel">
         <div>
-          <strong id="libraryDriveStatus">Google Drive not connected</strong>
-          <small id="libraryDriveDetail">Connect Google Drive to browse and upload images.</small>
+          <strong id="libraryDriveStatus">Connect the image library</strong>
+          <small id="libraryDriveDetail">Connect once to browse and upload images.</small>
         </div>
         <button type="button" class="btn btn-secondary" id="libraryConnectBtn">Connect Google Drive</button>
       </div>
@@ -575,18 +538,49 @@
     <div class="crop-head">
       <div>
         <h3 id="cropTitle">Frame your image</h3>
-        <small id="cropHint">Drag to reposition and zoom to frame. This 4:5 crop is exactly what shows on the product card.</small>
+        <small id="cropHint">Frame, rotate, flip, and tune the photo before upload. The 4:5 preview matches the product card.</small>
       </div>
       <button type="button" class="close-btn" id="cropClose" aria-label="Cancel">×</button>
     </div>
-    <div class="crop-stage">
-      <canvas id="cropCanvas" width="320" height="400" aria-label="Crop preview"></canvas>
-      <div class="crop-grid" aria-hidden="true"></div>
+    <div class="crop-workspace">
+      <div class="crop-stage">
+        <canvas id="cropCanvas" width="320" height="400" aria-label="Image editing preview"></canvas>
+        <div class="crop-grid" aria-hidden="true"></div>
+      </div>
+      <div class="crop-controls">
+        <label class="crop-control">
+          <span>Zoom <output id="cropZoomValue">100%</output></span>
+          <input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1" />
+        </label>
+        <label class="crop-control">
+          <span>Brightness <output id="cropBrightnessValue">100%</output></span>
+          <input id="cropBrightness" type="range" min="50" max="150" step="1" value="100" />
+        </label>
+        <label class="crop-control">
+          <span>Contrast <output id="cropContrastValue">100%</output></span>
+          <input id="cropContrast" type="range" min="50" max="150" step="1" value="100" />
+        </label>
+        <label class="crop-control">
+          <span>Color <output id="cropSaturationValue">100%</output></span>
+          <input id="cropSaturation" type="range" min="0" max="200" step="1" value="100" />
+        </label>
+        <div class="crop-tool-grid" aria-label="Transform image">
+          <button type="button" class="btn btn-secondary" id="cropRotateLeft" aria-label="Rotate left 90 degrees">↶ Rotate</button>
+          <button type="button" class="btn btn-secondary" id="cropRotateRight" aria-label="Rotate right 90 degrees">↷ Rotate</button>
+          <button type="button" class="btn btn-secondary" id="cropFlipHorizontal">Flip H</button>
+          <button type="button" class="btn btn-secondary" id="cropFlipVertical">Flip V</button>
+        </div>
+        <label class="crop-detail">
+          <span>Upload detail</span>
+          <select id="imageOptimization">
+            <option value="compact">Compact · 1400px</option>
+            <option value="balanced" selected>Balanced · 1600px</option>
+            <option value="detail">Fabric detail · 1800px</option>
+          </select>
+        </label>
+        <button type="button" class="btn btn-ghost crop-reset" id="cropReset">Reset adjustments</button>
+      </div>
     </div>
-    <label class="crop-zoom">
-      <span>Zoom</span>
-      <input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1" />
-    </label>
     <div class="crop-actions">
       <button type="button" class="btn btn-ghost" id="cropCancel">Cancel</button>
       <button type="button" class="btn btn-primary" id="cropConfirm">Save &amp; upload</button>

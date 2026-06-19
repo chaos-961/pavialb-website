@@ -264,7 +264,14 @@
     if (!accessToken()) await connect();
     if (!accessToken()) throw new Error('Connect Google Drive before uploading.');
     const cfg = config();
-    const metadata = { name: optimized.metadata.optimizedName, parents: [cfg.folderId] };
+    const metadata = {
+      name: optimized.metadata.optimizedName,
+      parents: [cfg.folderId],
+      appProperties: {
+        paviaImageVersion: String(optimized.metadata.imageVersion || '').slice(0, 40),
+        paviaContentHash: String(optimized.metadata.contentHash || '').slice(0, 80),
+      },
+    };
     const form = new root.FormData();
     form.append('metadata', new root.Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     form.append('file', optimized.blob);
@@ -325,7 +332,7 @@
       q: query,
       pageSize: String(Math.min(1000, Math.max(1, pageSize))),
       orderBy: 'createdTime desc',
-      fields: 'files(id,name,mimeType,size,createdTime,imageMediaMetadata(width,height))',
+      fields: 'files(id,name,mimeType,size,createdTime,appProperties,imageMediaMetadata(width,height))',
       spaces: 'drive',
     });
     const files = [];
@@ -341,6 +348,7 @@
       }
       const data = await response.json();
       (data.files || []).forEach((file) => {
+        const fallbackVersion = String(file.createdTime || '').replace(/[-:.TZ]/g, '').slice(0, 14);
         files.push({
           id: file.id,
           name: file.name || '',
@@ -350,6 +358,8 @@
           width: Number(file.imageMediaMetadata?.width) || 0,
           height: Number(file.imageMediaMetadata?.height) || 0,
           imageUrl: driveImageUrl(file.id),
+          imageVersion: String(file.appProperties?.paviaImageVersion || fallbackVersion).slice(0, 40),
+          contentHash: String(file.appProperties?.paviaContentHash || '').replace(/[^a-f0-9]/gi, '').slice(0, 80),
         });
       });
       pageToken = data.nextPageToken || '';

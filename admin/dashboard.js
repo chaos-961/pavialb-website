@@ -42,15 +42,12 @@
     checkout_started: 'Checkout started',
     order_created: 'Orders placed',
   };
-  let pendingDriveImage = null;
-
   // P15 UX state
   let formDirty = false;
   let suppressDirty = false;
   let savingProduct = false;
   let savingSettings = false;
   let draftTimer = 0;
-  let optimizedPreviewUrl = '';
   const selectedProductIds = new Set();
 
   // P3 list paging / order view state
@@ -994,7 +991,7 @@
     }
     if (product.stock < 0) errors.prodStock = 'Stock cannot be negative.';
     if (!product.imageUrl) {
-      errors.prodImageUrl = 'Upload a product photo to Google Drive or enter an approved HTTPS image URL.';
+      errors.prodImageUrl = 'Choose a main product image from the Library.';
     } else if (!/^https:\/\//i.test(product.imageUrl)) {
       errors.prodImageUrl = 'Product image URLs must use HTTPS.';
     }
@@ -1024,7 +1021,6 @@
     $('#prodStock').value = 10;
     $('#prodSortOrder').value = nextSortOrder();
     $('#prodStatus').value = 'published';
-    pendingDriveImage = null;
     $('#prodImageId').value = '';
     $('#prodImageUrl').value = '';
     $('#prodImage').value = '';
@@ -1035,8 +1031,6 @@
     $('#prodGallery').value = '';
     galleryItems = [];
     renderGalleryStrip();
-    $('#imageOptimizationResult').hidden = true;
-    clearOptimizedPreview();
     setSelectedSizes(['One size']);
     setColorRows([]);
     clearProductErrors();
@@ -1058,7 +1052,6 @@
     if (!product) return;
     if (!confirmDiscardIfDirty('Discard unsaved changes and edit this product?')) return;
     suppressDirty = true;
-    clearOptimizedPreview();
     setFormStatus('productFormStatus', '');
     $('#prodId').value = product.id;
     $('#prodSlug').value = product.slug || product.id;
@@ -1074,7 +1067,6 @@
     $('#prodCompare').value = product.compareAt || '';
     $('#prodStock').value = product.stock;
     $('#prodTags').value = product.tags.join(', ');
-    pendingDriveImage = null;
     $('#prodImageId').value = product.imageUrl ? '' : (product.imageId || '');
     $('#prodImageUrl').value = product.imageUrl || '';
     $('#prodImage').value = product.imageUrl || product.imageId || product.image;
@@ -1131,6 +1123,7 @@
       gallery: parseGalleryField(),
       sizes: selectedSizes(),
       colors: parseColors($('#prodColors').value),
+      rev: Number(existing?.rev) || 0,
       createdAt: existing?.createdAt || new Date().toISOString(),
     });
 
@@ -1492,153 +1485,13 @@
     return `${(value / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  function showImageResult(metadata) {
-    const result = $('#imageOptimizationResult');
-    if (!metadata) {
-      result.hidden = true;
-      result.textContent = '';
-      return;
-    }
-    const hasDimensions = metadata.width && metadata.height;
-    const reduction = metadata.originalBytes
-      ? Math.max(0, Math.round((1 - (metadata.byteSize || metadata.bytes) / metadata.originalBytes) * 100))
-      : 0;
-    result.hidden = false;
-    result.innerHTML = `
-      <strong>${escapeHtml(metadata.status || 'Optimized image ready')}</strong>
-      ${hasDimensions ? `<span>${metadata.width} x ${metadata.height} - ${formatBytes(metadata.byteSize || metadata.bytes)}${
-        metadata.originalBytes ? ` - ${reduction}% smaller` : ''
-      }</span>` : ''}
-      ${metadata.publicUrl ? `<small>${escapeHtml(metadata.publicUrl)}</small>` : ''}
-    `;
-  }
-
-  function showOptimizedPreview(blob) {
-    const row = $('#imagePreviewRow');
-    const image = $('#imageOptimizedPreview');
-    if (!row || !image || !blob) return;
-    if (optimizedPreviewUrl) URL.revokeObjectURL(optimizedPreviewUrl);
-    optimizedPreviewUrl = URL.createObjectURL(blob);
-    image.src = optimizedPreviewUrl;
-    row.hidden = false;
-  }
-
-  function clearOptimizedPreview() {
-    if (optimizedPreviewUrl) {
-      URL.revokeObjectURL(optimizedPreviewUrl);
-      optimizedPreviewUrl = '';
-    }
-    const row = $('#imagePreviewRow');
-    if (row) row.hidden = true;
-  }
-
   function imageOptimizationOptions() {
     const presets = {
       compact: { longEdge: 1400, quality: 0.78, targetBytes: 260 * 1024 },
       balanced: { longEdge: 1600, quality: 0.82, targetBytes: 300 * 1024 },
       detail: { longEdge: 1800, quality: 0.86, targetBytes: 500 * 1024 },
     };
-    return presets[$('#imageOptimization').value] || presets.balanced;
-  }
-
-  function setDriveStatus(message, detail = '') {
-    $('#driveStatus').textContent = message;
-    $('#driveStatusDetail').textContent = detail;
-  }
-
-  function refreshDrivePanel() {
-    const drive = window.PaviaDriveImages;
-    const button = $('#driveConnectBtn');
-    if (!drive?.configured?.()) {
-      setDriveStatus('Google Drive not configured', 'Add the OAuth client ID and Drive folder ID in js/backend-config.js.');
-      button.disabled = true;
-      return;
-    }
-    button.disabled = false;
-    setDriveStatus(
-      drive.accessToken?.() ? 'Google Drive connected' : 'Google Drive not connected',
-      drive.accessToken?.()
-        ? 'The access token is in memory only and is forgotten on lock, sign-out, or reload.'
-        : 'Click Connect Google Drive to authorize image uploads.',
-    );
-  }
-
-  async function connectDrive() {
-    const drive = window.PaviaDriveImages;
-    if (!drive) {
-      toast('Google Drive tools are unavailable');
-      return;
-    }
-    try {
-      $('#driveConnectBtn').disabled = true;
-      setDriveStatus('Connecting Google Drive...', 'Approve the Google permission popup to allow uploads to your folder.');
-      await drive.connect();
-      refreshDrivePanel();
-      toast('Google Drive connected');
-    } catch (error) {
-      refreshDrivePanel();
-      toast(error.message || 'Google Drive connection failed');
-    }
-  }
-
-  async function handleImageUpload(file) {
-    if (!file) return;
-    const drive = window.PaviaDriveImages;
-    if (!drive) {
-      toast('Google Drive tools are unavailable');
-      return;
-    }
-    // Frame to 4:5 first — what you crop here is exactly what the card shows.
-    file = await openCropper(file, 'Main product image · 4:5');
-    if (!file) return;
-    const dropzone = $('#imageDropzone');
-    dropzone.classList.add('is-processing');
-    showImageResult({ status: 'Optimizing image...' });
-    try {
-      const optimized = await drive.optimizeImage(file, imageOptimizationOptions());
-      showOptimizedPreview(optimized.blob);
-      showImageResult({ ...optimized.metadata, status: 'Optimized. Preparing upload...' });
-
-      // Dedup: if the freshly optimized bytes match the image this product already
-      // stores, skip the Drive upload entirely and reuse the existing public URL.
-      const existingMeta = parseImageMeta();
-      const currentUrl = $('#prodImageUrl').value.trim();
-      if (currentUrl && CORE.shouldReuseImage?.(existingMeta?.contentHash, optimized.metadata.contentHash)) {
-        showImageResult({ ...existingMeta, status: 'Identical image - reused the existing Drive file (no re-upload).' });
-        markFormDirty();
-        await updateProductPreview();
-        toast('Same image - reused the existing Drive file');
-        return;
-      }
-
-      if (!drive.accessToken?.()) await connectDrive();
-      if (!drive.accessToken?.()) throw new Error('Connect Google Drive before uploading.');
-      showImageResult({ ...optimized.metadata, status: 'Uploading to Google Drive...' });
-      const uploaded = await drive.uploadOptimizedImage(optimized);
-      pendingDriveImage = uploaded;
-      $('#prodImageUrl').value = uploaded.imageUrl;
-      $('#prodImageId').value = '';
-      $('#prodImage').value = uploaded.imageUrl;
-      $('#prodImageVersion').value = uploaded.imageVersion;
-      $('#prodDriveFileId').value = uploaded.driveFileId;
-      $('#prodImageProvider').value = uploaded.imageProvider;
-      $('#prodImageMeta').value = JSON.stringify(uploaded.imageMeta);
-      markFormDirty();
-      renderGalleryStrip();
-      showImageResult({ ...uploaded.imageMeta, status: 'Uploaded to Google Drive; set as the main image' });
-      await updateProductPreview();
-      toast('Image uploaded to Google Drive');
-    } catch (error) {
-      if (pendingDriveImage?.imageUrl) {
-        showImageResult({ ...pendingDriveImage.imageMeta, status: 'Drive image is ready; retry the product save' });
-      } else {
-        showImageResult(null);
-      }
-      toast(error.message || 'Could not process this image');
-    } finally {
-      dropzone.classList.remove('is-processing');
-      $('#prodImageFile').value = '';
-    }
+    return presets[$('#imageOptimization')?.value] || presets.balanced;
   }
 
   async function updateProductPreview() {
@@ -1805,8 +1658,8 @@
     button.disabled = false;
     const connected = Boolean(drive().accessToken?.());
     setLibraryDriveStatus(
-      connected ? 'Google Drive connected' : 'Google Drive not connected',
-      connected ? 'The access token is in memory only and is forgotten on lock or reload.' : 'Connect Google Drive to browse and upload images.',
+      connected ? 'Image library connected' : 'Connect the image library',
+      connected ? 'The access token is in memory only and is forgotten on lock or reload.' : 'Connect once to browse and upload images.',
     );
     button.textContent = connected ? 'Reconnect' : 'Connect Google Drive';
   }
@@ -1943,7 +1796,6 @@
       setLibraryDriveStatus('Connecting Google Drive…', 'Approve the Google permission popup.');
       await drive().connect();
       refreshLibraryDrivePanel();
-      refreshDrivePanel();
       await loadLibrary();
     } catch (error) {
       refreshLibraryDrivePanel();
@@ -1981,6 +1833,8 @@
           width: Number(uploaded.imageMeta?.width) || 0,
           height: Number(uploaded.imageMeta?.height) || 0,
           imageUrl: uploaded.imageUrl,
+          imageVersion: uploaded.imageVersion || uploaded.imageMeta?.imageVersion || '',
+          contentHash: uploaded.imageMeta?.contentHash || '',
         });
         done += 1;
         libraryPage = 0;
@@ -1996,7 +1850,20 @@
 
   // ---- Library picker (used from the product editor) ----
   function libraryItemFromFile(file) {
-    return { imageUrl: file.imageUrl, driveFileId: file.id, imageVersion: '', imageMeta: { driveFileId: file.id, optimizedName: file.name, byteSize: file.size, provider: 'google_drive', publicUrl: file.imageUrl } };
+    return {
+      imageUrl: file.imageUrl,
+      driveFileId: file.id,
+      imageVersion: file.imageVersion || '',
+      imageMeta: {
+        driveFileId: file.id,
+        optimizedName: file.name,
+        byteSize: file.size,
+        provider: 'google_drive',
+        publicUrl: file.imageUrl,
+        imageVersion: file.imageVersion || '',
+        contentHash: file.contentHash || '',
+      },
+    };
   }
   async function openLibraryPicker(mode) {
     libraryPickerMode = mode === 'main' ? 'main' : 'gallery';
@@ -2006,10 +1873,7 @@
     picker.hidden = false;
     const grid = $('#libraryPickerGrid');
     grid.innerHTML = '<div class="empty-state-admin"><strong>Loading…</strong></div>';
-    if (!drive()?.accessToken?.()) {
-      try { await drive().connect(); refreshLibraryDrivePanel(); } catch { /* ignore */ }
-    }
-    if (!libraryCache.length) await loadLibrary({ silent: true });
+    if (drive()?.accessToken?.() && !libraryCache.length) await loadLibrary({ silent: true });
     renderLibraryPicker();
   }
   function closeLibraryPicker() { $('#libraryPicker').hidden = true; }
@@ -2017,7 +1881,12 @@
     const grid = $('#libraryPickerGrid');
     if (!grid) return;
     if (!libraryCache.length) {
-      grid.innerHTML = '<div class="empty-state-admin"><strong>No images yet</strong><p>Upload images in the Library tab first.</p></div>';
+      grid.innerHTML = '<div class="empty-state-admin"><strong>Library is empty</strong><p>Open Library to upload or refresh your images first.</p><button type="button" class="btn btn-secondary" data-open-library>Open Library</button></div>';
+      grid.querySelector('[data-open-library]')?.addEventListener('click', () => {
+        closeLibraryPicker();
+        activateTab('library');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
       return;
     }
     const usage = driveImageUsage();
@@ -2111,7 +1980,7 @@
     galleryItems.forEach((item, index) => tiles.push(galleryTileHtml(item, index, false)));
     strip.innerHTML = tiles.length
       ? tiles.join('')
-      : '<p class="gallery-empty">No images yet. Upload a main photo or add from the library.</p>';
+      : '<p class="gallery-empty">No images selected yet. Choose a main image or add gallery images from the Library.</p>';
 
     $$('[data-gallery-remove]', strip).forEach((button) => {
       button.addEventListener('click', () => {
@@ -2164,39 +2033,6 @@
     }
   }
 
-  async function handleGalleryUpload(files) {
-    const list = Array.from(files || []).filter(Boolean);
-    if (!list.length) return;
-    if (!drive()) { toast('Google Drive tools are unavailable'); return; }
-    try {
-      if (!drive().accessToken?.()) { await connectDrive(); }
-      if (!drive().accessToken?.()) throw new Error('Connect Google Drive before uploading.');
-    } catch (error) {
-      toast(error.message || 'Connect Google Drive first');
-      return;
-    }
-    for (let i = 0; i < list.length; i += 1) {
-      const file = await openCropper(list[i], `Gallery image · 4:5 (${i + 1}/${list.length})`);
-      if (!file) continue;
-      try {
-        showImageResult({ status: `Optimizing ${file.name}…` });
-        const optimized = await drive().optimizeImage(file, imageOptimizationOptions());
-        showImageResult({ status: `Uploading ${file.name}…` });
-        const uploaded = await drive().uploadOptimizedImage(optimized);
-        addGalleryItem({ imageUrl: uploaded.imageUrl, driveFileId: uploaded.driveFileId, imageVersion: uploaded.imageVersion });
-        libraryCache.unshift({
-          id: uploaded.driveFileId, name: uploaded.imageMeta?.optimizedName || file.name, mimeType: uploaded.imageMeta?.mimeType || 'image/webp',
-          size: Number(uploaded.imageMeta?.byteSize) || 0, createdTime: new Date().toISOString(),
-          width: Number(uploaded.imageMeta?.width) || 0, height: Number(uploaded.imageMeta?.height) || 0, imageUrl: uploaded.imageUrl,
-        });
-        showImageResult({ ...uploaded.imageMeta, status: 'Added to gallery' });
-      } catch (error) {
-        toast(error.message || `Could not upload ${file.name}`);
-      }
-    }
-    $('#galleryFile').value = '';
-  }
-
   // ============================================================
   // 4:5 crop / framing step (runs before every image upload so the
   // owner controls exactly what the product card shows).
@@ -2211,6 +2047,12 @@
   let cropZoom = 1;
   let cropOX = 0;
   let cropOY = 0;
+  let cropRotation = 0;
+  let cropFlipX = 1;
+  let cropFlipY = 1;
+  let cropBrightness = 100;
+  let cropContrast = 100;
+  let cropSaturation = 100;
   let cropDragging = false;
   let cropLastX = 0;
   let cropLastY = 0;
@@ -2231,19 +2073,99 @@
     cropOY = Math.min(0, Math.max(CROP_STAGE_H - dispH, cropOY));
   }
 
+  function rotatedCropSize() {
+    const quarterTurn = Math.abs(cropRotation % 180) === 90;
+    return {
+      width: quarterTurn ? cropBitmap.height : cropBitmap.width,
+      height: quarterTurn ? cropBitmap.width : cropBitmap.height,
+    };
+  }
+
+  function centerCrop() {
+    if (!cropBitmap) return;
+    const size = rotatedCropSize();
+    const scale = cropCover * cropZoom;
+    cropOX = (CROP_STAGE_W - size.width * scale) / 2;
+    cropOY = (CROP_STAGE_H - size.height * scale) / 2;
+  }
+
+  function recalculateCropCover({ center = false } = {}) {
+    if (!cropBitmap) return;
+    const size = rotatedCropSize();
+    cropCover = Math.max(CROP_STAGE_W / size.width, CROP_STAGE_H / size.height);
+    if (center) centerCrop();
+  }
+
+  function cropFilter() {
+    return `brightness(${cropBrightness}%) contrast(${cropContrast}%) saturate(${cropSaturation}%)`;
+  }
+
+  function drawCropImage(ctx, outputScale = 1) {
+    const scale = cropCover * cropZoom * outputScale;
+    const size = rotatedCropSize();
+    const dispW = size.width * scale;
+    const dispH = size.height * scale;
+    const ox = cropOX * outputScale;
+    const oy = cropOY * outputScale;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.filter = cropFilter();
+    ctx.translate(ox + dispW / 2, oy + dispH / 2);
+    ctx.scale(scale * cropFlipX, scale * cropFlipY);
+    ctx.rotate(cropRotation * Math.PI / 180);
+    ctx.drawImage(cropBitmap, -cropBitmap.width / 2, -cropBitmap.height / 2);
+    ctx.restore();
+  }
+
+  function updateCropControls() {
+    const values = {
+      cropZoom: cropZoom,
+      cropBrightness: cropBrightness,
+      cropContrast: cropContrast,
+      cropSaturation: cropSaturation,
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const input = $(`#${id}`);
+      if (input) input.value = String(value);
+    });
+    if ($('#cropZoomValue')) $('#cropZoomValue').textContent = `${Math.round(cropZoom * 100)}%`;
+    if ($('#cropBrightnessValue')) $('#cropBrightnessValue').textContent = `${cropBrightness}%`;
+    if ($('#cropContrastValue')) $('#cropContrastValue').textContent = `${cropContrast}%`;
+    if ($('#cropSaturationValue')) $('#cropSaturationValue').textContent = `${cropSaturation}%`;
+    $('#cropFlipHorizontal')?.setAttribute('aria-pressed', cropFlipX < 0 ? 'true' : 'false');
+    $('#cropFlipVertical')?.setAttribute('aria-pressed', cropFlipY < 0 ? 'true' : 'false');
+  }
+
+  function resetCropAdjustments() {
+    cropZoom = 1;
+    cropRotation = 0;
+    cropFlipX = 1;
+    cropFlipY = 1;
+    cropBrightness = 100;
+    cropContrast = 100;
+    cropSaturation = 100;
+    recalculateCropCover({ center: true });
+    updateCropControls();
+    drawCrop();
+  }
+
   function drawCrop() {
     const canvas = $('#cropCanvas');
     if (!canvas || !cropBitmap) return;
     const ctx = canvas.getContext('2d');
     const scale = cropCover * cropZoom;
-    const dispW = cropBitmap.width * scale;
-    const dispH = cropBitmap.height * scale;
+    const size = rotatedCropSize();
+    const dispW = size.width * scale;
+    const dispH = size.height * scale;
     clampCropOffsets(dispW, dispH);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.filter = 'none';
     ctx.fillStyle = '#efe6d4';
     ctx.fillRect(0, 0, CROP_STAGE_W, CROP_STAGE_H);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(cropBitmap, cropOX, cropOY, dispW, dispH);
+    ctx.restore();
+    drawCropImage(ctx);
   }
 
   function openCropper(file, label) {
@@ -2254,13 +2176,15 @@
       cropBitmap = bmp;
       cropResolve = resolve;
       cropName = String(file.name || 'image');
-      cropCover = Math.max(CROP_STAGE_W / bmp.width, CROP_STAGE_H / bmp.height);
       cropZoom = 1;
-      const scale = cropCover * cropZoom;
-      cropOX = (CROP_STAGE_W - bmp.width * scale) / 2;
-      cropOY = (CROP_STAGE_H - bmp.height * scale) / 2;
-      const zoomEl = $('#cropZoom');
-      if (zoomEl) zoomEl.value = '1';
+      cropRotation = 0;
+      cropFlipX = 1;
+      cropFlipY = 1;
+      cropBrightness = 100;
+      cropContrast = 100;
+      cropSaturation = 100;
+      recalculateCropCover({ center: true });
+      updateCropControls();
       if ($('#cropTitle')) $('#cropTitle').textContent = label || 'Frame your image';
       $('#cropModal').hidden = false;
       requestAnimationFrame(drawCrop);
@@ -2279,19 +2203,16 @@
   function confirmCrop() {
     if (!cropBitmap) { finishCrop(null); return; }
     const scale = cropCover * cropZoom;
-    const sWidth = CROP_STAGE_W / scale;
-    const sHeight = CROP_STAGE_H / scale;
-    const sx = Math.max(0, -cropOX / scale);
-    const sy = Math.max(0, -cropOY / scale);
-    const outW = Math.max(1, Math.min(CROP_MAX_OUT_W, Math.round(sWidth)));
+    const sourceWindowWidth = CROP_STAGE_W / scale;
+    const outW = Math.max(1, Math.min(CROP_MAX_OUT_W, Math.round(sourceWindowWidth)));
     const outH = Math.round(outW * (CROP_STAGE_H / CROP_STAGE_W));
     const out = document.createElement('canvas');
     out.width = outW;
     out.height = outH;
     const octx = out.getContext('2d', { alpha: false });
-    octx.imageSmoothingEnabled = true;
-    octx.imageSmoothingQuality = 'high';
-    octx.drawImage(cropBitmap, sx, sy, sWidth, sHeight, 0, 0, outW, outH);
+    octx.fillStyle = '#efe6d4';
+    octx.fillRect(0, 0, outW, outH);
+    drawCropImage(octx, outW / CROP_STAGE_W);
     out.toBlob((blob) => {
       if (!blob) { toast('Could not process that image'); finishCrop(null); return; }
       const base = cropName.replace(/\.[^.]+$/, '') || 'image';
@@ -2312,8 +2233,42 @@
       cropZoom = next;
       cropOX = cx - imgX * newScale;
       cropOY = cy - imgY * newScale;
+      updateCropControls();
       drawCrop();
     });
+    [
+      ['cropBrightness', 'cropBrightness'],
+      ['cropContrast', 'cropContrast'],
+      ['cropSaturation', 'cropSaturation'],
+    ].forEach(([id, stateKey]) => {
+      $(`#${id}`)?.addEventListener('input', (event) => {
+        const value = Number(event.target.value) || 100;
+        if (stateKey === 'cropBrightness') cropBrightness = value;
+        if (stateKey === 'cropContrast') cropContrast = value;
+        if (stateKey === 'cropSaturation') cropSaturation = value;
+        updateCropControls();
+        drawCrop();
+      });
+    });
+    const rotate = (direction) => {
+      cropRotation = (cropRotation + direction + 360) % 360;
+      recalculateCropCover({ center: true });
+      updateCropControls();
+      drawCrop();
+    };
+    $('#cropRotateLeft')?.addEventListener('click', () => rotate(-90));
+    $('#cropRotateRight')?.addEventListener('click', () => rotate(90));
+    $('#cropFlipHorizontal')?.addEventListener('click', () => {
+      cropFlipX *= -1;
+      updateCropControls();
+      drawCrop();
+    });
+    $('#cropFlipVertical')?.addEventListener('click', () => {
+      cropFlipY *= -1;
+      updateCropControls();
+      drawCrop();
+    });
+    $('#cropReset')?.addEventListener('click', resetCropAdjustments);
     canvas?.addEventListener('pointerdown', (event) => {
       cropDragging = true;
       cropLastX = event.clientX;
@@ -2322,8 +2277,9 @@
     });
     canvas?.addEventListener('pointermove', (event) => {
       if (!cropDragging) return;
-      cropOX += event.clientX - cropLastX;
-      cropOY += event.clientY - cropLastY;
+      const rect = canvas.getBoundingClientRect();
+      cropOX += (event.clientX - cropLastX) * (CROP_STAGE_W / rect.width);
+      cropOY += (event.clientY - cropLastY) * (CROP_STAGE_H / rect.height);
       cropLastX = event.clientX;
       cropLastY = event.clientY;
       drawCrop();
@@ -2353,7 +2309,6 @@
     // Gallery + picker controls in the product editor
     $('#chooseMainFromLibrary')?.addEventListener('click', () => void openLibraryPicker('main'));
     $('#galleryAddFromLibrary')?.addEventListener('click', () => void openLibraryPicker('gallery'));
-    $('#galleryFile')?.addEventListener('change', (event) => void handleGalleryUpload(event.target.files));
     $('#libraryPickerClose')?.addEventListener('click', closeLibraryPicker);
     $('#libraryPicker')?.addEventListener('click', (event) => { if (event.target === $('#libraryPicker')) closeLibraryPicker(); });
   }
@@ -2425,26 +2380,6 @@
     $('#addColor').addEventListener('click', () => addColorRow());
   }
 
-  function setupImageUploader() {
-    refreshDrivePanel();
-    $('#driveConnectBtn').addEventListener('click', () => void connectDrive());
-    $('#prodImageFile').addEventListener('change', (event) => {
-      void handleImageUpload(event.target.files?.[0]);
-    });
-    $('#imageDropzone').addEventListener('dragover', (event) => {
-      event.preventDefault();
-      event.currentTarget.classList.add('is-dragging');
-    });
-    $('#imageDropzone').addEventListener('dragleave', (event) => {
-      event.currentTarget.classList.remove('is-dragging');
-    });
-    $('#imageDropzone').addEventListener('drop', (event) => {
-      event.preventDefault();
-      event.currentTarget.classList.remove('is-dragging');
-      void handleImageUpload(event.dataTransfer.files?.[0]);
-    });
-  }
-
   function setupFilters() {
     const ordersChanged = () => { orderPage = 0; renderOrders(); };
     ['#orderSearch', '#orderDateFilter', '#orderSort'].forEach((selector) => {
@@ -2511,6 +2446,16 @@
     // Keyboard shortcuts: Ctrl/Cmd+S saves the active form, Esc clears the product form.
     document.addEventListener('keydown', (event) => {
       const activePanel = $('.admin-panel.active')?.dataset.panel;
+      if (event.key === 'Escape' && !$('#cropModal')?.hidden) {
+        event.preventDefault();
+        finishCrop(null);
+        return;
+      }
+      if (event.key === 'Escape' && !$('#libraryPicker')?.hidden) {
+        event.preventDefault();
+        closeLibraryPicker();
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S')) {
         if (activePanel === 'products') { event.preventDefault(); $('#productForm').requestSubmit(); }
         else if (activePanel === 'settings') { event.preventDefault(); $('#settingsForm').requestSubmit(); }
@@ -2575,7 +2520,6 @@
     setupTabs();
     setupProductPreview();
     setupVariantBuilders();
-    setupImageUploader();
     setupLibrary();
     setupFilters();
     setupAdminUx();

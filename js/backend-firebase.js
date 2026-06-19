@@ -387,7 +387,16 @@
 
   async function writeProduct(product) {
     await assertAdminReady();
-    const record = normalizeProductRecord(product);
+    const productId = String(product?.id || product?.slug || '').trim();
+    if (!productId) throw new Error('Product ID is required.');
+    // The manifest revision is the storefront's cache-invalidation signal. A
+    // product form can legitimately omit rev, so derive from the authoritative
+    // private record instead of silently resetting every edit to rev 1.
+    const existing = await readPath(`products/${productId}`);
+    const record = normalizeProductRecord({
+      ...product,
+      rev: Math.max(Number(product?.rev) || 0, Number(existing?.rev) || 0),
+    });
     const updates = {
       [`products/${record.id}`]: record,
       [`publicProducts/${record.id}`]: record.active ? publicProduct(record) : null,
