@@ -72,8 +72,10 @@ body {
 }
 /* Calm, editorial warm-paper wash on a viewport-fixed layer. A fixed pseudo-
    element replaces `background-attachment: fixed`, which forces an expensive
-   full-page repaint on every scroll frame (worst on mobile). Same look, no jank. */
-body::before {
+   full-page repaint on every scroll frame (worst on mobile). Same look, no jank.
+   Scoped to the storefront (body.storefront) so it never bleeds onto /admin,
+   which shares this stylesheet but sets its own background in admin.css. */
+body.storefront::before {
   content: '';
   position: fixed;
   inset: 0;
