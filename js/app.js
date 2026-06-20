@@ -1080,7 +1080,11 @@
     const ar = active.getBoundingClientRect();
     const delta = (ar.left - pr.left) - (pills.clientWidth - active.clientWidth) / 2;
     if (Math.abs(delta) < 2) return;
-    pills.scrollBy({ left: delta, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    // Instant (not smooth): a category tap immediately re-renders the grid via a
+    // View Transition, which interrupts an in-flight smooth scroll and can leave
+    // the active pill off-screen. An instant snap lands synchronously before the
+    // transition captures, so the selected pill is always in view.
+    pills.scrollBy({ left: delta, behavior: 'auto' });
   }
 
   function renderCategories() {
