@@ -86,6 +86,29 @@
   const setHtml = (el, safe) => { if (el) el.innerHTML = String(safe); };
   const prefersReducedMotion = () => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
 
+  // ---------- View Transitions (progressive enhancement) ----------
+  // Wrap a DOM mutation so supporting browsers crossfade/morph between states.
+  // Unsupported browsers (and reduced-motion users) just run the update inline,
+  // so behavior is identical everywhere — only the polish differs. `typeClass`
+  // is toggled on <html> for the transition's duration so CSS can scope which
+  // ::view-transition pseudo-elements animate (e.g. grid filter vs modal morph).
+  const supportsViewTransition = () => typeof document.startViewTransition === 'function';
+  function withViewTransition(updateDom, typeClass = '') {
+    if (!supportsViewTransition() || prefersReducedMotion()) { updateDom(); return null; }
+    const root = document.documentElement;
+    if (typeClass) root.classList.add(typeClass);
+    let transition;
+    try {
+      transition = document.startViewTransition(updateDom);
+    } catch {
+      if (typeClass) root.classList.remove(typeClass);
+      updateDom();
+      return null;
+    }
+    if (typeClass) transition.finished.finally(() => root.classList.remove(typeClass));
+    return transition;
+  }
+
   // ---------- Elegant "no image" placeholder ----------
   // A tasteful editorial placeholder (gradient + dress-on-hanger line art +
   // wordmark) rendered as a self-contained data-URI SVG, so it is CSP-safe
@@ -158,7 +181,19 @@
   function loadImg(img, url, attempt = 0) {
     img.dataset.managedRetry = '1';
     imgQueue.push(() => {
-      const settle = () => { imgInFlight -= 1; pumpImgQueue(); };
+      // settle() must run exactly once per attempt or the in-flight count drifts
+      // and the ~4-at-a-time Drive throttle breaks. We remove BOTH listeners on
+      // settle (not {once}) so a later event — e.g. the placeholder's own load —
+      // can't re-enter and double-decrement imgInFlight.
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        img.removeEventListener('load', onLoad);
+        img.removeEventListener('error', onError);
+        imgInFlight -= 1;
+        pumpImgQueue();
+      };
       const onLoad = () => {
         img.classList.add('is-loaded');
         delete img.dataset.managedRetry;
@@ -172,11 +207,14 @@
         }
         delete img.dataset.managedRetry;
         img.dataset.placeheld = '1';
+        // Reveal the placeholder directly: settle() already removed our load
+        // listener, so the placeholder's load event won't fire onLoad for us.
+        img.classList.add('is-loaded');
         img.src = placeholderImage(img.alt || img.closest('[data-product-id]')?.dataset.productId || 'pavia');
         settle();
       };
-      img.addEventListener('load', onLoad, { once: true });
-      img.addEventListener('error', onError, { once: true });
+      img.addEventListener('load', onLoad);
+      img.addEventListener('error', onError);
       img.src = url;
     });
     pumpImgQueue();
@@ -320,6 +358,10 @@
   const PAGE_SIZE = 8;
   let visibleCount = PAGE_SIZE;
   const resetPaging = () => { visibleCount = PAGE_SIZE; };
+  // Ids currently painted in the grid, in order. Lets renderProducts tell a
+  // "Load more" extension (append only the new cards) apart from a filter/sort
+  // change (crossfade the whole grid) instead of rebuilding everything each time.
+  let lastShownIds = [];
 
   let modalProduct = null;
   let selectedSize = '';
@@ -450,6 +492,46 @@
       event.preventDefault();
       first.focus();
     }
+  }
+
+  // ---------- Overlay scroll-lock + background inertness ----------
+  // Lock the page behind drawers/modals with the position:fixed technique so iOS
+  // Safari can't scroll the background and the exact scroll position is restored
+  // on close (overflow:hidden alone leaks scroll + jumps on iOS). Ref-counted so
+  // stacked overlays (e.g. quick-view -> cart) lock once and unlock once.
+  let scrollLockCount = 0;
+  let lockedScrollY = 0;
+  function lockBodyScroll() {
+    if (scrollLockCount === 0) {
+      lockedScrollY = window.scrollY || window.pageYOffset || 0;
+      document.body.style.top = `-${lockedScrollY}px`;
+      document.body.classList.add('scroll-locked');
+    }
+    scrollLockCount += 1;
+  }
+  function unlockBodyScroll() {
+    if (scrollLockCount === 0) return;
+    scrollLockCount -= 1;
+    if (scrollLockCount === 0) {
+      document.body.classList.remove('scroll-locked');
+      document.body.style.top = '';
+      window.scrollTo(0, lockedScrollY);
+    }
+  }
+  // While any overlay is open, mark the page chrome `inert` so screen-reader and
+  // keyboard focus can't escape behind it (the Tab trap only covers Tab keys).
+  const overlayIsOpen = () => Boolean(
+    n.cartDrawer?.classList.contains('is-open')
+    || n.wishlistDrawer?.classList.contains('is-open')
+    || n.modal?.classList.contains('is-open')
+    || n.checkoutModal?.classList.contains('is-open'),
+  );
+  function syncBackgroundInert() {
+    const on = overlayIsOpen();
+    $$('[data-header], main, .site-footer, .bottom-nav, .whatsapp-fab').forEach((el) => {
+      if (on) el.setAttribute('inert', '');
+      else el.removeAttribute('inert');
+    });
   }
 
   // ---------- Boot ----------
@@ -818,6 +900,7 @@
     // direction-agnostic since it derives from scrollY, disabled for reduced motion).
     const heroCopy = $('.hero-copy');
     const heroVisual = $('[data-hero-visual]');
+    const toTopBtn = $('[data-to-top]');
     const allowParallax = heroVisual && !prefersReducedMotion();
     let scrollTicking = false;
     const onScrollFrame = () => {
@@ -825,6 +908,7 @@
       const y = window.scrollY;
       n.header.classList.toggle('is-scrolled', y > 8);
       if (n.toolbar) n.toolbar.classList.toggle('is-stuck', y > 280);
+      if (toTopBtn) toTopBtn.classList.toggle('is-visible', y > 640);
       // Only run the parallax math while the hero is plausibly on screen.
       if (allowParallax && y < 900) {
         heroVisual.style.transform = `translate3d(0, ${(y * 0.09).toFixed(1)}px, 0)`;
@@ -836,6 +920,9 @@
       scrollTicking = true;
       requestAnimationFrame(onScrollFrame);
     }, { passive: true });
+    toTopBtn?.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    });
 
     // Search & filters (debounced for smoothness). Any filter change resets paging.
     const debouncedRender = debounce(() => { resetPaging(); renderProducts(); }, 120);
@@ -913,6 +1000,11 @@
         closeProductModal(); closeCheckout();
         closeDrawer(n.cartDrawer); closeDrawer(n.wishlistDrawer);
       }
+      // Arrow keys page through the gallery while the quick-view is open.
+      if (n.modal?.classList.contains('is-open') && modalGallery.length > 1) {
+        if (e.key === 'ArrowRight') { e.preventDefault(); stepGallery(1); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); stepGallery(-1); }
+      }
       trapFocus(e, n.modal);
       trapFocus(e, n.checkoutModal);
       trapFocus(e, n.cartDrawer);
@@ -978,6 +1070,19 @@
     });
   }
 
+  // Keep the selected category pill centered in its horizontal scroller so the
+  // active filter is never stuck off-screen after a tap.
+  function scrollActivePillIntoView() {
+    const pills = n.categoryPills;
+    const active = pills && $('.is-active', pills);
+    if (!active) return;
+    const pr = pills.getBoundingClientRect();
+    const ar = active.getBoundingClientRect();
+    const delta = (ar.left - pr.left) - (pills.clientWidth - active.clientWidth) / 2;
+    if (Math.abs(delta) < 2) return;
+    pills.scrollBy({ left: delta, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }
+
   function renderCategories() {
     setHtml(n.categoryPills, html`${categories().map(c => html`
       <button type="button" class="${c === activeCategory ? 'is-active' : ''}" data-category="${c}">${c}</button>
@@ -990,6 +1095,7 @@
         renderProducts();
       });
     });
+    scrollActivePillIntoView();
   }
 
   function updateFilterDot() {
@@ -1088,10 +1194,73 @@
     `;
   }
 
+  // Reveal a set of freshly inserted cards with a soft, capped stagger. Existing
+  // cards are never touched, so loading more (or live updates) doesn't re-fade the
+  // whole grid. Reduced-motion users get no stagger.
+  function revealCards(cards) {
+    const reduce = prefersReducedMotion();
+    cards.forEach((el, i) => {
+      if (!reduce) el.style.transitionDelay = `${Math.min(i * 40, 320)}ms`;
+      requestAnimationFrame(() => el.classList.add('is-visible'));
+    });
+  }
+
+  // Bind interactions for a specific set of cards (scoped so appended cards can be
+  // wired without double-binding the ones already on screen).
+  function wireProductCards(cards) {
+    cards.forEach((card) => {
+      const id = card.dataset.productId;
+      // The WHOLE card opens quick view (previously the category/price/swatch
+      // area was a dead zone) — except taps on the wish / quick-add controls,
+      // which keep their own actions. The card image is handed in as the morph
+      // source so the open animation flies it into the modal hero.
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('[data-wish], [data-fast-add]')) return;
+        openProductModal(id, $('.product-media img', card));
+      });
+      // Keyboard activation via the product name (exposed as role="button").
+      $('[data-quick-view]', card)?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductModal(id); }
+      });
+      $('[data-fast-add]', card)?.addEventListener('click', (e) => { e.stopPropagation(); fastAdd(id); });
+      const wish = $('[data-wish]', card);
+      wish?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        wish.classList.add('is-pulsing');
+        setTimeout(() => wish.classList.remove('is-pulsing'), 500);
+        toggleWishlist(id);
+      });
+    });
+  }
+
+  // Full (re)paint of the grid. `stagger` plays the entrance reveal (first paint /
+  // appended cards); a silent refresh (data changed but the set didn't) skips it.
+  function paintGrid(shown, stagger) {
+    setHtml(n.productGrid, html`${shown.map(productCard)}`);
+    const cards = $$('.product-card', n.productGrid);
+    observeLazyImages(n.productGrid);
+    wireProductCards(cards);
+    if (stagger) revealCards(cards);
+    else cards.forEach((el) => el.classList.add('is-visible'));
+  }
+
+  // Append only the next page of cards; animate just those.
+  function appendProductCards(list) {
+    if (!list.length) return;
+    const before = $$('.product-card', n.productGrid).length;
+    n.productGrid.insertAdjacentHTML('beforeend', String(html`${list.map(productCard)}`));
+    const fresh = $$('.product-card', n.productGrid).slice(before);
+    observeLazyImages(n.productGrid); // idempotent for already-observed images
+    wireProductCards(fresh);
+    revealCards(fresh);
+  }
+
   function renderProducts() {
     // Catalog-level states (error / genuinely empty) take precedence over filter-empty.
     if (!products.length) {
       n.resultCount.textContent = 0;
+      lastShownIds = [];
+      if (n.loadMoreWrap) n.loadMoreWrap.hidden = true;
       if (loadError) {
         n.productGrid.innerHTML = `
           <div class="empty-state load-error" role="alert">
@@ -1114,6 +1283,7 @@
     n.resultCount.textContent = result.length;
 
     if (!result.length) {
+      lastShownIds = [];
       n.productGrid.innerHTML = `
         <div class="empty-state">
           <h3>No styles found</h3>
@@ -1128,6 +1298,7 @@
     // Show only the first `visibleCount`; "Load more" reveals the next page.
     visibleCount = Math.min(Math.max(PAGE_SIZE, visibleCount), result.length);
     const shown = result.slice(0, visibleCount);
+    const shownIds = shown.map((p) => p.id);
     const remaining = result.length - shown.length;
     if (n.loadMoreWrap) {
       n.loadMoreWrap.hidden = remaining <= 0;
@@ -1136,34 +1307,27 @@
       }
     }
 
-    setHtml(n.productGrid, html`${shown.map(productCard)}`);
-    observeLazyImages(n.productGrid);
-    // Reveal cards; skip the stagger entirely for reduced-motion users.
-    const reduce = prefersReducedMotion();
-    $$('.product-grid .reveal').forEach((el, i) => {
-      if (!reduce) el.style.transitionDelay = `${Math.min(i * 40, 320)}ms`;
-      requestAnimationFrame(() => el.classList.add('is-visible'));
-    });
+    const prevIds = lastShownIds;
+    const domCount = $$('.product-card', n.productGrid).length;
+    const inSyncWithDom = prevIds.length > 0 && domCount === prevIds.length;
+    const sameSet = inSyncWithDom
+      && shownIds.length === prevIds.length
+      && prevIds.every((id, i) => shownIds[i] === id);
+    const isExtension = inSyncWithDom
+      && shownIds.length > prevIds.length
+      && prevIds.every((id, i) => shownIds[i] === id);
 
-    // Bind card actions
-    $$('[data-quick-view]', n.productGrid).forEach(el => {
-      el.addEventListener('click', () => openProductModal(el.dataset.quickView));
-      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductModal(el.dataset.quickView); } });
-    });
-    $$('[data-fast-add]', n.productGrid).forEach(el => el.addEventListener('click', e => { e.stopPropagation(); fastAdd(el.dataset.fastAdd); }));
-    $$('[data-wish]', n.productGrid).forEach(el => el.addEventListener('click', e => {
-      e.stopPropagation();
-      el.classList.add('is-pulsing');
-      setTimeout(() => el.classList.remove('is-pulsing'), 500);
-      toggleWishlist(el.dataset.wish);
-    }));
-    // Make whole image area clickable
-    $$('.product-media img', n.productGrid).forEach((el, i) => {
-      el.addEventListener('click', () => {
-        const id = el.closest('[data-product-id]')?.dataset.productId;
-        if (id) openProductModal(id);
-      });
-    });
+    lastShownIds = shownIds;
+
+    if (sameSet) {
+      paintGrid(shown, false);          // silent content refresh (price/stock/image)
+    } else if (isExtension) {
+      appendProductCards(shown.slice(prevIds.length)); // "Load more" — append only
+    } else if (prevIds.length && domCount > 0) {
+      withViewTransition(() => paintGrid(shown, false), 'vt-grid'); // filter/sort change
+    } else {
+      paintGrid(shown, true);           // first paint — staggered entrance
+    }
   }
 
   function clearAllFilters() {
@@ -1191,6 +1355,15 @@
     return slug
       ? `${location.origin}${location.pathname}?product=${encodeURIComponent(slug)}`
       : location.href;
+  }
+  // Pre-filled WhatsApp "let me know when it's back" message for a sold-out item.
+  // Reuses the store's existing manual/WhatsApp confirmation flow — no new backend
+  // write path, no anonymous-write DB rule, no email infrastructure.
+  function notifyBackHref(p) {
+    const num = String(WHATSAPP_NUMBER).replace(/\D/g, '') || '9613017725';
+    const name = SITE_CONFIG.siteName || 'Pavia';
+    const text = `Hi ${name}, please notify me when "${p.name}" is back in stock. ${productShareUrl(p)}`;
+    return `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
   }
   function syncProductUrl(p) {
     if (!history.replaceState) return;
@@ -1247,7 +1420,7 @@
     if (match) openProductModal(match.id);
   }
 
-  async function openProductModal(id) {
+  async function openProductModal(id, sourceImg = null) {
     const p = getProduct(id);
     if (!p) return;
     modalProduct = p;
@@ -1261,11 +1434,39 @@
     lastFocusedElement = document.activeElement;
     addToRecent(id);
     void BACKEND?.analytics.recordEvent('product_view');
-    renderProductModal();
-    n.modal.classList.add('is-open');
-    n.modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('no-scroll');
-    requestAnimationFrame(() => $('[data-modal-add]', n.modalContent)?.focus());
+
+    const revealModal = () => {
+      renderProductModal();
+      const modalWasOpen = n.modal.classList.contains('is-open');
+      n.modal.classList.add('is-open');
+      n.modal.setAttribute('aria-hidden', 'false');
+      if (!modalWasOpen) lockBodyScroll();
+      syncBackgroundInert();
+      requestAnimationFrame(() => $('[data-modal-add]', n.modalContent)?.focus());
+    };
+
+    // Shared-element morph: fly the tapped card image into the modal hero image.
+    // Only one element may carry the name in each captured state, so we move it
+    // off the card and onto the rendered hero inside the update callback.
+    if (sourceImg && supportsViewTransition() && !prefersReducedMotion()) {
+      sourceImg.style.viewTransitionName = 'product-hero';
+      const clearNames = () => {
+        sourceImg.style.viewTransitionName = '';
+        const heroImg = $('[data-modal-zoom]', n.modalContent);
+        if (heroImg) heroImg.style.viewTransitionName = '';
+      };
+      const transition = withViewTransition(() => {
+        sourceImg.style.viewTransitionName = '';
+        revealModal();
+        const heroImg = $('[data-modal-zoom]', n.modalContent);
+        if (heroImg) heroImg.style.viewTransitionName = 'product-hero';
+      }, 'vt-modal');
+      if (transition) transition.finished.finally(clearNames);
+      else clearNames();
+    } else {
+      revealModal();
+    }
+
     // Resolve gallery images only now (modal open) — keeps Drive requests off the grid.
     try {
       const urls = await resolveGalleryUrls(p);
@@ -1276,6 +1477,34 @@
     } catch (error) {
       /* gallery is best-effort; main image already shows */
     }
+  }
+
+  // Switch the modal hero image in place (no full re-render): swap the main img,
+  // move the selected thumbnail, and update the counter. Resets any active zoom.
+  function selectGalleryImage(url) {
+    if (!url || url === selectedImage) return;
+    selectedImage = url;
+    const heroImg = $('[data-modal-zoom]', n.modalContent);
+    if (heroImg) {
+      heroImg.classList.remove('is-zoomed');
+      heroImg.style.transformOrigin = '';
+      heroImg.src = pickImage(url, modalProduct?.id);
+    }
+    $$('[data-gallery-src]', n.modalContent).forEach((b) => {
+      b.classList.toggle('is-selected', b.dataset.gallerySrc === url);
+    });
+    const counter = $('[data-gallery-counter]', n.modalContent);
+    if (counter) {
+      const g = modalGallery.length ? modalGallery : [selectedImage];
+      counter.textContent = `${g.indexOf(url) + 1} / ${g.length}`;
+    }
+  }
+  // Page through the gallery (keyboard arrows / swipe), wrapping at the ends.
+  function stepGallery(dir) {
+    const g = modalGallery.length ? modalGallery : [];
+    if (g.length < 2) return;
+    const cur = Math.max(0, g.indexOf(selectedImage));
+    selectGalleryImage(g[(cur + dir + g.length) % g.length]);
   }
 
   function renderProductModal() {
@@ -1293,6 +1522,7 @@
       <div class="modal-product">
         <div class="image-wrap">
           <img src="${pickImage(selectedImage || p.image, p.id)}" alt="${p.name}" decoding="async" width="720" height="780" data-modal-zoom />
+          ${gallery.length > 1 ? html`<div class="modal-counter" data-gallery-counter>${gallery.indexOf(selectedImage) + 1} / ${gallery.length}</div>` : ''}
           ${gallery.length > 1 ? html`
             <div class="modal-gallery" aria-label="Product images">
               ${gallery.map((src, index) => html`
@@ -1336,18 +1566,34 @@
             </div>
           </div>
 
-          <div class="qty-add-row">
-            <div class="qty-control" aria-label="Quantity">
-              <button type="button" data-modal-qty="minus" aria-label="Decrease quantity">−</button>
-              <span>${selectedQty}</span>
-              <button type="button" data-modal-qty="plus" aria-label="Increase quantity" ${soldOut || selectedQty >= maxQty ? 'disabled' : ''}>+</button>
+          ${soldOut ? html`
+            <a class="btn btn-primary full notify-back" data-notify-back href="${notifyBackHref(p)}" target="_blank" rel="noreferrer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.2-5.6A8.4 8.4 0 1 1 21 11.5Z"/></svg>
+              Notify me when it's back
+            </a>
+          ` : html`
+            <div class="qty-add-row">
+              <div class="qty-control" aria-label="Quantity">
+                <button type="button" data-modal-qty="minus" aria-label="Decrease quantity">−</button>
+                <span>${selectedQty}</span>
+                <button type="button" data-modal-qty="plus" aria-label="Increase quantity" ${selectedQty >= maxQty ? 'disabled' : ''}>+</button>
+              </div>
+              <button class="btn btn-primary" data-modal-add ${maxQty <= 0 ? 'disabled' : ''}>
+                Add to bag · ${money(p.price * selectedQty)}
+              </button>
             </div>
-            <button class="btn btn-primary" data-modal-add ${soldOut || maxQty <= 0 ? 'disabled' : ''}>
-              Add to bag · ${money(p.price * selectedQty)}
-            </button>
-          </div>
+          `}
 
-          <p class="stock-note">${soldOut ? 'This style is currently sold out.' : `${stockMessage(p)}. ${inBag ? `${inBag} already in your bag.` : 'Ready to add.'}`}</p>
+          <p class="stock-note">${soldOut ? "This style is sold out — tap above and we'll message you on WhatsApp when it's back." : `${stockMessage(p)}. ${inBag ? `${inBag} already in your bag.` : 'Ready to add.'}`}</p>
+
+          ${(p.fit || p.material || p.care || p.sku) ? html`
+            <dl class="product-extra-details">
+              ${p.fit ? html`<div><dt>Fit</dt><dd>${p.fit}</dd></div>` : ''}
+              ${p.material ? html`<div><dt>Material</dt><dd>${p.material}</dd></div>` : ''}
+              ${p.care ? html`<div><dt>Care</dt><dd>${p.care}</dd></div>` : ''}
+              ${p.sku ? html`<div><dt>SKU</dt><dd>${p.sku}</dd></div>` : ''}
+            </dl>
+          ` : ''}
 
           <div class="modal-meta">
             <div>
@@ -1390,7 +1636,24 @@
         zoomImg.style.transformOrigin = '';
       }
     });
-    $$('[data-gallery-src]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedImage = b.dataset.gallerySrc; renderProductModal(); }));
+    $$('[data-gallery-src]', n.modalContent).forEach(b => b.addEventListener('click', () => selectGalleryImage(b.dataset.gallerySrc)));
+    // Swipe the hero image left/right to page through the gallery (touch).
+    const imageWrap = $('.image-wrap', n.modalContent);
+    if (imageWrap && modalGallery.length > 1) {
+      let swipeX = 0;
+      let swipeY = 0;
+      imageWrap.addEventListener('touchstart', (event) => {
+        const touch = event.changedTouches[0];
+        swipeX = touch.clientX;
+        swipeY = touch.clientY;
+      }, { passive: true });
+      imageWrap.addEventListener('touchend', (event) => {
+        const touch = event.changedTouches[0];
+        const dx = touch.clientX - swipeX;
+        const dy = touch.clientY - swipeY;
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) stepGallery(dx < 0 ? 1 : -1);
+      }, { passive: true });
+    }
     $$('[data-size]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedSize = b.dataset.size; renderProductModal(); }));
     $$('[data-color]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedColor = b.dataset.color; renderProductModal(); }));
     $$('[data-modal-qty]', n.modalContent).forEach(b => b.addEventListener('click', () => {
@@ -1411,7 +1674,8 @@
     if (!n.modal.classList.contains('is-open')) return;
     n.modal.classList.remove('is-open');
     n.modal.setAttribute('aria-hidden', 'true');
-    if (!n.checkoutModal.classList.contains('is-open')) document.body.classList.remove('no-scroll');
+    unlockBodyScroll();
+    syncBackgroundInert();
     clearProductUrl();
     clearProductJsonLd();
     lastFocusedElement?.focus?.();
@@ -1620,11 +1884,12 @@
 
   // ---------- Drawers ----------
   function openDrawer(d) {
-    if (!d) return;
+    if (!d || d.classList.contains('is-open')) return;
     lastDrawerFocus = document.activeElement;
     d.classList.add('is-open');
     d.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('no-scroll');
+    lockBodyScroll();
+    syncBackgroundInert();
     requestAnimationFrame(() => focusableElements(d)[0]?.focus());
   }
   function closeDrawer(d) {
@@ -1632,9 +1897,8 @@
     const wasOpen = d.classList.contains('is-open');
     d.classList.remove('is-open');
     d.setAttribute('aria-hidden', 'true');
-    if (!n.modal.classList.contains('is-open') && !n.checkoutModal.classList.contains('is-open')) {
-      document.body.classList.remove('no-scroll');
-    }
+    if (wasOpen) unlockBodyScroll();
+    syncBackgroundInert();
     if (wasOpen) lastDrawerFocus?.focus?.();
   }
 
@@ -1657,9 +1921,11 @@
       n.checkoutSuccess.classList.remove('is-visible');
       n.checkoutSuccess.innerHTML = '';
     }
+    const checkoutWasOpen = n.checkoutModal.classList.contains('is-open');
     n.checkoutModal.classList.add('is-open');
     n.checkoutModal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('no-scroll');
+    if (!checkoutWasOpen) lockBodyScroll();
+    syncBackgroundInert();
     lastFocusedElement = document.activeElement;
     requestAnimationFrame(() => n.checkoutForm?.querySelector('[name="name"]')?.focus());
   }
@@ -1667,7 +1933,8 @@
     if (!n.checkoutModal.classList.contains('is-open')) return;
     n.checkoutModal.classList.remove('is-open');
     n.checkoutModal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('no-scroll');
+    unlockBodyScroll();
+    syncBackgroundInert();
     lastFocusedElement?.focus?.();
   }
 
