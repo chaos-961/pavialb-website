@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 
-Sitemap: https://chaos-961.github.io/pavialb-website/sitemap.xml
+Sitemap: https://pavialeb.com/sitemap.xml

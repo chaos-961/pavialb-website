@@ -3,15 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <!-- Content-Security-Policy for the storefront. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' https://www.gstatic.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com" />
+  <!-- Content-Security-Policy for the storefront. The Firebase RTDB origins are in
+       script-src (not only connect-src) because RTDB's long-poll fallback injects a
+       <script src=".../.lp?..."> when the WebSocket can't open (e.g. behind Cloudflare);
+       cloudflareinsights.com is Cloudflare's auto-injected analytics beacon. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; script-src 'self' https://www.gstatic.com https://*.firebasedatabase.app https://*.firebaseio.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' https://www.gstatic.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://cloudflareinsights.com" />
   <meta name="theme-color" content="#1a1612" />
   <meta name="description" content="Pavia Lebanon — modern elegant fashion. Crafted for everyday refinement, delivered all over Lebanon." data-site-description />
-  <link rel="canonical" href="https://chaos-961.github.io/pavialb-website/" />
+  <link rel="canonical" href="https://pavialeb.com/" />
   <meta property="og:title" content="Pavia Lebanon" />
   <meta property="og:description" content="Modern elegant fashion boutique with delivery across Lebanon." data-site-description />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://chaos-961.github.io/pavialb-website/" />
+  <meta property="og:url" content="https://pavialeb.com/" />
   <meta property="og:site_name" content="Pavia Lebanon" />
   <meta property="og:image" content="assets/logo.svg" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -38,8 +41,8 @@
       "@context": "https://schema.org",
       "@type": "Organization",
       "name": "Pavia Lebanon",
-      "url": "https://chaos-961.github.io/pavialb-website/",
-      "logo": "https://chaos-961.github.io/pavialb-website/assets/logo.svg",
+      "url": "https://pavialeb.com/",
+      "logo": "https://pavialeb.com/assets/logo.svg",
       "sameAs": ["https://instagram.com/pavia.leb"],
       "contactPoint": [{
         "@type": "ContactPoint",
@@ -54,8 +57,8 @@
       "@context": "https://schema.org",
       "@type": "ClothingStore",
       "name": "Pavia Lebanon",
-      "image": "https://chaos-961.github.io/pavialb-website/assets/logo.svg",
-      "url": "https://chaos-961.github.io/pavialb-website/",
+      "image": "https://pavialeb.com/assets/logo.svg",
+      "url": "https://pavialeb.com/",
       "telephone": "+9613017725",
       "currenciesAccepted": "USD",
       "areaServed": "LB",
@@ -324,7 +327,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Crafted with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.2.0</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.2.1</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -489,7 +492,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=25"></script>
+  <script defer src="js/config.js?v=26"></script>
   <script defer src="js/firebase-config.js?v=10"></script>
   <script defer src="js/backend-config.js?v=14"></script>
   <script defer src="js/image-catalog.js?v=11"></script>

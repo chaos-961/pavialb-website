@@ -14,7 +14,7 @@ years. Browse the collection and order with delivery across Lebanon.
 
 ## Find us
 
-- **Shop:** https://chaos-961.github.io/pavialb-website/
+- **Shop:** https://pavialeb.com/
 - **WhatsApp:** https://wa.me/9613017725
 - **Instagram:** https://instagram.com/pavia.leb
 

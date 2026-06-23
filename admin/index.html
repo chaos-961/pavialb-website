@@ -5,12 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <!-- CSP for the Studio. script-src keeps 'unsafe-inline' because admin.js
          injects the decrypted dashboard as an inline <script> (no src) — a strict
-         script-src would block it and break the whole admin. The value here is the
-         tight connect-src / img-src / object-src / base-uri / form-action / frame-src,
-         scoped to exactly the Google Identity (accounts.google.com), Drive
-         (googleapis.com / drive.google.com / googleusercontent.com), and Firebase
-         origins the Studio actually uses. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; manifest-src 'self'; worker-src 'self'; frame-src https://accounts.google.com; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' https://www.gstatic.com https://www.googleapis.com https://accounts.google.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com" />
+         script-src would block it and break the whole admin. The Firebase RTDB
+         origins are in BOTH connect-src (WebSocket) AND script-src: RTDB's long-poll
+         fallback injects a <script src=".../.lp?..."> when the socket can't open
+         (e.g. behind Cloudflare), so a script-src without them loads the Studio with
+         no data. static.cloudflareinsights.com is Cloudflare's auto-injected
+         analytics beacon. The rest stays tightly scoped to the Google Identity
+         (accounts.google.com), Drive (googleapis.com / drive.google.com /
+         googleusercontent.com), and Firebase origins the Studio actually uses. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; manifest-src 'self'; worker-src 'self'; frame-src https://accounts.google.com; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://accounts.google.com https://*.firebasedatabase.app https://*.firebaseio.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' https://www.gstatic.com https://www.googleapis.com https://accounts.google.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://cloudflareinsights.com" />
     <meta name="theme-color" content="#f7f1e8" />
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <title>Pavia · Studio</title>
