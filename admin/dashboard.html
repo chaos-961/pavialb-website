@@ -235,6 +235,25 @@
           </fieldset>
 
           <fieldset class="form-section">
+            <legend>Details &amp; care</legend>
+            <div class="form-grid">
+              <label>
+                Material
+                <input id="prodMaterial" type="text" maxlength="120" placeholder="e.g. 100% cotton poplin" />
+              </label>
+              <label>
+                Fit
+                <input id="prodFit" type="text" maxlength="120" placeholder="e.g. Relaxed, true to size" />
+              </label>
+              <label class="span-2">
+                Care instructions
+                <textarea id="prodCare" rows="2" maxlength="300" placeholder="e.g. Hand wash cold, lay flat to dry"></textarea>
+                <small>Shown on the product page alongside fit and material.</small>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
             <legend>Media and variants</legend>
             <div class="form-grid">
               <div class="image-uploader span-2">
@@ -458,6 +477,11 @@
               <input id="settingSiteTitle" type="text" required maxlength="80" />
               <small>Shown in the browser tab and storefront header.</small>
             </label>
+            <label class="span-2">
+              Tagline
+              <input id="settingTagline" type="text" maxlength="160" placeholder="Modern elegant fashion" />
+              <small>Short line shown in the footer.</small>
+            </label>
             <label>
               Location
               <input id="settingLocation" type="text" maxlength="80" placeholder="Beirut" />
@@ -466,6 +490,51 @@
               Delivery area label
               <input id="settingDeliveryArea" type="text" maxlength="80" placeholder="Lebanon" />
               <small>Text only — shown to customers (e.g. "Delivery across Lebanon").</small>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="form-section">
+          <legend>Storefront content</legend>
+          <div class="form-grid">
+            <label class="span-2">
+              Hero headline
+              <input id="settingHeroHeadline" type="text" maxlength="120" placeholder="Modern elegance, curated for every day." />
+              <small>Leave blank to keep the built-in headline.</small>
+            </label>
+            <label class="span-2">
+              Store description
+              <textarea id="settingDescription" rows="3" maxlength="2000" placeholder="A boutique online experience for Pavia…"></textarea>
+              <small>Used as the hero subtext and the SEO / social description.</small>
+            </label>
+            <label class="span-2">
+              Announcement bar text
+              <input id="settingAnnouncementText" type="text" maxlength="160" placeholder="Free delivery across Beirut this week" />
+            </label>
+            <label class="toggle-field span-2">
+              <input id="settingAnnouncementEnabled" type="checkbox" />
+              <span><strong>Show announcement bar</strong> Display the message as a thin strip at the top of the store.</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="form-section">
+          <legend>Location &amp; visit</legend>
+          <div class="form-grid">
+            <label class="span-2">
+              Store address
+              <input id="settingAddressLine" type="text" maxlength="200" placeholder="Street, building, Beirut" />
+              <small>Shown in the Visit section.</small>
+            </label>
+            <label class="span-2">
+              Google Maps link
+              <input id="settingMapsUrl" type="url" maxlength="600" placeholder="https://maps.google.com/?q=33.878765,35.496868" />
+              <small class="field-error" data-error-for="settingMapsUrl"></small>
+              <small>Must start with https:// — powers the “Get directions” button.</small>
+            </label>
+            <label class="span-2">
+              Business hours
+              <input id="settingBusinessHours" type="text" maxlength="200" placeholder="Mon–Sat · 10:00–19:00" />
             </label>
           </div>
         </fieldset>

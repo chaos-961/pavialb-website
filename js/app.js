@@ -347,13 +347,16 @@
   let products = (window.PAVIA_DEFAULT_PRODUCTS || [])
     .map(normalizeProduct)
     .filter(p => p.active);
+  // O(1) id -> product index, rebuilt whenever `products` is reassigned. Replaces
+  // repeated O(n) products.find() scans inside cart/wishlist/recent render loops.
+  let productById = new Map();
+  function indexProducts() { productById = new Map(products.map((p) => [String(p.id), p])); }
+  indexProducts();
 
   let cart        = readJSON(STORE_KEYS.cart, []);
   let wishlist    = readJSON(STORE_KEYS.wishlist, []);
   let recent      = readJSON(STORE_KEYS.recent, []);
   let activeCategory = 'All';
-  let activeAvail = 'all';
-  let activePrice = 'all';
   // Product-grid pagination ("Load more"); reset whenever the filter set changes.
   const PAGE_SIZE = 8;
   let visibleCount = PAGE_SIZE;
@@ -378,11 +381,15 @@
     productSearch:    $('#productSearch'),
     searchClear:      $('[data-search-clear]'),
     sizeFilter:       $('#sizeFilter'),
+    colorFilter:      $('#colorFilter'),
     sortFilter:       $('#sortFilter'),
     priceFilter:      $('#priceFilter'),
     availFilter:      $('#availFilter'),
+    inStockToggle:    $('#inStockToggle'),
     categoryPills:    $('[data-category-pills]'),
+    activeFilters:    $('[data-active-filters]'),
     resultCount:      $('[data-result-count]'),
+    resultNoun:       $('[data-result-noun]'),
     clearFilters:     $('#clearFilters'),
     toolbar:          $('[data-toolbar]'),
     filterToggle:     $('[data-filter-toggle]'),
@@ -418,11 +425,16 @@
   const categories = () => ['All', ...new Set(products.map(p => p.category))];
   const cartSubtotal = () => cart.reduce((s, i) => s + i.price * i.qty, 0);
   const cartQty = () => cart.reduce((s, i) => s + i.qty, 0);
-  const getProduct = (id) => products.find(p => p.id === id);
+  const getProduct = (id) => productById.get(String(id));
   const cartLineQty = (productId, size = '', color = '') => cart
     .filter((item) => String(item.id) === String(productId)
       && String(item.size || '') === String(size || '')
       && String(item.color || '') === String(color || ''))
+    .reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  // Total units of a product across ALL size/color lines. Stock is tracked per
+  // product, so caps must apply to this sum, not to each line independently.
+  const cartProductQty = (productId) => cart
+    .filter((item) => String(item.id) === String(productId))
     .reduce((sum, item) => sum + Number(item.qty || 0), 0);
 
   function stockMessage(product) {
@@ -445,6 +457,9 @@
 
   function revalidateCart({ notify = false } = {}) {
     let changed = false;
+    // Allocate stock across a product's lines in cart order so the SUM of all
+    // size/color lines for a product never exceeds its stock.
+    const remaining = new Map();
     cart = cart
       .map((item) => {
         const product = getProduct(item.id);
@@ -452,7 +467,13 @@
           changed = true;
           return null;
         }
-        const nextQty = Math.min(Number(item.qty || 1), product.stock);
+        const left = remaining.has(item.id) ? remaining.get(item.id) : Number(product.stock || 0);
+        const nextQty = Math.min(Number(item.qty || 1), Math.max(0, left));
+        remaining.set(item.id, Math.max(0, left - nextQty));
+        if (nextQty <= 0) {
+          changed = true;
+          return null;
+        }
         const nextPrice = Number(product.price || item.price || 0);
         const nextImage = product.imageSource || product.image || item.image;
         if (nextQty !== item.qty || nextPrice !== item.price || nextImage !== item.image) changed = true;
@@ -591,6 +612,31 @@
       el.href = safeUrl(instagramUrl, 'https://instagram.com/');
     });
 
+    // Hero headline override — blank keeps the built-in styled markup untouched.
+    if (String(config.heroHeadline || '').trim()) {
+      $$('[data-hero-headline]').forEach((el) => { el.textContent = String(config.heroHeadline).trim(); });
+    }
+
+    // Announcement bar — shown only when enabled AND given text.
+    const announcement = $('[data-announcement]');
+    if (announcement) {
+      const text = String(config.announcementText || '').trim();
+      const show = Boolean(config.announcementEnabled) && Boolean(text);
+      announcement.textContent = show ? text : '';
+      announcement.hidden = !show;
+      document.body.classList.toggle('has-announcement', show);
+    }
+
+    // Visit section — address line, business hours, and a "Get directions" link.
+    const addressLine = String(config.addressLine || '').trim();
+    $$('[data-address-line]').forEach((el) => { el.textContent = addressLine; el.hidden = !addressLine; });
+    const hours = String(config.businessHours || '').trim();
+    $$('[data-business-hours]').forEach((el) => { el.textContent = hours ? `Hours · ${hours}` : ''; el.hidden = !hours; });
+    const mapsUrl = safeUrl(config.mapsUrl, '');
+    $$('[data-directions-link]').forEach((el) => {
+      if (mapsUrl) { el.href = mapsUrl; el.hidden = false; } else { el.hidden = true; }
+    });
+
     document.title = `${config.siteTitle} · ${config.tagline}`;
   }
 
@@ -633,6 +679,7 @@
       .map(normalizeProduct)
       .filter((product) => product.active);
     products = await resolveProductImagesCached(normalized);
+    indexProducts();
   }
 
   async function persistCatalog() {
@@ -673,7 +720,11 @@
       }
       removed.forEach((id) => rawById.delete(String(id)));
       [...rawById.keys()].forEach((id) => { if (nextRevs[id] === undefined) rawById.delete(id); });
-      knownRevs = nextRevs;
+      // Only mark an id as synced at its new rev once we actually hold its record.
+      // A transient per-id fetch miss is left out of knownRevs so the next sync
+      // retries it, instead of being permanently hidden because knownRevs advanced.
+      knownRevs = {};
+      Object.keys(nextRevs).forEach((id) => { if (rawById.has(String(id))) knownRevs[id] = nextRevs[id]; });
       currentManifest = manifest;
     } else {
       // No manifest yet (local provider or unseeded production): full list.
@@ -785,7 +836,11 @@
     if (!cached || !Array.isArray(cached.rawProducts) || !cached.rawProducts.length) return false;
     rawById = new Map(cached.rawProducts.map((record) => [String(record.id), record]));
     currentManifest = cached.manifest || null;
-    knownRevs = CORE.manifestProductRevs ? CORE.manifestProductRevs(currentManifest) : {};
+    // Trust a cached rev only for ids whose record we actually have, so a product
+    // listed in the manifest but missing from the cached set is re-fetched.
+    const cachedRevs = CORE.manifestProductRevs ? CORE.manifestProductRevs(currentManifest) : {};
+    knownRevs = {};
+    Object.keys(cachedRevs).forEach((id) => { if (rawById.has(String(id))) knownRevs[id] = cachedRevs[id]; });
     await rebuildProductsFromRaw();
     return products.length > 0;
   }
@@ -937,10 +992,8 @@
       resetPaging();
       renderProducts();
     });
-    [n.sizeFilter, n.sortFilter, n.priceFilter, n.availFilter].forEach(el => {
+    [n.sizeFilter, n.colorFilter, n.sortFilter, n.priceFilter, n.availFilter, n.inStockToggle].forEach(el => {
       el?.addEventListener('change', () => {
-        if (el === n.priceFilter) activePrice = el.value;
-        if (el === n.availFilter) activeAvail = el.value;
         updateFilterDot();
         resetPaging();
         renderProducts();
@@ -1087,9 +1140,83 @@
     pills.scrollBy({ left: delta, behavior: 'auto' });
   }
 
+  // ---------- Dynamic filter options (scale) ----------
+  // Size / color / price options are built from the LIVE catalog so the filters
+  // stay correct as products are added in the studio — never a hardcoded list.
+  const SIZE_ORDER = ['One size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL'];
+  function sortSizes(sizes) {
+    return [...sizes].sort((a, b) => {
+      const ia = SIZE_ORDER.indexOf(a);
+      const ib = SIZE_ORDER.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      const na = parseFloat(a);
+      const nb = parseFloat(b);
+      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+      return String(a).localeCompare(String(b));
+    });
+  }
+  // Three readable price bands derived from the catalog's own distribution
+  // (roughly the lower/upper thirds), rounded to tidy increments.
+  function priceBrackets() {
+    const prices = products.map((p) => Number(p.price) || 0).filter((v) => v > 0).sort((a, b) => a - b);
+    if (prices.length < 3) return [];
+    const max = prices[prices.length - 1];
+    const step = max <= 60 ? 5 : max <= 150 ? 10 : 25;
+    const roundTo = (v) => Math.max(step, Math.round(v / step) * step);
+    const low = roundTo(prices[Math.floor(prices.length / 3)]);
+    const high = roundTo(prices[Math.floor((prices.length * 2) / 3)]);
+    const out = [{ value: `0-${low}`, label: `Under ${money(low)}` }];
+    if (high > low) {
+      out.push({ value: `${low}-${high}`, label: `${money(low)} — ${money(high)}` });
+      out.push({ value: `${high}-9999999`, label: `${money(high)} +` });
+    } else {
+      out.push({ value: `${low}-9999999`, label: `${money(low)} +` });
+    }
+    return out;
+  }
+  // Replace a select's options below its first ("All …") option, preserving the
+  // current selection when it still exists after the rebuild.
+  function fillFilterSelect(select, options) {
+    if (!select) return;
+    const current = select.value;
+    const head = select.querySelector('option');
+    select.replaceChildren();
+    if (head) select.appendChild(head);
+    options.forEach((opt) => {
+      const el = document.createElement('option');
+      const value = typeof opt === 'string' ? opt : opt.value;
+      el.value = value;
+      el.textContent = typeof opt === 'string' ? opt : opt.label;
+      select.appendChild(el);
+    });
+    const stillThere = Array.from(select.options).some((o) => o.value === current);
+    select.value = stillThere ? current : (head ? head.value : (select.options[0]?.value || 'all'));
+  }
+  function renderFilterOptions() {
+    const sizes = sortSizes([...new Set(
+      products.flatMap((p) => (Array.isArray(p.sizes) ? p.sizes : [])).map((s) => String(s).trim()).filter(Boolean),
+    )]);
+    fillFilterSelect(n.sizeFilter, sizes);
+
+    const colors = [];
+    const seenColors = new Set();
+    products.forEach((p) => (p.colors || []).forEach((c) => {
+      const name = colorObj(c).name;
+      const key = norm(name);
+      if (name && key && !seenColors.has(key)) { seenColors.add(key); colors.push(name); }
+    }));
+    colors.sort((a, b) => a.localeCompare(b));
+    fillFilterSelect(n.colorFilter, colors);
+
+    fillFilterSelect(n.priceFilter, priceBrackets());
+  }
+
   function renderCategories() {
+    renderFilterOptions();
     setHtml(n.categoryPills, html`${categories().map(c => html`
-      <button type="button" class="${c === activeCategory ? 'is-active' : ''}" data-category="${c}">${c}</button>
+      <button type="button" class="${c === activeCategory ? 'is-active' : ''}" data-category="${c}" aria-pressed="${c === activeCategory ? 'true' : 'false'}">${c}</button>
     `)}`);
     $$('[data-category]', n.categoryPills).forEach(b => {
       b.addEventListener('click', () => {
@@ -1103,29 +1230,93 @@
   }
 
   function updateFilterDot() {
-    const hasActive = (n.priceFilter?.value !== 'all') || (n.availFilter?.value !== 'all') || (n.sizeFilter?.value !== 'all');
+    const selectActive = [n.sizeFilter, n.colorFilter, n.priceFilter, n.availFilter]
+      .some((s) => s && s.value !== 'all');
+    const hasActive = selectActive
+      || Boolean(n.inStockToggle?.checked)
+      || Boolean((n.productSearch?.value || '').trim())
+      || (activeCategory && activeCategory !== 'All');
     n.filterToggle?.classList.toggle('has-active', hasActive);
+  }
+
+  // Removable chips summarizing every active filter, so a shopper always sees
+  // (and can individually clear) what's narrowing the grid. Rendered on every
+  // renderProducts so it stays in sync with the controls.
+  function renderActiveFilters() {
+    if (!n.activeFilters) return;
+    const chips = [];
+    const q = (n.productSearch?.value || '').trim();
+    if (q) chips.push({ key: 'search', label: `“${q}”` });
+    if (activeCategory && activeCategory !== 'All') chips.push({ key: 'category', label: activeCategory });
+    if (n.sizeFilter && n.sizeFilter.value !== 'all') chips.push({ key: 'size', label: `Size ${n.sizeFilter.value}` });
+    if (n.colorFilter && n.colorFilter.value !== 'all') chips.push({ key: 'color', label: n.colorFilter.value });
+    if (n.priceFilter && n.priceFilter.value !== 'all') chips.push({ key: 'price', label: n.priceFilter.selectedOptions[0]?.textContent || 'Price' });
+    if (n.availFilter && n.availFilter.value !== 'all') chips.push({ key: 'avail', label: n.availFilter.selectedOptions[0]?.textContent || '' });
+    if (n.inStockToggle?.checked) chips.push({ key: 'instock', label: 'In stock' });
+
+    n.activeFilters.hidden = chips.length === 0;
+    setHtml(n.activeFilters, html`
+      ${chips.map((c) => html`<button type="button" class="filter-chip" data-remove-filter="${c.key}">${c.label}<span class="filter-chip-x" aria-hidden="true">×</span></button>`)}
+      ${chips.length > 1 ? html`<button type="button" class="filter-chip clear-chip" data-remove-filter="all">Clear all</button>` : ''}
+    `);
+    $$('[data-remove-filter]', n.activeFilters).forEach((b) => {
+      b.addEventListener('click', () => removeFilter(b.dataset.removeFilter));
+    });
+  }
+
+  function removeFilter(key) {
+    if (key === 'all') { clearAllFilters(); return; }
+    if (key === 'search' && n.productSearch) {
+      n.productSearch.value = '';
+      n.productSearch.parentElement?.classList.remove('has-value');
+    } else if (key === 'category') {
+      activeCategory = 'All';
+      renderCategories();
+    } else if (key === 'size' && n.sizeFilter) {
+      n.sizeFilter.value = 'all';
+    } else if (key === 'color' && n.colorFilter) {
+      n.colorFilter.value = 'all';
+    } else if (key === 'price' && n.priceFilter) {
+      n.priceFilter.value = 'all';
+    } else if (key === 'avail' && n.availFilter) {
+      n.availFilter.value = 'all';
+    } else if (key === 'instock' && n.inStockToggle) {
+      n.inStockToggle.checked = false;
+    }
+    updateFilterDot();
+    resetPaging();
+    renderProducts();
   }
 
   // ---------- Filtering ----------
   function filteredProducts() {
     const q = norm(n.productSearch?.value);
     const size = n.sizeFilter?.value || 'all';
+    const color = n.colorFilter?.value || 'all';
+    const colorNorm = norm(color);
     const sort = n.sortFilter?.value || 'featured';
     const price = n.priceFilter?.value || 'all';
     const avail = n.availFilter?.value || 'all';
+    const inStockOnly = Boolean(n.inStockToggle?.checked);
 
     let result = products.filter(p => {
-      const hay = [p.name, p.category, p.description, p.badge].map(norm).join(' ');
+      // Widened haystack: also match SKU, material, color names, and tags.
+      const hay = [p.name, p.category, p.description, p.badge, p.sku, p.material,
+        ...(p.colors || []).map((c) => colorObj(c).name), ...(p.tags || [])].map(norm).join(' ');
       if (q && !hay.includes(q)) return false;
       if (activeCategory !== 'All' && p.category !== activeCategory) return false;
       if (size !== 'all' && !p.sizes.includes(size)) return false;
+      if (color !== 'all' && !(p.colors || []).some((c) => norm(colorObj(c).name) === colorNorm)) return false;
       if (price !== 'all') {
+        // Half-open bands [min, max) so a boundary price lands in exactly one
+        // bucket; the open-ended top band carries a sentinel max.
         const [min, max] = price.split('-').map(Number);
-        if (p.price < min || p.price > max) return false;
+        if (max >= 9999999) { if (p.price < min) return false; }
+        else if (p.price < min || p.price >= max) return false;
       }
       if (avail === 'featured' && !p.featured) return false;
       if (avail === 'sale' && !(p.compareAt && p.compareAt > p.price)) return false;
+      if (inStockOnly && p.stock <= 0) return false;
       return true;
     });
 
@@ -1133,6 +1324,7 @@
     if (sort === 'price-high') result.sort((a, b) => b.price - a.price);
     if (sort === 'newest')     result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     if (sort === 'featured')   result.sort((a, b) => Number(b.featured) - Number(a.featured));
+    if (sort === 'name')       result.sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
     return result;
   }
@@ -1240,6 +1432,10 @@
   // Full (re)paint of the grid. `stagger` plays the entrance reveal (first paint /
   // appended cards); a silent refresh (data changed but the set didn't) skips it.
   function paintGrid(shown, stagger) {
+    // Full repaint replaces every card: drop the observer's stale targets first so
+    // detached, never-intersected <img> nodes from the prior set aren't pinned in
+    // memory across filter/sort cycles (they only ever self-unobserve on intersect).
+    lazyObserver?.disconnect();
     setHtml(n.productGrid, html`${shown.map(productCard)}`);
     const cards = $$('.product-card', n.productGrid);
     observeLazyImages(n.productGrid);
@@ -1259,10 +1455,17 @@
     revealCards(fresh);
   }
 
+  function setResultCount(count) {
+    if (n.resultCount) n.resultCount.textContent = count;
+    if (n.resultNoun) n.resultNoun.textContent = count === 1 ? 'style' : 'styles';
+  }
+
   function renderProducts() {
+    renderActiveFilters();
+    updateFilterDot();
     // Catalog-level states (error / genuinely empty) take precedence over filter-empty.
     if (!products.length) {
-      n.resultCount.textContent = 0;
+      setResultCount(0);
       lastShownIds = [];
       if (n.loadMoreWrap) n.loadMoreWrap.hidden = true;
       if (loadError) {
@@ -1284,7 +1487,7 @@
     }
 
     const result = filteredProducts();
-    n.resultCount.textContent = result.length;
+    setResultCount(result.length);
 
     if (!result.length) {
       lastShownIds = [];
@@ -1336,12 +1539,16 @@
 
   function clearAllFilters() {
     activeCategory = 'All';
-    n.productSearch.value = '';
-    n.productSearch.parentElement.classList.remove('has-value');
-    n.sizeFilter.value = 'all';
-    n.sortFilter.value = 'featured';
-    n.priceFilter.value = 'all';
-    n.availFilter.value = 'all';
+    if (n.productSearch) {
+      n.productSearch.value = '';
+      n.productSearch.parentElement?.classList.remove('has-value');
+    }
+    if (n.sizeFilter) n.sizeFilter.value = 'all';
+    if (n.colorFilter) n.colorFilter.value = 'all';
+    if (n.sortFilter) n.sortFilter.value = 'featured';
+    if (n.priceFilter) n.priceFilter.value = 'all';
+    if (n.availFilter) n.availFilter.value = 'all';
+    if (n.inStockToggle) n.inStockToggle.checked = false;
     updateFilterDot();
     resetPaging();
     renderCategories();
@@ -1474,7 +1681,9 @@
     // Resolve gallery images only now (modal open) — keeps Drive requests off the grid.
     try {
       const urls = await resolveGalleryUrls(p);
-      if (modalProduct === p && urls.length > 1) {
+      // Guard against a late resolve after the modal was closed (or a different
+      // product opened): only patch in the gallery if this product is still shown.
+      if (modalProduct === p && n.modal.classList.contains('is-open') && urls.length > 1) {
         modalGallery = urls;
         renderProductModal();
       }
@@ -1517,8 +1726,9 @@
     const onSale = p.compareAt && p.compareAt > p.price;
     const savePct = onSale ? Math.round((1 - p.price / p.compareAt) * 100) : 0;
     const soldOut = p.stock <= 0;
-    const inBag = cartLineQty(p.id, selectedSize, selectedColor);
-    const maxQty = Math.max(0, p.stock - inBag);
+    const inBagThisOption = cartLineQty(p.id, selectedSize, selectedColor);
+    const inBagTotal = cartProductQty(p.id);
+    const maxQty = Math.max(0, p.stock - inBagTotal);
     const gallery = modalGallery.length ? modalGallery : [p.image];
     selectedQty = Math.min(Math.max(1, selectedQty), Math.max(1, maxQty));
 
@@ -1588,7 +1798,7 @@
             </div>
           `}
 
-          <p class="stock-note">${soldOut ? "This style is sold out — tap above and we'll message you on WhatsApp when it's back." : `${stockMessage(p)}. ${inBag ? `${inBag} already in your bag.` : 'Ready to add.'}`}</p>
+          <p class="stock-note">${soldOut ? "This style is sold out — tap above and we'll message you on WhatsApp when it's back." : `${stockMessage(p)}. ${inBagTotal ? `${inBagTotal} already in your bag.` : 'Ready to add.'}`}</p>
 
           ${(p.fit || p.material || p.care || p.sku) ? html`
             <dl class="product-extra-details">
@@ -1661,7 +1871,7 @@
     $$('[data-size]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedSize = b.dataset.size; renderProductModal(); }));
     $$('[data-color]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedColor = b.dataset.color; renderProductModal(); }));
     $$('[data-modal-qty]', n.modalContent).forEach(b => b.addEventListener('click', () => {
-      const available = Math.max(0, modalProduct.stock - cartLineQty(modalProduct.id, selectedSize, selectedColor));
+      const available = Math.max(0, modalProduct.stock - cartProductQty(modalProduct.id));
       selectedQty = b.dataset.modalQty === 'plus'
         ? Math.min(available, selectedQty + 1)
         : Math.max(1, selectedQty - 1);
@@ -1683,6 +1893,10 @@
     clearProductUrl();
     clearProductJsonLd();
     lastFocusedElement?.focus?.();
+    // Release the open-product reference so a late gallery resolve can't re-render
+    // a closed modal and fire Drive image requests for it.
+    modalProduct = null;
+    modalGallery = [];
   }
 
   // ---------- Cart ----------
@@ -1705,13 +1919,15 @@
     const key = `${product.id}-${size}-${color}`;
     const existing = cart.find(i => i.key === key);
     const currentQty = existing ? Number(existing.qty || 0) : 0;
-    const nextQty = Math.min(product.stock, currentQty + qty);
-    if (nextQty <= currentQty) {
-      toast(`Only ${product.stock} available in that option.`);
+    // Cap against the product's TOTAL across every option already in the bag.
+    const available = Math.max(0, Number(product.stock) - cartProductQty(product.id));
+    if (available <= 0) {
+      toast(`Only ${product.stock} of ${product.name} available.`);
       return;
     }
+    const addQty = Math.min(Number(qty) || 1, available);
     if (existing) {
-      existing.qty = nextQty;
+      existing.qty = currentQty + addQty;
       existing.price = product.price;
       existing.image = product.imageSource || product.image;
       existing.imageVersion = product.imageVersion || '';
@@ -1725,7 +1941,7 @@
       imageVersion: product.imageVersion || '',
       size,
       color,
-      qty
+      qty: addQty
     });
     saveCart();
     void BACKEND?.analytics.recordEvent('add_to_cart');
@@ -1786,7 +2002,8 @@
     $$('[data-remove]').forEach(b => b.addEventListener('click', () => {
       const row = b.closest('.cart-row');
       row.classList.add('is-removing');
-      setTimeout(() => removeFromCart(b.dataset.remove), 320);
+      // Don't make reduced-motion users wait on an animation they won't see.
+      setTimeout(() => removeFromCart(b.dataset.remove), prefersReducedMotion() ? 0 : 320);
     }));
   }
 
@@ -1794,11 +2011,16 @@
     const item = cart.find(r => r.key === key);
     const product = getProduct(item?.id);
     if (!item || !product) return;
-    if (dir === 'plus' && item.qty >= product.stock) {
-      toast(`Only ${product.stock} available in that option.`);
-      return;
+    if (dir === 'plus') {
+      // Block once the product's TOTAL across all options reaches its stock.
+      if (cartProductQty(item.id) >= product.stock) {
+        toast(`Only ${product.stock} of ${product.name} available.`);
+        return;
+      }
+      item.qty += 1;
+    } else {
+      item.qty -= 1;
     }
-    item.qty = dir === 'plus' ? Math.min(product.stock, item.qty + 1) : item.qty - 1;
     if (item.qty <= 0) cart = cart.filter(r => r.key !== key);
     saveCart();
   }
@@ -2214,6 +2436,7 @@
   init().catch((error) => {
     console.error('Storefront initialization failed.', error);
     products = (window.PAVIA_DEFAULT_PRODUCTS || []).map(normalizeProduct).filter(product => product.active);
+    indexProducts();
     renderCategories();
     renderProducts();
     renderCart();

@@ -257,6 +257,9 @@
       compareAt: $('#prodCompare').value,
       stock: $('#prodStock').value,
       tags: $('#prodTags').value,
+      material: $('#prodMaterial').value,
+      fit: $('#prodFit').value,
+      care: $('#prodCare').value,
       sizes: $('#prodSizes').value,
       colors: $('#prodColors').value,
       imageUrl: $('#prodImageUrl').value,
@@ -317,6 +320,9 @@
     $('#prodCompare').value = draft.compareAt || '';
     $('#prodStock').value = draft.stock || 0;
     $('#prodTags').value = draft.tags || '';
+    $('#prodMaterial').value = draft.material || '';
+    $('#prodFit').value = draft.fit || '';
+    $('#prodCare').value = draft.care || '';
     $('#prodImageUrl').value = draft.imageUrl || '';
     $('#prodImageId').value = draft.imageId || '';
     $('#prodImage').value = draft.imageUrl || draft.imageId || '';
@@ -1136,6 +1142,9 @@
     $('#prodCompare').value = product.compareAt || '';
     $('#prodStock').value = product.stock;
     $('#prodTags').value = product.tags.join(', ');
+    $('#prodMaterial').value = product.material || '';
+    $('#prodFit').value = product.fit || '';
+    $('#prodCare').value = product.care || '';
     $('#prodImageId').value = product.imageUrl ? '' : (product.imageId || '');
     $('#prodImageUrl').value = product.imageUrl || '';
     $('#prodImage').value = product.imageUrl || product.imageId || product.image;
@@ -1152,6 +1161,9 @@
     suppressDirty = false;
     clearFormDirty();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Move keyboard focus into the populated editor (the Edit button is now
+    // offscreen); preventScroll so it doesn't fight the smooth scroll above.
+    $('#prodName')?.focus({ preventScroll: true });
   }
 
   async function handleProductSubmit(event) {
@@ -1182,6 +1194,9 @@
       compareAt: Number($('#prodCompare').value) || 0,
       stock: Number.parseInt($('#prodStock').value, 10) || 0,
       tags: splitList($('#prodTags').value),
+      material: $('#prodMaterial').value.trim(),
+      fit: $('#prodFit').value.trim(),
+      care: $('#prodCare').value.trim(),
       image: imageUrl || imageId,
       imageId,
       imageUrl,
@@ -1613,8 +1628,16 @@
 
   function fillSettingsForm() {
     $('#settingSiteTitle').value = settingsCache.siteTitle || settingsCache.siteName || 'Pavia Lebanon';
+    $('#settingTagline').value = settingsCache.tagline || '';
     $('#settingLocation').value = settingsCache.location || '';
     $('#settingDeliveryArea').value = settingsCache.deliveryArea || '';
+    $('#settingHeroHeadline').value = settingsCache.heroHeadline || '';
+    $('#settingDescription').value = settingsCache.description || '';
+    $('#settingAnnouncementText').value = settingsCache.announcementText || '';
+    $('#settingAnnouncementEnabled').checked = Boolean(settingsCache.announcementEnabled);
+    $('#settingAddressLine').value = settingsCache.addressLine || '';
+    $('#settingMapsUrl').value = settingsCache.mapsUrl || '';
+    $('#settingBusinessHours').value = settingsCache.businessHours || '';
     $('#settingPhone').value = settingsPhone();
     $('#settingInstagramHandle').value = String(settingsCache.instagramHandle || '').replace(/^@+/, '');
     $('#settingDeliveryFee').value = settingsCache.deliveryFee !== undefined && settingsCache.deliveryFee !== null
@@ -1625,9 +1648,10 @@
     $('#settingWhish').checked = settingsCache.paymentMethods?.whish_money !== false;
   }
 
-  function validateSettings(phone, deliveryFee) {
+  function validateSettings(phone, deliveryFee, mapsUrl) {
     setFieldError('settingPhone');
     setFieldError('settingDeliveryFee');
+    setFieldError('settingMapsUrl');
     let ok = true;
     if (phone && !/^[+\d][\d\s().-]{5,23}$/.test(phone)) {
       setFieldError('settingPhone', 'Enter a valid phone number, or leave it blank.');
@@ -1635,6 +1659,10 @@
     }
     if (!(deliveryFee >= 0) || deliveryFee > 10000) {
       setFieldError('settingDeliveryFee', 'Delivery fee must be between 0 and 10000.');
+      ok = false;
+    }
+    if (mapsUrl && !/^https:\/\//i.test(mapsUrl)) {
+      setFieldError('settingMapsUrl', 'Maps link must start with https://, or leave it blank.');
       ok = false;
     }
     return ok;
@@ -1648,7 +1676,8 @@
     }
     const phone = $('#settingPhone').value.trim();
     const deliveryFee = Number($('#settingDeliveryFee').value);
-    if (!validateSettings(phone, deliveryFee)) {
+    const mapsUrl = $('#settingMapsUrl').value.trim();
+    if (!validateSettings(phone, deliveryFee, mapsUrl)) {
       setFormStatus('settingsFormStatus', 'Fix the highlighted fields and try again.', 'error');
       return;
     }
@@ -1660,8 +1689,16 @@
       ...rest,
       siteName: 'Pavia',
       siteTitle: $('#settingSiteTitle').value.trim() || 'Pavia Lebanon',
+      tagline: $('#settingTagline').value.trim(),
       location: $('#settingLocation').value.trim(),
       deliveryArea: $('#settingDeliveryArea').value.trim(),
+      heroHeadline: $('#settingHeroHeadline').value.trim(),
+      description: $('#settingDescription').value.trim(),
+      announcementText: $('#settingAnnouncementText').value.trim(),
+      announcementEnabled: $('#settingAnnouncementEnabled').checked,
+      addressLine: $('#settingAddressLine').value.trim(),
+      mapsUrl,
+      businessHours: $('#settingBusinessHours').value.trim(),
       phone,
       instagramHandle: $('#settingInstagramHandle').value.trim().replace(/^@+/, ''),
       currency: 'USD',
@@ -2564,7 +2601,13 @@
     await updateProductPreview();
   }
 
+  let dashboardBooted = false;
   document.addEventListener('DOMContentLoaded', async () => {
+    // admin.js injects this script then dispatches a synthetic DOMContentLoaded;
+    // if a real one also fires, this guard stops a second boot (which would
+    // double-bind subscriptions and duplicate new-order alerts).
+    if (dashboardBooted) return;
+    dashboardBooted = true;
     if (BACKEND) {
       await BACKEND.init({ defaultProducts: window.PAVIA_DEFAULT_PRODUCTS || [] });
       BACKEND.orders.subscribe(async () => {

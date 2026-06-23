@@ -367,6 +367,18 @@
       description: settings.description || '',
       phone,
       instagramHandle: settings.instagramHandle || '',
+      // Storefront content controls (all optional, public, length-capped). Empty
+      // values mean "use the built-in default", so the storefront is unchanged
+      // until the owner sets them.
+      heroHeadline: String(settings.heroHeadline || '').slice(0, 120),
+      announcementText: String(settings.announcementText || '').slice(0, 160),
+      announcementEnabled: Boolean(settings.announcementEnabled),
+      addressLine: String(settings.addressLine || '').slice(0, 200),
+      // Canonicalize the scheme to lowercase https:// — the publicStoreSettings
+      // DB rule's beginsWith('https://') is case-sensitive, so an uppercase or
+      // http scheme would reject the whole atomic settings write.
+      mapsUrl: /^https?:\/\//i.test(String(settings.mapsUrl || '')) ? String(settings.mapsUrl).replace(/^https?:\/\//i, 'https://').slice(0, 600) : '',
+      businessHours: String(settings.businessHours || '').slice(0, 200),
       currency: settings.currency || 'USD',
       deliveryFee,
       checkoutEnabled: settings.checkoutEnabled !== false,
@@ -541,17 +553,22 @@
         if (activeProvider === 'local') return localBackend.catalog.subscribeManifest(listener);
         return subscribePath('publicCatalogManifest', listener);
       },
-      // Fetch only the changed/new product nodes named by a manifest diff.
+      // Fetch only the changed/new product nodes named by a manifest diff. Reads
+      // run in bounded-concurrency batches (not a serial await loop), so a cold
+      // start over a large manifest doesn't become hundreds of sequential RTDB
+      // round-trips. A per-id read failure simply drops that id from this batch;
+      // syncCatalog leaves it out of knownRevs so the next sync retries it.
       async fetchProducts(ids) {
         if (activeProvider === 'local') return localBackend.catalog.fetchProducts(ids);
+        const list = Array.isArray(ids) ? ids : [];
         const out = [];
-        for (const id of ids || []) {
-          try {
-            const record = await readPath(`publicProducts/${id}`);
-            if (record) out.push(normalizePublicProduct(record));
-          } catch (error) {
-            /* skip unreadable node; differential sync tolerates gaps */
-          }
+        const CONCURRENCY = 10;
+        for (let i = 0; i < list.length; i += CONCURRENCY) {
+          const chunk = list.slice(i, i + CONCURRENCY);
+          const records = await Promise.all(
+            chunk.map((id) => readPath(`publicProducts/${id}`).catch(() => null)),
+          );
+          records.forEach((record) => { if (record) out.push(normalizePublicProduct(record)); });
         }
         return out;
       },

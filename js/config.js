@@ -1,5 +1,5 @@
 window.PAVIA_CONFIG = {
-  version: '0.1.9', // bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0)
+  version: '0.2.0', // bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0)
   siteName: 'Pavia',
   siteTitle: 'Pavia Lebanon',
   location: 'Beirut',
@@ -12,5 +12,14 @@ window.PAVIA_CONFIG = {
   // Store the Instagram handle only; the profile URL is derived from it.
   instagramHandle: '@pavia.leb',
   // Flat universal delivery fee (USD); editable in the admin Settings tab.
-  deliveryFee: 3
+  deliveryFee: 3,
+  // Optional storefront content (all editable in the admin Settings tab). Blank
+  // values keep the built-in defaults, so the storefront is unchanged until set.
+  heroHeadline: '',          // blank keeps the styled built-in headline
+  announcementText: '',
+  announcementEnabled: false,
+  addressLine: '',
+  businessHours: '',
+  // Default "Get directions" target — the real Beirut store location.
+  mapsUrl: 'https://www.google.com/maps/search/?api=1&query=33.8787650,35.4968680'
 };

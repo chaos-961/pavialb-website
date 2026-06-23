@@ -17,7 +17,6 @@
   };
 
   const $ = (selector, scope = document) => scope.querySelector(selector);
-  const $$ = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
 
   function bytesFromBase64(value) {
     const binary = atob(value || '');
@@ -42,18 +41,10 @@
   }
 
   function updateAuthState() {
-    const uid = BACKEND?.authUid || '';
-    $$('[data-admin-uid]').forEach((element) => { element.textContent = uid || 'Unavailable'; });
     const provider = state.backendReady ? (BACKEND?.provider || 'local') : 'initializing';
-    const providerEl = $('[data-auth-provider]');
-    if (providerEl) providerEl.textContent = provider;
-    const stateEl = $('[data-auth-state]');
-    if (stateEl) stateEl.textContent = provider === 'initializing' ? 'Checking access' : 'Ready for password';
-    // Keep the submit disabled until the backend is ready (replaces #unlockPanel).
+    // Keep the submit disabled until the backend is ready to accept the password.
     const submit = $('#adminSubmit');
     if (submit && !state.unlocked) submit.disabled = provider === 'initializing';
-    const notAuthorized = $('#notAuthorizedPanel');
-    if (notAuthorized) notAuthorized.hidden = true;
   }
 
   function clearSensitiveInputs() {
@@ -272,14 +263,6 @@
       passwordToggle.setAttribute('aria-pressed', String(reveal));
       passwordToggle.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
       password.focus();
-    });
-    $('#resetIdentityBtn')?.addEventListener('click', async () => {
-      const confirmed = window.confirm(
-        'Resetting this anonymous identity signs this browser out and reloads admin. Continue?',
-      );
-      if (!confirmed) return;
-      await BACKEND?.signOut?.();
-      window.location.reload();
     });
     $('#lockBtn')?.addEventListener('click', () => lockDashboard('Locked. Enter the admin credentials again.'));
     bindInactivityEvents();

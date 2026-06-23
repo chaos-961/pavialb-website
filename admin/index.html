@@ -3,6 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- CSP for the Studio. script-src keeps 'unsafe-inline' because admin.js
+         injects the decrypted dashboard as an inline <script> (no src) — a strict
+         script-src would block it and break the whole admin. The value here is the
+         tight connect-src / img-src / object-src / base-uri / form-action / frame-src,
+         scoped to exactly the Google Identity (accounts.google.com), Drive
+         (googleapis.com / drive.google.com / googleusercontent.com), and Firebase
+         origins the Studio actually uses. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; manifest-src 'self'; worker-src 'self'; frame-src https://accounts.google.com; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' https://www.gstatic.com https://www.googleapis.com https://accounts.google.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com" />
     <meta name="theme-color" content="#f7f1e8" />
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <title>Pavia · Studio</title>
@@ -13,7 +21,7 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="../css/styles.css?v=18" />
+    <link rel="stylesheet" href="../css/styles.css?v=19" />
     <link rel="stylesheet" href="../css/admin.css?v=20" />
   </head>
   <body>
@@ -54,15 +62,15 @@
       <main id="adminPayloadMount" hidden></main>
     </div>
 
-    <script src="../admin/payload.js?v=27"></script>
+    <script src="../admin/payload.js?v=28"></script>
     <script src="../js/firebase-config.js?v=10"></script>
     <script src="../js/backend-config.js?v=14"></script>
     <script src="../js/image-catalog.js?v=11"></script>
     <script src="../js/store-core.js?v=7"></script>
     <script src="../js/backend.js?v=17"></script>
-    <script src="../js/backend-firebase.js?v=26"></script>
+    <script src="../js/backend-firebase.js?v=27"></script>
     <script src="../js/products.js?v=11"></script>
     <script src="../js/drive-images.js?v=4"></script>
-    <script src="../js/admin.js?v=17"></script>
+    <script src="../js/admin.js?v=18"></script>
   </body>
 </html>

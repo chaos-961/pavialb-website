@@ -17,7 +17,6 @@
   --sand: #d9c2a3;
   --champagne: #c9a779;
   --cocoa: #5a3e30;
-  --rose: #e8c8c0;
   --line: rgba(26, 22, 18, 0.10);
   --line-soft: rgba(26, 22, 18, 0.06);
   --line-strong: rgba(26, 22, 18, 0.18);
@@ -395,7 +394,23 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   text-align: center;
 }
 .offline-banner[hidden] { display: none; }
+
+/* Owner-controlled announcement strip (top of store; hidden until enabled). */
+.announcement-bar {
+  position: relative;
+  z-index: 60;
+  padding: 8px 16px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.announcement-bar[hidden] { display: none; }
+
 .empty-state.load-error h3 { font-style: normal; }
+.noscript-links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 .empty-state.load-error .btn { margin-top: 14px; }
 
 /* "Update available -> reload" prompt (P1 caching foundation). */
@@ -463,9 +478,15 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   position: relative;
 }
 .shop-header {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
-.shop-header h2 { font-style: italic; font-weight: 400; }
+.shop-header .eyebrow { margin-bottom: 4px; }
+.shop-title {
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(26px, 5.5vw, 40px);
+  line-height: 1.02;
+}
 
 /* Sticky toolbar */
 .toolbar {
@@ -511,6 +532,9 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   min-width: 0;
 }
 .search-field input::placeholder { color: var(--muted-soft); }
+/* Suppress the browser's native search "x" so only the custom .search-clear shows. */
+.search-field input[type="search"]::-webkit-search-cancel-button,
+.search-field input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
 .search-clear {
   width: 24px; height: 24px;
   border-radius: 50%;
@@ -575,6 +599,69 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   transition: border-color 0.2s var(--ease-out);
 }
 .filter-field select:focus, .filter-field input:focus { border-color: var(--cocoa); }
+
+/* In-stock pill switch (filter panel) */
+.instock-toggle {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-top: 12px;
+  font-size: 13px; font-weight: 600; color: var(--ink-soft);
+  cursor: pointer; user-select: none;
+}
+.instock-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.instock-track {
+  position: relative;
+  width: 38px; height: 22px;
+  border-radius: var(--r-pill);
+  background: var(--line-strong);
+  transition: background 0.25s var(--ease-out);
+  flex-shrink: 0;
+}
+.instock-track::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.25s var(--ease-spring);
+}
+.instock-toggle input:checked + .instock-track { background: var(--ink); }
+.instock-toggle input:checked + .instock-track::after { transform: translateX(16px); }
+.instock-toggle input:focus-visible + .instock-track { outline: 2px solid var(--cocoa); outline-offset: 2px; }
+
+/* Active-filter chips (removable summary of what's narrowing the grid) */
+.active-filters {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin: 14px 4px 0;
+}
+.active-filters[hidden] { display: none; }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 8px 0 14px;
+  border-radius: var(--r-pill);
+  background: var(--ink); color: var(--paper);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  border: 1px solid var(--ink);
+  animation: chipIn 0.3s var(--ease-spring) both;
+  transition: background 0.2s var(--ease-out), transform 0.15s var(--ease-out);
+}
+.filter-chip:hover { background: var(--cocoa); border-color: var(--cocoa); }
+.filter-chip:active { transform: scale(0.95); }
+.filter-chip .filter-chip-x {
+  display: grid; place-items: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 13px; line-height: 1;
+}
+.filter-chip.clear-chip {
+  background: transparent; color: var(--cocoa);
+  border: 1px dashed var(--line-strong);
+  padding: 0 14px;
+}
+.filter-chip.clear-chip:hover { background: var(--cream); color: var(--ink); border-color: var(--ink-soft); }
+@keyframes chipIn { from { opacity: 0; transform: translateY(6px) scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .filter-chip { animation: none; } }
 
 /* Category pills */
 .category-pills {
@@ -1007,6 +1094,12 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   border-color: rgba(255, 255, 255, 0.28);
 }
 .contact-list a span { color: var(--champagne); font-size: 12px; }
+.visit-address, .visit-hours {
+  margin-top: 6px;
+  font-size: 13px;
+  color: rgba(255, 253, 248, 0.72);
+}
+.visit-address[hidden], .visit-hours[hidden], .visit-directions[hidden] { display: none; }
 
 /* =========================================================
    Footer
