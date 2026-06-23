@@ -1733,10 +1733,34 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   color: var(--ink-soft);
   line-height: 1.45;
 }
-.review-confirm input {
-  width: 16px;
-  height: 16px;
+/* The global `appearance: none` reset (top of file) strips the native checkbox,
+   so draw an explicit box + checkmark — otherwise checking it shows nothing and
+   the control looks broken. */
+.review-confirm input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 18px;
+  height: 18px;
   margin-top: 1px;
+  border: 1.5px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+  cursor: pointer;
+  transition: background-color 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
+}
+.review-confirm input[type="checkbox"]:hover { border-color: var(--ink-soft); }
+.review-confirm input[type="checkbox"]:checked {
+  border-color: var(--ink);
+  background-color: var(--ink);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 5 5L20 7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px;
+}
+.review-confirm input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--cocoa);
+  outline-offset: 2px;
 }
 
 .payment-options {

@@ -24,6 +24,8 @@
 
   let tokenClient = null;
   let pendingTokenCallback = null;
+  let pendingTokenError = null;
+  let pendingConnect = null;
   let accessTokenValue = '';
   let tokenExpiry = 0;
   let gisLoading = null;
@@ -199,6 +201,36 @@
     return gisLoading;
   }
 
+  // Turn an OAuth token-error response into an owner-friendly, actionable line.
+  // `access_denied` is what Google returns when the chosen account isn't allowed
+  // — almost always the wrong account was auto-picked, or the app is still in
+  // "Testing" mode and that account isn't a registered test user.
+  function describeOAuthError(response) {
+    const code = response?.error || '';
+    if (code === 'access_denied') {
+      return 'Google denied access for that account. Pick the Google account that owns the Drive folder — and if this app is still in Google "Testing" mode, that account must be added as a test user in the Google Cloud console.';
+    }
+    if (code === 'admin_policy_enforced') {
+      return 'A Google Workspace admin policy blocked Drive access for that account. Use an account that is allowed to grant Drive access.';
+    }
+    return response?.error_description || code || 'Google Drive authorization was cancelled.';
+  }
+
+  // GIS reports popup problems (user closed it, browser blocked it) through a
+  // separate error_callback — the normal token callback never fires for these,
+  // so without handling them the connect promise would hang and the UI would sit
+  // stuck on "Connecting…".
+  function describePopupError(error) {
+    const type = error?.type || '';
+    if (type === 'popup_closed') {
+      return 'The Google sign-in window was closed before finishing. Click Connect Google Drive to try again.';
+    }
+    if (type === 'popup_failed_to_open') {
+      return 'The browser blocked the Google sign-in window. Allow pop-ups for this site, then click Connect Google Drive again.';
+    }
+    return error?.message || 'Google sign-in did not complete. Please try again.';
+  }
+
   function ensureTokenClient() {
     if (tokenClient) return tokenClient;
     const cfg = config();
@@ -208,35 +240,73 @@
       callback: (response) => {
         const handler = pendingTokenCallback;
         pendingTokenCallback = null;
+        pendingTokenError = null;
         handler?.(response);
+      },
+      error_callback: (error) => {
+        const handler = pendingTokenError;
+        pendingTokenCallback = null;
+        pendingTokenError = null;
+        handler?.(error);
       },
     });
     return tokenClient;
   }
 
   async function connect() {
+    // Already hold a live token — nothing to do, and never pop a window needlessly.
+    if (accessToken()) return { connected: true };
+    // Collapse concurrent connect attempts (e.g. button + an upload firing at
+    // once) onto a single popup and a single shared promise.
+    if (pendingConnect) return pendingConnect;
     if (!configured()) {
       throw new Error('Google Drive is not configured. Add the OAuth client ID and Drive folder ID.');
     }
-    await loadGis();
-    const client = ensureTokenClient();
-    return new Promise((resolve, reject) => {
-      pendingTokenCallback = (response) => {
-        if (!response || response.error) {
-          reject(new Error(response?.error_description || response?.error || 'Google Drive authorization was cancelled.'));
-          return;
+    // A leftover (expired) token means this account already granted access, so we
+    // can refresh it silently. A genuine first-time connect forces BOTH the
+    // account chooser and the consent screen: `select_account` stops Google from
+    // silently reusing the first signed-in account (the cause of the wrong-account
+    // "access denied"), so the owner can pick the account that owns the folder.
+    const silentRefresh = Boolean(accessTokenValue);
+    pendingConnect = (async () => {
+      await loadGis();
+      const client = ensureTokenClient();
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const fail = (message) => {
+          if (settled) return;
+          settled = true;
+          pendingTokenCallback = null;
+          pendingTokenError = null;
+          // Drop any stale token so the next attempt is a clean, interactive one
+          // (a failed silent refresh must not loop forever).
+          accessTokenValue = '';
+          tokenExpiry = 0;
+          reject(new Error(message));
+        };
+        const succeed = (response) => {
+          if (settled) return;
+          settled = true;
+          pendingTokenCallback = null;
+          pendingTokenError = null;
+          accessTokenValue = response.access_token;
+          tokenExpiry = Date.now() + (Number(response.expires_in) || 3600) * 1000 - 60000;
+          resolve({ connected: true });
+        };
+        pendingTokenCallback = (response) => {
+          if (!response || response.error) { fail(describeOAuthError(response)); return; }
+          if (!response.access_token) { fail('Google Drive did not return an access token. Please try again.'); return; }
+          succeed(response);
+        };
+        pendingTokenError = (error) => fail(describePopupError(error));
+        try {
+          client.requestAccessToken({ prompt: silentRefresh ? '' : 'consent select_account' });
+        } catch (error) {
+          fail(error?.message || 'Could not start Google authorization.');
         }
-        accessTokenValue = response.access_token;
-        tokenExpiry = Date.now() + (Number(response.expires_in) || 3600) * 1000 - 60000;
-        resolve({ connected: true });
-      };
-      try {
-        client.requestAccessToken({ prompt: accessTokenValue ? '' : 'consent' });
-      } catch (error) {
-        pendingTokenCallback = null;
-        reject(error);
-      }
-    });
+      });
+    })().finally(() => { pendingConnect = null; });
+    return pendingConnect;
   }
 
   function verifyImageUrl(url) {

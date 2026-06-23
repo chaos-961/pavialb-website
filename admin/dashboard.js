@@ -1912,15 +1912,19 @@
   }
 
   async function connectLibraryDrive() {
+    if (!drive()?.configured?.()) { refreshLibraryDrivePanel(); return; }
+    const button = $('#libraryConnectBtn');
+    if (button) button.disabled = true;
+    setLibraryDriveStatus('Connecting Google Drive…', 'Approve the popup, then pick the Google account that owns the Drive folder.');
     try {
-      $('#libraryConnectBtn').disabled = true;
-      setLibraryDriveStatus('Connecting Google Drive…', 'Approve the Google permission popup.');
       await drive().connect();
-      refreshLibraryDrivePanel();
       await loadLibrary();
     } catch (error) {
-      refreshLibraryDrivePanel();
       toast(error.message || 'Google Drive connection failed');
+    } finally {
+      // Always re-sync the button to the real connection state — a cancelled,
+      // blocked, or denied attempt must never leave it stuck disabled.
+      refreshLibraryDrivePanel();
     }
   }
 

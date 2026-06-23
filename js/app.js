@@ -1045,7 +1045,6 @@
       const normalized = normalizeLebanonPhone(e.target.value);
       if (normalized) e.target.value = normalized;
     });
-    $('[data-copy-order]')?.addEventListener('click', copyOrderText);
 
     // ESC closes things
     document.addEventListener('keydown', e => {
@@ -2180,30 +2179,6 @@
     `);
   }
 
-  function orderText(formData = null) {
-    const v = formData ? Object.fromEntries(formData.entries()) : {};
-    const subtotal = cartSubtotal();
-    const delivery = deliveryFee();
-    const total = subtotal + delivery;
-    const lines = [
-      `Hello ${SITE_CONFIG.siteName || 'Pavia'}, I would like to place this order:`,
-      '',
-      ...cart.map(i => `• ${i.qty}× ${i.name} — ${i.size}, ${i.color} — ${money(i.price * i.qty)}`),
-      '',
-      `Subtotal: ${money(subtotal)}`,
-      `Delivery: ${money(delivery)}`,
-      `Total: ${money(total)}`,
-      '',
-      v.name ? `Name: ${v.name}` : '',
-      v.phone ? `Phone: ${normalizeLebanonPhone(v.phone) || v.phone}` : '',
-      v.city ? `City/Area: ${v.city}` : '',
-      v.address ? `Address: ${v.address}` : '',
-      v.payment ? `Payment: ${v.payment}` : '',
-      v.notes ? `Notes: ${v.notes}` : ''
-    ].filter(Boolean);
-    return lines.join('\n');
-  }
-
   async function submitCheckout(e) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -2279,7 +2254,7 @@
       if (submitButton) {
         submitButton.disabled = false;
         submitButton.classList.remove('is-loading');
-        submitButton.textContent = submitButton.dataset.originalText || 'Review and place order';
+        submitButton.textContent = submitButton.dataset.originalText || 'Place order';
       }
       return;
     }
@@ -2333,15 +2308,6 @@
       closeCheckout();
     });
     $('[data-confirm-done]', n.checkoutSuccess)?.focus();
-  }
-
-  async function copyOrderText() {
-    try {
-      await navigator.clipboard.writeText(orderText(new FormData(n.checkoutForm)));
-      toast('Order text copied.');
-    } catch {
-      toast('Could not copy automatically.');
-    }
   }
 
   // ---------- Counter bump animation ----------
