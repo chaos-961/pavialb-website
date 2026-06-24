@@ -115,12 +115,12 @@
   // (img-src 'self' data:) and never triggers a network request or a 404.
   // The gradient varies by product so a grid of placeholders looks intentional.
   const PLACEHOLDER_GRADIENTS = [
-    ['#efe6d4', '#cab694'], // cream -> taupe
-    ['#e9edf1', '#a9bccd'], // pale -> muted sky
-    ['#f0e7e2', '#cab1a3'], // ivory -> mocha
-    ['#e8eae1', '#b6b393'], // stone -> olive
-    ['#f1e8e7', '#cbafa6'], // blush -> clay
-    ['#ece7df', '#bda98c'], // sand -> almond
+    ['#f4f4f4', '#d4d4d4'], // light gray
+    ['#eeeeee', '#c9c9c9'], // soft gray
+    ['#f1f1f1', '#cfcfcf'], // pale gray
+    ['#eaeaea', '#c4c4c4'], // stone gray
+    ['#f3f3f3', '#d1d1d1'], // mist gray
+    ['#ececec', '#c6c6c6'], // ash gray
   ];
   function hashString(value) {
     const str = String(value || 'pavia');
@@ -137,14 +137,14 @@
       + `</defs>`
       + `<rect width='400' height='500' fill='url(#g)'/>`
       + `<rect width='400' height='500' fill='url(#s)'/>`
-      + `<g fill='none' stroke='#3a2b21' stroke-opacity='0.34' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'>`
+      + `<g fill='none' stroke='#4a4a4a' stroke-opacity='0.34' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'>`
       + `<path d='M200 150 q-7 -11 3 -17 q9 -5 8 5'/>` // hanger hook
       + `<path d='M200 152 L170 178 L230 178 Z'/>`       // hanger bar
       + `<path d='M172 180 Q200 197 228 180 L214 250 L249 362 Q200 381 151 362 L186 250 Z'/>` // dress
       + `<path d='M200 198 L200 360' stroke-opacity='0.18'/>` // soft center seam
       + `</g>`
-      + `<text x='200' y='426' text-anchor='middle' font-family="Georgia,'Times New Roman',serif" font-size='30' letter-spacing='11' fill='#3a2b21' fill-opacity='0.5'>PAVIA</text>`
-      + `<text x='200' y='452' text-anchor='middle' font-family="Arial,Helvetica,sans-serif" font-size='12' letter-spacing='3.5' fill='#3a2b21' fill-opacity='0.42'>IMAGE COMING SOON</text>`
+      + `<text x='200' y='426' text-anchor='middle' font-family="Georgia,'Times New Roman',serif" font-size='30' letter-spacing='11' fill='#4a4a4a' fill-opacity='0.5'>PAVIA</text>`
+      + `<text x='200' y='452' text-anchor='middle' font-family="Arial,Helvetica,sans-serif" font-size='12' letter-spacing='3.5' fill='#4a4a4a' fill-opacity='0.42'>IMAGE COMING SOON</text>`
       + `</svg>`;
     return `data:image/svg+xml,${encodeURIComponent(svg)}`;
   }
@@ -446,7 +446,7 @@
     const stock = Number(product?.stock || 0);
     if (stock <= 0) return 'Sold out';
     if (stock <= 3) return `Only ${stock} left`;
-    if (stock <= 6) return 'Limited stock';
+    if (stock <= 6) return 'Almost gone';
     return 'In stock';
   }
 
@@ -495,7 +495,7 @@
     if (changed) {
       writeJSON(STORE_KEYS.cart, cart);
       renderCart();
-      if (notify) toast('Bag updated with current stock and prices.', 'info');
+      if (notify) toast('Bag updated with the latest stock and prices.', 'info');
     }
     return !changed;
   }
@@ -1120,7 +1120,7 @@
       const p = picks[i] || picks[picks.length - 1];
       if (!p) return;
       img.src = pickImage(p.image, p.id);
-      img.alt = `${p.name} — Pavia`;
+      img.alt = `${p.name}, Pavia`;
     });
   }
 
@@ -1170,7 +1170,7 @@
     const high = roundTo(prices[Math.floor((prices.length * 2) / 3)]);
     const out = [{ value: `0-${low}`, label: `Under ${money(low)}` }];
     if (high > low) {
-      out.push({ value: `${low}-${high}`, label: `${money(low)} — ${money(high)}` });
+      out.push({ value: `${low}-${high}`, label: `${money(low)} to ${money(high)}` });
       out.push({ value: `${high}-9999999`, label: `${money(high)} +` });
     } else {
       out.push({ value: `${low}-9999999`, label: `${money(low)} +` });
@@ -1799,7 +1799,7 @@
             </div>
           `}
 
-          <p class="stock-note">${soldOut ? "This style is sold out — tap above and we'll message you on WhatsApp when it's back." : `${stockMessage(p)}. ${inBagTotal ? `${inBagTotal} already in your bag.` : 'Ready to add.'}`}</p>
+          <p class="stock-note">${soldOut ? "This style is sold out. Tap above and we'll message you on WhatsApp when it's back." : `${stockMessage(p)}. ${inBagTotal ? `${inBagTotal} already in your bag.` : 'Ready to add.'}`}</p>
 
           ${(p.fit || p.material || p.care || p.sku) ? html`
             <dl class="product-extra-details">
@@ -2252,7 +2252,7 @@
       }
     } catch (error) {
       console.warn('Order creation is unavailable.', error);
-      toast('We could not place your order just now. Your bag is unchanged — please try again.', 'error');
+      toast('We could not place your order right now. Your bag is the same, so please try again.', 'error');
       if (submitButton) {
         submitButton.disabled = false;
         submitButton.classList.remove('is-loading');
@@ -2294,7 +2294,7 @@
         </span>
         <h3>Order sent</h3>
         <p class="order-confirm-ref">Reference <strong>${orderNumber}</strong></p>
-        <p class="order-confirm-text">${greeting} We'll contact you on WhatsApp or by phone to confirm your order and arrange delivery.</p>
+        <p class="order-confirm-text">${greeting} We'll message you on WhatsApp or call you to confirm your order and set up delivery.</p>
         <a class="order-confirm-wa" href="${safeUrl(waHref, 'https://wa.me/')}" target="_blank" rel="noreferrer">Questions? Message us on WhatsApp</a>
         <button type="button" class="btn btn-primary full" data-confirm-done>Continue shopping</button>
       </div>

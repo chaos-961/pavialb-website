@@ -1,11 +1,11 @@
 window.PAVIA_CONFIG = {
-  version: '0.2.4', // bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0)
+  version: '0.2.5', // bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0)
   siteName: 'Pavia',
   siteTitle: 'Pavia Lebanon',
   location: 'Beirut',
   deliveryArea: 'Lebanon',
   tagline: 'Modern elegant fashion',
-  description: "Pavia — modern elegant fashion from Lebanon. Refined women's pieces in ruffles, tailoring and soft neutrals, with delivery across Lebanon from Beirut.",
+  description: "Pavia is modern, elegant fashion from Lebanon. Soft, easy-to-wear pieces for women, with delivery across Lebanon from Beirut.",
   // Single contact number. Phone == WhatsApp; the storefront derives the tel:
   // link, the wa.me digits, and the display string from this one value.
   phone: '03 017 725',

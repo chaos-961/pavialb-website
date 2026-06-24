@@ -208,7 +208,7 @@
   function describeOAuthError(response) {
     const code = response?.error || '';
     if (code === 'access_denied') {
-      return 'Google denied access for that account. Pick the Google account that owns the Drive folder — and if this app is still in Google "Testing" mode, that account must be added as a test user in the Google Cloud console.';
+      return 'Google denied access for that account. Pick the Google account that owns the Drive folder. If this app is still in Google "Testing" mode, that account must also be added as a test user in the Google Cloud console.';
     }
     if (code === 'admin_policy_enforced') {
       return 'A Google Workspace admin policy blocked Drive access for that account. Use an account that is allowed to grant Drive access.';

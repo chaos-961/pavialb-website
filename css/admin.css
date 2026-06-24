@@ -1,7 +1,7 @@
 /* Pavia Studio */
 body {
   background:
-    radial-gradient(circle at 8% 0%, rgba(166, 126, 91, 0.12), transparent 30rem),
+    radial-gradient(circle at 8% 0%, rgba(0, 0, 0, 0.12), transparent 30rem),
     var(--cream);
 }
 
@@ -123,8 +123,8 @@ body {
   margin-top: 14px;
   padding: 13px 14px;
   color: var(--ink-soft);
-  background: rgba(166, 126, 91, 0.1);
-  border: 1px solid rgba(166, 126, 91, 0.22);
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.22);
   border-radius: 12px;
   font-size: 12px;
   line-height: 1.55;
@@ -139,20 +139,6 @@ body {
 .auth-warning p,
 .security-note {
   margin-bottom: 0;
-}
-
-.admin-lock-button {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 60;
-  box-shadow: var(--shadow-md);
-}
-
-/* .btn sets display:flex, which overrides the [hidden] attribute — opt back out
-   so the lock button stays hidden on the login gate until the dashboard opens. */
-.admin-lock-button[hidden] {
-  display: none;
 }
 
 .login-card form {
@@ -204,7 +190,7 @@ body {
   outline: 0;
   background: #fff;
   border-color: var(--cocoa);
-  box-shadow: 0 0 0 3px rgba(90, 62, 48, 0.1);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
 }
 
 .product-form input.is-invalid,
@@ -377,7 +363,7 @@ body {
   outline: 0;
   background: #fff;
   border-color: var(--cocoa);
-  box-shadow: 0 0 0 3px rgba(90, 62, 48, 0.1);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
 }
 
 .admin-field input:disabled {
@@ -402,7 +388,7 @@ body {
   min-height: 36px;
   padding: 0 12px;
   color: var(--cocoa);
-  background: rgba(166, 126, 91, 0.12);
+  background: rgba(0, 0, 0, 0.12);
   border: 1px solid var(--line);
   border-radius: 8px;
   font: 700 10px/1 var(--sans);
@@ -415,7 +401,7 @@ body {
 .admin-password-toggle:hover,
 .admin-password-toggle:focus-visible {
   color: var(--ink);
-  background: rgba(166, 126, 91, 0.2);
+  background: rgba(0, 0, 0, 0.2);
   outline: 0;
 }
 
@@ -540,8 +526,8 @@ body {
 }
 
 .admin-brand img {
-  width: 54px;
-  height: 54px;
+  width: 72px;
+  height: 72px;
   object-fit: contain;
 }
 
@@ -627,7 +613,7 @@ body {
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  box-shadow: 0 12px 40px rgba(46, 34, 24, 0.05);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.05);
 }
 
 .panel-card h2 {
@@ -682,7 +668,7 @@ body {
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid var(--line);
   border-radius: 16px;
-  box-shadow: 0 12px 36px rgba(46, 34, 24, 0.04);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.04);
   overflow: hidden;
 }
 
@@ -855,7 +841,7 @@ body {
   height: 20px;
   padding: 0 6px;
   color: var(--ink-soft);
-  background: rgba(46, 34, 24, 0.08);
+  background: rgba(0, 0, 0, 0.08);
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
@@ -959,7 +945,7 @@ body {
 
 .order-note {
   padding: 10px 12px;
-  background: rgba(166, 126, 91, 0.1);
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 8px;
 }
 
@@ -1165,7 +1151,7 @@ body {
   height: 20px;
   background: #fff;
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(46, 34, 24, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   transition: transform 0.2s ease;
 }
 
@@ -1180,7 +1166,7 @@ body {
 
 .toggle-field input[type="checkbox"]:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(90, 62, 48, 0.18);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.18);
 }
 
 .toggle-field span {
@@ -1261,7 +1247,7 @@ body {
 
 .image-dropzone:hover,
 .image-dropzone.is-dragging {
-  background: rgba(166, 126, 91, 0.08);
+  background: rgba(0, 0, 0, 0.08);
   border-color: var(--cocoa);
 }
 
@@ -1407,7 +1393,7 @@ body {
   gap: 7px;
   padding: 6px 9px;
   color: var(--cocoa);
-  background: rgba(166, 126, 91, 0.12);
+  background: rgba(0, 0, 0, 0.12);
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
@@ -1821,8 +1807,8 @@ body {
   }
 
   .admin-brand img {
-    width: 46px;
-    height: 46px;
+    width: 60px;
+    height: 60px;
   }
 
   .admin-tabs {
@@ -1911,11 +1897,10 @@ body {
     grid-template-columns: 1fr;
   }
 
-  /* Keep the sticky form action bar above the fixed "Lock Studio" pill, and
-     reserve scroll room so the last field is never hidden behind it. */
-  .sticky-actions { bottom: 76px; }
+  /* Reserve scroll room so the last field is never hidden behind the sticky
+     form action bar. */
   .product-editor-layout .panel-card,
-  .settings-card { padding-bottom: 84px; }
+  .settings-card { padding-bottom: 72px; }
 
   /* Stack the order id/total instead of letting them compete on a narrow row. */
   .order-topline { flex-direction: column; gap: 8px; }
@@ -1978,7 +1963,7 @@ body {
 
   .toast-wrap {
     right: 14px;
-    bottom: 64px; /* clear the fixed "Lock Studio" pill (bottom:18px + ~46px) */
+    bottom: 18px;
     left: 14px;
     justify-items: stretch;
   }
@@ -2019,8 +2004,8 @@ body {
   align-items: center;
   margin-bottom: 16px;
   padding: 16px 18px;
-  background: linear-gradient(180deg, rgba(201, 167, 121, 0.16), rgba(201, 167, 121, 0.08));
-  border: 1px solid rgba(166, 126, 91, 0.3);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.08));
+  border: 1px solid rgba(0, 0, 0, 0.3);
   border-radius: var(--r-lg);
 }
 .draft-banner-icon {
@@ -2210,7 +2195,7 @@ body {
   background: var(--cream);
   box-shadow: var(--shadow-sm);
 }
-.gallery-item.is-main { border-color: var(--cocoa); box-shadow: 0 0 0 2px rgba(166, 126, 91, 0.35); }
+.gallery-item.is-main { border-color: var(--cocoa); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35); }
 .gallery-item[draggable="true"] { cursor: grab; }
 .gallery-item.is-dragging { opacity: 0.5; }
 .gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -2275,7 +2260,7 @@ body {
   position: fixed; inset: 0; z-index: 200;
   display: grid; place-items: center;
   padding: 20px;
-  background: rgba(26, 22, 18, 0.5);
+  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(2px);
 }
 .library-picker[hidden] { display: none; }
@@ -2333,10 +2318,10 @@ body {
 }
 .metric-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 18px 44px rgba(46, 34, 24, 0.08);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.08);
 }
 .order-item:hover {
-  box-shadow: 0 14px 36px rgba(46, 34, 24, 0.07);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.07);
 }
 @media (prefers-reduced-motion: reduce) {
   .metric-card, .order-item { transition: none; }
@@ -2351,7 +2336,7 @@ body {
   position: fixed; inset: 0; z-index: 120;
   display: grid; place-items: center;
   padding: 18px;
-  background: rgba(20, 14, 10, 0.55);
+  background: rgba(0, 0, 0, 0.55);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }

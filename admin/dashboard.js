@@ -677,7 +677,7 @@
             return `
               <div class="compact-row">
                 <div>
-                  <strong>Visitor ${escapeHtml(String(entry.uid || '').slice(0, 6) || '—')}</strong>
+                  <strong>Visitor ${escapeHtml(String(entry.uid || '').slice(0, 6) || 'guest')}</strong>
                   <span>${escapeHtml(relativeTime(entry.lastAt))}</span>
                 </div>
                 <b>${escapeHtml(visits)} ${visits === 1 ? 'visit' : 'visits'}</b>
@@ -810,8 +810,8 @@
         </div>
         <div class="order-customer">
           <div><span>Customer</span><strong>${escapeHtml(customer.name || 'Customer')}</strong></div>
-          <div><span>Phone</span><strong>${escapeHtml(phone || '—')}</strong></div>
-          <div><span>Area</span><strong>${escapeHtml(customer.city || customer.area || '—')}</strong></div>
+          <div><span>Phone</span><strong>${escapeHtml(phone || 'Not provided')}</strong></div>
+          <div><span>Area</span><strong>${escapeHtml(customer.city || customer.area || 'Not provided')}</strong></div>
           <div><span>Payment</span><strong>${escapeHtml(customer.payment || order.paymentMethod || 'Cash on delivery')}</strong></div>
         </div>
         <p class="order-address">${escapeHtml(customer.address || 'No address supplied')}</p>
@@ -1225,8 +1225,8 @@
         'This product was changed elsewhere since you opened it. Save anyway and overwrite those changes?',
       );
       if (!proceed) {
-        setFormStatus('productFormStatus', 'Save cancelled — reopen the product to load the latest version.', 'error');
-        toast('Save cancelled — product changed elsewhere');
+        setFormStatus('productFormStatus', 'Save cancelled. Reopen the product to load the latest version.', 'error');
+        toast('Save cancelled: product changed elsewhere');
         return;
       }
       editingBaseRev = Number(existing.rev) || 0; // accept current as the new base
@@ -1822,7 +1822,7 @@
       ? '<div class="library-tile-actions"><button type="button" class="btn btn-secondary" data-lib-pick>Use this image</button></div>'
       : `<div class="library-tile-actions">
            <button type="button" class="btn btn-ghost" data-lib-copy>Copy URL</button>
-           <button type="button" class="btn btn-ghost danger-button" data-lib-delete${used.length ? ' title="In use — remove from products first"' : ''}>Delete</button>
+           <button type="button" class="btn btn-ghost danger-button" data-lib-delete${used.length ? ' title="In use, remove from products first"' : ''}>Delete</button>
          </div>`;
     return `
       <figure class="library-tile" data-file-id="${escapeHtml(file.id)}">

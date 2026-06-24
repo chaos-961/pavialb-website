@@ -85,13 +85,13 @@
     banner.setAttribute('aria-live', 'assertive');
     banner.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;'
       + 'display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:12px;'
-      + 'background:#1a1612;color:#faf6ef;font:500 14px/1.4 system-ui,-apple-system,sans-serif;'
+      + 'background:#1a1a1a;color:#fafafa;font:500 14px/1.4 system-ui,-apple-system,sans-serif;'
       + 'box-shadow:0 10px 30px rgba(0,0,0,.28);max-width:92vw;';
     banner.innerHTML = '<span>Locking in <b id="adminLockCount">' + left + '</b>s for inactivity.</span>';
     const stay = document.createElement('button');
     stay.type = 'button';
     stay.textContent = 'Stay signed in';
-    stay.style.cssText = 'background:#5a3e30;color:#faf6ef;border:none;border-radius:8px;'
+    stay.style.cssText = 'background:#3a3a3a;color:#fafafa;border:none;border-radius:8px;'
       + 'padding:8px 14px;font:600 13px system-ui,-apple-system,sans-serif;cursor:pointer;';
     stay.addEventListener('click', resetInactivityTimer);
     banner.appendChild(stay);
@@ -133,7 +133,6 @@
     document.dispatchEvent(new Event('DOMContentLoaded'));
     $('#adminGate').hidden = true;
     mount.hidden = false;
-    $('#lockBtn').hidden = false;
   }
 
   function lockDashboard(message = '') {
@@ -150,7 +149,6 @@
     mount.replaceChildren();
     state.injectedScript?.remove();
     state.injectedScript = null;
-    $('#lockBtn').hidden = true;
     $('#adminGate').hidden = false;
     clearSensitiveInputs();
     resetPasswordVisibility();
@@ -264,7 +262,6 @@
       passwordToggle.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
       password.focus();
     });
-    $('#lockBtn')?.addEventListener('click', () => lockDashboard('Locked. Enter the admin credentials again.'));
     bindInactivityEvents();
 
     if (BACKEND) {
