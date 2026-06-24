@@ -621,9 +621,8 @@
         });
 
         // Everything below runs inside the try so ANY failure (validation, stock,
-        // or write) rolls back reserved stock and marks the request 'failed',
-        // leaving it safe to recover on a later retry.
-        const reserved = [];
+        // or write) marks the request 'failed', leaving it safe to recover on a
+        // later retry under the same orderId.
         try {
           const items = normalizeOrderItems(order.items);
           if (!items.length) throw new Error('Your bag is empty.');
@@ -651,9 +650,7 @@
 
           for (const item of pricingItems) {
             await transactStock(`products/${item.id}/stock`, -item.qty);
-            reserved.push({ path: `products/${item.id}/stock`, qty: item.qty });
             await transactStock(`publicProducts/${item.id}/stock`, -item.qty);
-            reserved.push({ path: `publicProducts/${item.id}/stock`, qty: item.qty });
           }
 
           const paymentMethod = order.paymentMethod === 'whish_money' || customer.payment === 'Whish Money'
@@ -704,7 +701,14 @@
           });
           return clone(record);
         } catch (error) {
-          await Promise.allSettled(reserved.map((entry) => transactStock(entry.path, entry.qty)));
+          // No client-side stock rollback: the DB rules only let a customer
+          // DECREMENT stock (newData <= data), never raise it, so nobody can
+          // inflate inventory. A failure after a partial reservation therefore
+          // leaves those units decremented. It is rare (stock is pre-checked and
+          // the reservation transactions are concurrency-safe) and fails in the
+          // SAFE direction (undercount, never oversell); the owner can correct the
+          // count in the studio. Legitimate restores for a real order are handled
+          // admin-side when an order is cancelled (see orders.update).
           await firebaseState.databaseApi.update(databaseReference('/'), {
             [`orderRequests/${requestId}/status`]: 'failed',
             [`orderRequests/${requestId}/error`]: String(error.message || 'Order creation failed.').slice(0, 180),

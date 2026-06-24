@@ -128,8 +128,8 @@ h1, h2, h3, h4 {
   margin: 0;
   color: var(--ink);
 }
-h1 { font-size: clamp(40px, 9vw, 84px); font-weight: 300; }
-h2 { font-size: clamp(32px, 6.5vw, 60px); font-weight: 400; }
+h1 { font-size: clamp(38px, 7vw, 60px); font-weight: 300; }
+h2 { font-size: clamp(30px, 5.5vw, 46px); font-weight: 400; }
 h3 { font-size: clamp(20px, 4vw, 28px); font-weight: 500; }
 h4 { font-size: clamp(17px, 3vw, 20px); font-weight: 500; }
 p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
@@ -497,7 +497,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .shop-section {
   background: rgba(255, 255, 255, 0.55);
   border-block: 1px solid var(--line-soft);
-  padding: 48px 0 64px;
+  padding: 36px 0 48px;
   position: relative;
 }
 .shop-header {
@@ -1973,17 +1973,17 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 @media (min-width: 960px) {
   :root {
     --gutter: 36px;
-    --header-h: 92px;
+    --header-h: 76px;
   }
   .brand-logo {
-    height: 32.4px;
-    width: 135px;
+    height: 28.8px;
+    width: 120px;
   }
   .desktop-nav {
     display: flex;
     align-items: center;
-    gap: 40px;
-    font-size: 16px;
+    gap: 30px;
+    font-size: 14px;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     font-weight: 600;
@@ -2008,12 +2008,12 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .desktop-nav a:hover::after { transform: scaleX(1); transform-origin: left; }
   .nav-actions { gap: 10px; }
   .icon-btn {
-    width: 60px;
-    height: 60px;
+    width: 46px;
+    height: 46px;
   }
   .icon-btn svg {
-    width: 30px;
-    height: 30px;
+    width: 22px;
+    height: 22px;
   }
   .icon-btn .count {
     top: 2px;
@@ -2029,8 +2029,8 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .footer-version { left: 24px; bottom: 24px; }
 
   .product-grid { grid-template-columns: repeat(4, 1fr); gap: 18px; }
-  .section { padding: 80px 0; }
-  .hero { padding: 36px 0 48px; }
+  .section { padding: 56px 0; }
+  .hero { padding: 28px 0 40px; }
 
   .modal { place-items: center; padding: 24px; }
   .modal-card { max-width: 1000px; max-height: 90vh; border-radius: var(--r-xl); transform: translateY(20px) scale(0.96); opacity: 0; transition: transform 0.4s var(--ease-out), opacity 0.4s var(--ease-out); }
@@ -2054,7 +2054,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 }
 
 @media (min-width: 1200px) {
-  .hero h1 { font-size: 88px; }
+  .hero h1 { font-size: 64px; }
 }
 
 /* =========================================================

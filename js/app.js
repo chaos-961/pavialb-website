@@ -751,6 +751,9 @@
 
     // Only a genuine failure with no catalog at all surfaces the error/retry state.
     loadError = errored && rawById.size === 0;
+    // A successful network sync proves we're online, so clear any offline banner
+    // a missed 'online' event (or a flaky navigator.onLine at load) left stuck up.
+    if (!errored) setOfflineBanner(false);
     await rebuildProductsFromRaw();
     if (rawById.size) await persistCatalog();
   }
