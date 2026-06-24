@@ -150,7 +150,12 @@
   }
   function isMissingImage(src) {
     const s = String(src || '').trim();
-    return !s || s === 'assets/logo.svg' || /(^|\/)logo\.svg(\?|#|$)/i.test(s);
+    if (!s) return true;
+    // Treat the brand marks as "no product image" in ANY URL form — relative or
+    // absolute, with or without ?query/#hash — so a product saved with the logo
+    // fallback never gets cropped into a card. Match on the filename only.
+    const base = s.split(/[?#]/)[0].split('/').pop().toLowerCase();
+    return base === 'logo.svg' || base === 'icon.svg';
   }
   // Resolve an <img> source: real image when present, else the elegant placeholder.
   function pickImage(src, seed) {
@@ -490,7 +495,7 @@
     if (changed) {
       writeJSON(STORE_KEYS.cart, cart);
       renderCart();
-      if (notify) toast('Bag updated with current stock and prices.');
+      if (notify) toast('Bag updated with current stock and prices.', 'info');
     }
     return !changed;
   }
@@ -549,7 +554,7 @@
   );
   function syncBackgroundInert() {
     const on = overlayIsOpen();
-    $$('[data-header], main, .site-footer, .bottom-nav, .whatsapp-fab').forEach((el) => {
+    $$('[data-header], main, .site-footer, .whatsapp-fab').forEach((el) => {
       if (on) el.setAttribute('inert', '');
       else el.removeAttribute('inert');
     });
@@ -637,7 +642,9 @@
       if (mapsUrl) { el.href = mapsUrl; el.hidden = false; } else { el.hidden = true; }
     });
 
-    document.title = `${config.siteTitle} · ${config.tagline}`;
+    // Tab title stays the bare brand name ("Pavia") by request; richer wording for
+    // Google/social lives in the static <title> fallback, meta tags, and JSON-LD.
+    document.title = config.siteName || 'Pavia';
   }
 
   // ---------- Revision-aware catalog cache (P14) ----------
@@ -955,7 +962,6 @@
     // direction-agnostic since it derives from scrollY, disabled for reduced motion).
     const heroCopy = $('.hero-copy');
     const heroVisual = $('[data-hero-visual]');
-    const toTopBtn = $('[data-to-top]');
     const allowParallax = heroVisual && !prefersReducedMotion();
     let scrollTicking = false;
     const onScrollFrame = () => {
@@ -963,7 +969,6 @@
       const y = window.scrollY;
       n.header.classList.toggle('is-scrolled', y > 8);
       if (n.toolbar) n.toolbar.classList.toggle('is-stuck', y > 280);
-      if (toTopBtn) toTopBtn.classList.toggle('is-visible', y > 640);
       // Only run the parallax math while the hero is plausibly on screen.
       if (allowParallax && y < 900) {
         heroVisual.style.transform = `translate3d(0, ${(y * 0.09).toFixed(1)}px, 0)`;
@@ -975,9 +980,6 @@
       scrollTicking = true;
       requestAnimationFrame(onScrollFrame);
     }, { passive: true });
-    toTopBtn?.addEventListener('click', () => {
-      window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
-    });
 
     // Search & filters (debounced for smoothness). Any filter change resets paging.
     const debouncedRender = debounce(() => { resetPaging(); renderProducts(); }, 120);
@@ -1417,7 +1419,7 @@
       $('[data-quick-view]', card)?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductModal(id); }
       });
-      $('[data-fast-add]', card)?.addEventListener('click', (e) => { e.stopPropagation(); fastAdd(id); });
+      $('[data-fast-add]', card)?.addEventListener('click', (e) => { e.stopPropagation(); fastAdd(id); popButton(e.currentTarget); });
       const wish = $('[data-wish]', card);
       wish?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1620,7 +1622,7 @@
       } catch { /* cancelled or unsupported → fall back to copy */ }
     }
     try { await navigator.clipboard.writeText(url); toast('Link copied'); }
-    catch { toast('Could not copy the link'); }
+    catch { toast('Could not copy the link', 'error'); }
   }
   // Open the product named in ?product=<slug> on load (shared/bookmarked link).
   function openDeepLinkedProduct() {
@@ -1903,7 +1905,7 @@
     const p = getProduct(id);
     if (!p) return;
     if (p.stock <= 0) {
-      toast(`${p.name} is sold out.`);
+      toast(`${p.name} is sold out.`, 'error');
       return;
     }
     const firstColor = (p.colors[0] && p.colors[0].name) || '';
@@ -1912,7 +1914,7 @@
 
   function addToCart(product, size, color, qty) {
     if (!product || product.stock <= 0) {
-      toast('This style is sold out.');
+      toast('This style is sold out.', 'error');
       return;
     }
     const key = `${product.id}-${size}-${color}`;
@@ -1921,7 +1923,7 @@
     // Cap against the product's TOTAL across every option already in the bag.
     const available = Math.max(0, Number(product.stock) - cartProductQty(product.id));
     if (available <= 0) {
-      toast(`Only ${product.stock} of ${product.name} available.`);
+      toast(`Only ${product.stock} of ${product.name} available.`, 'error');
       return;
     }
     const addQty = Math.min(Number(qty) || 1, available);
@@ -2013,7 +2015,7 @@
     if (dir === 'plus') {
       // Block once the product's TOTAL across all options reaches its stock.
       if (cartProductQty(item.id) >= product.stock) {
-        toast(`Only ${product.stock} of ${product.name} available.`);
+        toast(`Only ${product.stock} of ${product.name} available.`, 'error');
         return;
       }
       item.qty += 1;
@@ -2134,9 +2136,9 @@
   }
 
   function openCheckout() {
-    if (!cart.length) { toast('Your bag is empty. Add an item first.'); return; }
+    if (!cart.length) { toast('Your bag is empty. Add an item first.', 'error'); return; }
     revalidateCart({ notify: true });
-    if (!cart.length) { toast('Your bag is empty after stock refresh.'); return; }
+    if (!cart.length) { toast('Your bag is empty after stock refresh.', 'error'); return; }
     void BACKEND?.analytics.recordEvent('checkout_started');
     closeDrawer(n.cartDrawer);
     renderCheckoutSummary();
@@ -2186,7 +2188,7 @@
     const normalizedPhone = normalizeLebanonPhone(formData.get('phone'));
     if (!normalizedPhone) {
       phoneInput?.focus();
-      toast('Enter a valid Lebanese phone number.');
+      toast('Enter a valid Lebanese phone number.', 'error');
       return;
     }
     phoneInput.value = normalizedPhone;
@@ -2250,7 +2252,7 @@
       }
     } catch (error) {
       console.warn('Order creation is unavailable.', error);
-      toast('We could not place your order just now. Your bag is unchanged — please try again.');
+      toast('We could not place your order just now. Your bag is unchanged — please try again.', 'error');
       if (submitButton) {
         submitButton.disabled = false;
         submitButton.classList.remove('is-loading');
@@ -2319,10 +2321,20 @@
     });
   }
 
+  // A quick press-pop on an add-to-bag button for tactile success feedback.
+  function popButton(btn) {
+    if (!btn) return;
+    btn.classList.remove('is-added');
+    void btn.offsetWidth; // force reflow so the animation replays on rapid re-adds
+    btn.classList.add('is-added');
+    setTimeout(() => btn.classList.remove('is-added'), 500);
+  }
+
   // ---------- Toast ----------
-  function toast(msg) {
+  // tone: 'success' (default) | 'error' | 'info' — drives the leading badge glyph/color.
+  function toast(msg, tone = 'success') {
     const el = document.createElement('div');
-    el.className = 'toast';
+    el.className = 'toast ' + (tone === 'error' ? 'is-error' : tone === 'info' ? 'is-info' : 'is-success');
     el.textContent = msg;
     n.toastRegion.appendChild(el);
     setTimeout(() => {

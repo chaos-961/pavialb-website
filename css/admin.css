@@ -656,10 +656,13 @@ body {
   display: grid;
   min-width: 48px;
   height: 48px;
+  padding: 0 12px;
   place-items: center;
   color: var(--paper);
   background: var(--cocoa);
-  border-radius: 50%;
+  /* Pill, not a 50% circle: a min-width box with 50% radius turns into an
+     ellipse once the count is 2-3 digits. 1 digit still reads as a 48px circle. */
+  border-radius: 999px;
   font-family: var(--display);
   font-size: 21px;
 }
@@ -832,9 +835,15 @@ body {
   border-radius: 9px;
   font: 700 12px/1 var(--sans);
   letter-spacing: 0.03em;
-  transition: color 0.2s, background 0.2s;
+  transition: color 0.2s, background 0.2s, transform 0.2s;
 }
 .segmented-btn:hover { color: var(--ink); }
+.segmented-btn:active { transform: scale(0.97); }
+/* Keyboard-focus rings for the studio button controls not covered by .btn. */
+.admin-tab:focus-visible,
+.segmented-btn:focus-visible,
+.size-picker button:focus-visible,
+.gallery-item-actions button:focus-visible { outline: 2px solid var(--cocoa); outline-offset: 3px; }
 .segmented-btn.is-active {
   color: var(--paper);
   background: var(--ink);
@@ -1787,12 +1796,20 @@ body {
   }
 }
 
+/* Intermediate tablet tier so small tablets aren't sparse single columns. */
+@media (min-width: 481px) and (max-width: 720px) {
+  .admin-toolbar,
+  .orders-toolbar,
+  .order-workflow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 720px) {
   .admin-shell {
     padding: 16px;
   }
 
-  .metrics-grid,
   .admin-toolbar,
   .orders-toolbar,
   .order-workflow {
@@ -1812,12 +1829,15 @@ body {
     top: 8px;
     width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
   }
 
   .admin-tab {
     flex: 1;
     min-width: max-content;
     padding-inline: 13px;
+    scroll-snap-align: center;
   }
 
   .panel-heading,
@@ -1885,6 +1905,31 @@ body {
     padding: 18px;
   }
 
+  /* Metrics collapse to a single column only on phones (held 2-up above 480). */
+  .metrics-grid,
+  .metrics-grid.visitor-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  /* Keep the sticky form action bar above the fixed "Lock Studio" pill, and
+     reserve scroll room so the last field is never hidden behind it. */
+  .sticky-actions { bottom: 76px; }
+  .product-editor-layout .panel-card,
+  .settings-card { padding-bottom: 84px; }
+
+  /* Stack the order id/total instead of letting them compete on a narrow row. */
+  .order-topline { flex-direction: column; gap: 8px; }
+  .order-topline-id { min-width: 0; }
+
+  /* 2-up image library/picker instead of one oversized column. */
+  .library-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+
+  /* Lift the tiny color-name label out of near-illegible 9px. */
+  .color-name-field { font-size: 11px !important; }
+
   .panel-heading {
     display: grid;
   }
@@ -1933,8 +1978,9 @@ body {
 
   .toast-wrap {
     right: 14px;
-    bottom: 14px;
+    bottom: 64px; /* clear the fixed "Lock Studio" pill (bottom:18px + ~46px) */
     left: 14px;
+    justify-items: stretch;
   }
 }
 
@@ -2176,15 +2222,15 @@ body {
 }
 .gallery-item-actions {
   position: absolute; right: 0; bottom: 0; left: 0;
-  display: flex; gap: 2px; justify-content: flex-end;
-  padding: 4px; background: linear-gradient(transparent, rgba(0,0,0,0.55));
+  display: flex; gap: 6px; justify-content: flex-end;
+  padding: 6px; background: linear-gradient(transparent, rgba(0,0,0,0.55));
 }
 .gallery-item-actions button {
-  width: 22px; height: 22px;
+  width: 30px; height: 30px;
   display: grid; place-items: center;
   border: 0; border-radius: 6px; cursor: pointer;
   background: rgba(255,255,255,0.92); color: var(--ink);
-  font-size: 13px; line-height: 1; font-weight: 700;
+  font-size: 15px; line-height: 1; font-weight: 700;
 }
 .gallery-item-actions button:hover { background: #fff; }
 .gallery-item-actions button:disabled { opacity: 0.4; cursor: default; }
@@ -2248,7 +2294,7 @@ body {
 .library-picker-head h3 { margin: 0; font-size: 18px; color: var(--ink); }
 .library-picker-head small { color: var(--muted); font-size: 12px; }
 .library-picker-head .close-btn {
-  width: 34px; height: 34px; border: 0; border-radius: 9px; cursor: pointer;
+  width: 40px; height: 40px; border: 0; border-radius: 9px; cursor: pointer;
   background: var(--cream); color: var(--ink); font-size: 20px; line-height: 1;
 }
 .library-grid-picker { margin: 0; padding: 18px 20px; overflow-y: auto; }
@@ -2324,7 +2370,7 @@ body {
 .crop-head h3 { margin: 0; font-size: 18px; color: var(--ink); }
 .crop-head small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .crop-head .close-btn {
-  width: 34px; height: 34px; flex: none; border: 0; border-radius: 9px; cursor: pointer;
+  width: 40px; height: 40px; flex: none; border: 0; border-radius: 9px; cursor: pointer;
   background: var(--cream); color: var(--ink); font-size: 20px; line-height: 1;
 }
 .crop-workspace {
@@ -2402,4 +2448,14 @@ body {
   .crop-stage { width: min(280px, 100%); }
   .product-library-actions .btn { flex: 1 1 180px; }
   .product-library-note { grid-template-columns: 1fr; }
+  /* Pin Cancel / Save & upload so they stay reachable above the scrolling card. */
+  .crop-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin: 0 -16px -16px;
+    padding: 12px 16px;
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+  }
 }

@@ -1,0 +1,11 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="pavia-icon-title">
+  <title id="pavia-icon-title">Pavia</title>
+  <!-- Square app/favicon mark: legible where the full wordmark would be too wide.
+       Full-bleed ink background so it survives PWA maskable cropping; the rounded
+       corners only show in the "any" (favicon) context. -->
+  <rect width="512" height="512" rx="116" fill="#1a1612"/>
+  <text x="256" y="372" text-anchor="middle"
+        font-family="'Bodoni Moda',Didot,'Bodoni MT','Playfair Display',Georgia,'Times New Roman',serif"
+        font-size="372" font-weight="500" fill="#faf6ef">P</text>
+  <line x1="156" y1="396" x2="356" y2="396" stroke="#c9a779" stroke-width="11"/>
+</svg>

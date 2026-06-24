@@ -1,8 +1,8 @@
 {
-  "name": "Pavia Elegant Store",
+  "name": "Pavia — Modern Elegant Fashion",
   "short_name": "Pavia",
   "id": "/index.html",
-  "description": "Refined Lebanese fashion boutique with delivery across Lebanon.",
+  "description": "Pavia — modern elegant fashion boutique in Beirut, with delivery across Lebanon.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -13,13 +13,13 @@
   "categories": ["shopping", "lifestyle"],
   "icons": [
     {
-      "src": "assets/logo.svg",
+      "src": "assets/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "assets/logo.svg",
+      "src": "assets/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"

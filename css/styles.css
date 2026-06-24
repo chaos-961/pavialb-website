@@ -17,6 +17,7 @@
   --sand: #d9c2a3;
   --champagne: #c9a779;
   --cocoa: #5a3e30;
+  --cocoa-dark: #432d22; /* used by the admin crop modal; was undefined -> dropped */
   --line: rgba(26, 22, 18, 0.10);
   --line-soft: rgba(26, 22, 18, 0.06);
   --line-strong: rgba(26, 22, 18, 0.18);
@@ -39,12 +40,16 @@
   /* Layout */
   --container: 1240px;
   --header-h: 64px;
-  --bottom-nav-h: 68px;
+  --bottom-nav-h: 0px; /* mobile bottom nav removed; token kept at 0 so layout calc()s collapse cleanly */
   --gutter: 18px;
 
   /* Type */
   --display: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
   --body: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Alias used throughout admin.css `font:` shorthands. Was undefined, which made
+     every `font: … var(--sans)` declaration invalid (dropped) — admin inputs/buttons
+     fell back to tiny inherited text. */
+  --sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   /* Easings */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -176,17 +181,20 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .brand {
   display: inline-flex; align-items: center;
-  font-family: var(--display);
-  font-weight: 400;
-  font-size: 22px;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
   color: var(--ink);
+}
+.brand-logo {
+  display: block;
+  /* Chromium ignores width:auto on an inline SVG that has intrinsic dims, so size
+     both axes explicitly on the 700:168 viewBox ratio (height x 4.1667 = width). */
+  height: 21px;
+  width: 87.5px;
+  color: var(--ink); /* drives the wordmark fill via currentColor */
 }
 .desktop-nav { display: none; }
 .nav-actions { display: flex; align-items: center; gap: 6px; }
 .icon-btn {
-  width: 42px; height: 42px;
+  width: 44px; height: 44px;
   display: grid; place-items: center;
   border-radius: var(--r-pill);
   color: var(--ink);
@@ -316,6 +324,21 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .btn:active { transform: translateY(0); }
 .btn:focus-visible { outline: 2px solid var(--cocoa); outline-offset: 3px; }
+/* Shared keyboard-focus ring for the icon/overlay controls that lacked one. */
+.icon-btn:focus-visible,
+.close-btn:focus-visible,
+.modal-close:focus-visible,
+.wish-btn:focus-visible,
+.quick-add:focus-visible,
+.filter-toggle:focus-visible,
+.search-clear:focus-visible,
+.category-pills button:focus-visible,
+.size-options button:focus-visible,
+.color-swatches button:focus-visible,
+.filter-chip:focus-visible,
+.qty-control button:focus-visible,
+.remove-btn:focus-visible,
+.modal-gallery button:focus-visible { outline: 2px solid var(--cocoa); outline-offset: 2px; }
 .btn-primary { background: var(--ink); color: var(--paper); }
 .btn-primary:hover { background: var(--cocoa); }
 .btn-secondary {
@@ -536,7 +559,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .search-field input[type="search"]::-webkit-search-cancel-button,
 .search-field input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
 .search-clear {
-  width: 24px; height: 24px;
+  width: 30px; height: 30px;
   border-radius: 50%;
   display: none; place-items: center;
   background: var(--cream); color: var(--ink);
@@ -667,9 +690,12 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .category-pills {
   display: flex; gap: 6px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  margin-inline: calc(-1 * var(--gutter));
-  padding-inline: var(--gutter);
+  /* Bleed to the toolbar's inner edge (constant 12px padding), not past the
+     rounded corner via the larger --gutter. */
+  margin-inline: -12px;
+  padding-inline: 12px;
   padding-block: 4px;
 }
 .category-pills::-webkit-scrollbar { display: none; }
@@ -823,7 +849,15 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .product-card[data-sold-out="true"] .product-media img { filter: grayscale(0.35); opacity: 0.72; }
 
 @media (hover: none) {
-  .quick-add { opacity: 1; transform: none; }
+  .quick-add { opacity: 1; transform: none; height: 44px; }
+}
+/* Add-to-bag success micro-confirmation (toggled via .is-added in app.js).
+   Transform-only; auto-neutralized by the reduced-motion override above. */
+.quick-add.is-added,
+.qty-add-row .btn.is-added { animation: addPop 0.45s var(--ease-spring); }
+@keyframes addPop {
+  0%, 100% { transform: none; }
+  45%      { transform: scale(0.94); }
 }
 
 /* Product info */
@@ -987,6 +1021,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   display: flex;
   gap: 10px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   margin-inline: calc(-1 * var(--gutter));
   padding-inline: var(--gutter);
@@ -1136,56 +1171,11 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 .footer-version {
   position: absolute;
   left: 16px;
-  bottom: calc(var(--bottom-nav-h) + 16px + env(safe-area-inset-bottom, 0));
+  bottom: calc(var(--bottom-nav-h) + 16px + env(safe-area-inset-bottom, 0px));
   color: var(--paper);
   font-size: 10px;
   opacity: 0.5;
 }
-
-/* =========================================================
-   Bottom mobile nav (mobile only)
-   ========================================================= */
-.bottom-nav {
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  z-index: 40;
-  height: var(--bottom-nav-h);
-  background: rgba(250, 246, 239, 0.94);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  backdrop-filter: blur(20px) saturate(140%);
-  border-top: 1px solid var(--line);
-  display: flex;
-  align-items: stretch;
-  padding-bottom: env(safe-area-inset-bottom, 0);
-}
-.bottom-nav button, .bottom-nav a {
-  flex: 1;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-  position: relative;
-  transition: color 0.2s var(--ease-out);
-}
-.bottom-nav svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 1.6; fill: none; }
-.bottom-nav button:hover, .bottom-nav a:hover { color: var(--ink); }
-.bottom-nav .nav-count {
-  position: absolute;
-  top: 6px; right: calc(50% - 18px);
-  min-width: 16px; height: 16px;
-  background: var(--cocoa); color: var(--paper);
-  font-size: 9px; font-weight: 700;
-  border-radius: var(--r-pill);
-  display: grid; place-items: center;
-  padding: 0 4px;
-  border: 2px solid var(--paper);
-  transform: scale(0);
-  transition: transform 0.3s var(--ease-spring);
-}
-.bottom-nav .nav-count.is-visible { transform: scale(1); }
 
 /* =========================================================
    Floating WhatsApp button
@@ -1193,7 +1183,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 .whatsapp-fab {
   position: fixed;
   right: 16px;
-  bottom: calc(var(--bottom-nav-h) + 16px + env(safe-area-inset-bottom, 0));
+  bottom: calc(var(--bottom-nav-h) + 16px + env(safe-area-inset-bottom, 0px));
   z-index: 35;
   width: 52px; height: 52px;
   border-radius: 50%;
@@ -1216,32 +1206,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   0%   { transform: scale(0.9); opacity: 0.5; }
   100% { transform: scale(1.4); opacity: 0; }
 }
-
-/* =========================================================
-   Back-to-top button (revealed by JS after scrolling)
-   ========================================================= */
-.to-top {
-  position: fixed;
-  right: 16px;
-  bottom: calc(var(--bottom-nav-h) + 16px + env(safe-area-inset-bottom, 0));
-  z-index: 36;
-  width: 46px; height: 46px;
-  border-radius: 50%;
-  display: grid; place-items: center;
-  background: rgba(250, 246, 239, 0.92);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
-  opacity: 0; transform: translateY(12px) scale(0.92);
-  pointer-events: none;
-  transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-spring), background 0.2s var(--ease-out);
-}
-.to-top.is-visible { opacity: 1; transform: none; pointer-events: auto; }
-.to-top:hover { background: var(--cream); }
-.to-top:active { transform: scale(0.9); }
-.to-top svg { width: 20px; height: 20px; stroke: var(--ink); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 
 /* =========================================================
    Drawers (cart + wishlist + orders)
@@ -1845,7 +1809,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 .toast-region {
   position: fixed;
   left: 16px; right: 16px;
-  bottom: calc(var(--bottom-nav-h) + 80px + env(safe-area-inset-bottom, 0));
+  bottom: calc(var(--bottom-nav-h) + 80px + env(safe-area-inset-bottom, 0px));
   z-index: 110;
   display: flex; flex-direction: column;
   gap: 8px;
@@ -1863,7 +1827,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   display: flex; align-items: center; gap: 10px;
 }
 .toast::before {
-  content: '✓';
   width: 20px; height: 20px;
   border-radius: 50%;
   background: var(--champagne); color: var(--ink);
@@ -1871,6 +1834,9 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   font-size: 12px; font-weight: 700;
   flex-shrink: 0;
 }
+.toast.is-success::before { content: '✓'; }
+.toast.is-error::before { content: '!'; background: #b3261e; color: #fff; }
+.toast.is-info::before { content: 'i'; background: var(--ink); color: var(--paper); }
 .toast.is-leaving { animation: toastOut 0.3s var(--ease-out) forwards; }
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(20px); }
@@ -1882,7 +1848,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 
 @media (max-width: 639px) {
   body {
-    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0));
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
   }
 
   .hero {
@@ -1925,19 +1891,44 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     border-radius: var(--r-sm);
   }
 
-  .bottom-nav button,
-  .bottom-nav a {
-    min-height: 56px;
-  }
+  /* The floating WhatsApp button is the primary contact path on mobile (the
+     bottom nav that used to carry it is gone) — keep it visible here. */
 
-  .whatsapp-fab {
-    display: none;
+  /* Mobile touch targets — nudge small controls toward the ~44px guideline.
+     Scoped to phones (base rules untouched) so desktop density is unchanged. */
+  .qty-control button { width: 40px; height: 40px; }
+  .remove-btn { width: 40px; height: 40px; top: 16px; }
+  .filter-field select,
+  .filter-field input { height: 44px; }
+  .category-pills button,
+  .color-swatches button,
+  .filter-chip { height: 40px; }
+  .filter-chip .filter-chip-x { width: 24px; height: 24px; font-size: 15px; }
+
+  /* iOS Safari auto-zooms the page when a focused form control is < 16px. Bump
+     every storefront + studio control to 16px on phones to stop the jarring zoom
+     (!important to beat the classed per-control sizes). */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 
   .drawer-panel,
   .modal-card {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+}
+
+/* Landscape phones (short viewport): tighten the hero and let CTAs sit inline so
+   the shop is reachable without excessive scrolling. */
+@media (max-width: 639px) and (max-height: 520px) {
+  .hero { padding: 20px 0 12px; }
+  .hero-grid { grid-template-columns: 1fr 1fr; gap: 16px; align-items: center; }
+  .hero-visual { max-width: 220px; margin-top: 0; margin-bottom: 0; }
+  .hero-actions .btn { width: auto; }
+  .modal-card { max-height: 96vh; }
+  .modal-desc { -webkit-line-clamp: 2; }
 }
 
 /* =========================================================
@@ -1954,8 +1945,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .filter-row { grid-template-columns: repeat(3, 1fr); }
   .trust-grid { grid-template-columns: repeat(3, 1fr); gap: 24px; }
   .trust-grid div { padding: 6px 0; }
-  /* Lift the back-to-top button above the now-visible WhatsApp FAB. */
-  .to-top { bottom: calc(var(--bottom-nav-h) + 80px + env(safe-area-inset-bottom, 0)); }
   .modal-product { flex-direction: row; min-height: 520px; align-items: stretch; }
   .modal-product .image-wrap { width: 50%; aspect-ratio: auto; }
   .modal-details { width: 50%; padding: 28px 28px; overflow-y: auto; }
@@ -1963,6 +1952,16 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .modal-product .image-wrap img { position: absolute; inset: 0; }
   .checkout-grid { grid-template-columns: 1.3fr 1fr; gap: 28px; }
   .recent-card { flex: 0 0 160px; }
+  /* Quick-view becomes a centered, fully-rounded dialog on tablets instead of a
+     full-bleed bottom sheet; desktop's max-width:1000px still wins below. */
+  .modal { place-items: center; padding: 20px; }
+  .modal-card {
+    max-width: min(820px, 100%);
+    border-radius: var(--r-xl);
+    transform: translateY(20px) scale(0.96); opacity: 0;
+    transition: transform 0.4s var(--ease-out), opacity 0.4s var(--ease-out);
+  }
+  .modal.is-open .modal-card { transform: none; opacity: 1; }
 }
 
 /* =========================================================
@@ -1973,8 +1972,9 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     --gutter: 36px;
     --header-h: 92px;
   }
-  .brand {
-    font-size: 28px;
+  .brand-logo {
+    height: 27px;
+    width: 112.5px;
   }
   .desktop-nav {
     display: flex;
@@ -2020,11 +2020,9 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     font-size: 11px;
   }
 
-  .bottom-nav { display: none; }
   .site-footer { padding-bottom: 36px; }
   .toast-region { bottom: 24px; left: auto; right: 24px; max-width: 360px; }
   .whatsapp-fab { right: 24px; bottom: 24px; }
-  .to-top { right: 24px; bottom: 88px; } /* stacked above the FAB (24 + 52 + 12) */
   .footer-version { left: 24px; bottom: 24px; }
 
   .product-grid { grid-template-columns: repeat(4, 1fr); gap: 18px; }
@@ -2060,7 +2058,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
    Print (hide interactive)
    ========================================================= */
 @media print {
-  .site-header, .bottom-nav, .whatsapp-fab, .drawer, .modal { display: none !important; }
+  .site-header, .whatsapp-fab, .drawer, .modal { display: none !important; }
 }
 
 /* =========================================================
@@ -2071,6 +2069,10 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 /* Tactile press on cards and key controls. */
 .product-card { will-change: transform; }
 .product-card:active { transform: translateY(-2px) scale(0.995); }
+/* Touch devices never get the hover lift, so give the press a clearer feel. */
+@media (hover: none) {
+  .product-card:active { transform: scale(0.97); box-shadow: var(--shadow-sm); }
+}
 .product-card:hover .product-media img { filter: brightness(1.02); }
 .btn:active { transform: scale(0.97); }
 .quick-add { transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-spring), background 0.2s var(--ease-out); }

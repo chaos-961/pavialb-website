@@ -1,8 +1,13 @@
-<svg width="640" height="240" viewBox="0 0 640 240" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">Pavia logo</title>
-  <desc id="desc">Elegant Pavia wordmark in black with a fine underline.</desc>
-  <rect width="640" height="240" rx="120" fill="#F4F1EC"/>
-  <text x="320" y="132" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="92" letter-spacing="8" fill="#121212">PAVIA</text>
-  <line x1="132" y1="152" x2="508" y2="152" stroke="#121212" stroke-width="2.5"/>
-  <circle cx="320" cy="120" r="104" stroke="#1A1A1A" stroke-width="2" opacity=".12"/>
+<svg viewBox="0 0 700 168" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="pavia-logo-title">
+  <title id="pavia-logo-title">Pavia</title>
+  <!-- High-contrast Didone wordmark. fill=currentColor so it themes inline (ink on
+       the storefront header); when loaded as an <img>/favicon it defaults to black.
+       The web font (Bodoni Moda) applies only when inlined in the page; isolated
+       <img>/favicon use falls back to the system serif, which is fine at those sizes. -->
+  <text x="350" y="120" text-anchor="middle"
+        font-family="'Bodoni Moda','Bodoni Moda SC',Didot,'Bodoni MT','Playfair Display',Georgia,'Times New Roman',serif"
+        font-size="150" font-weight="500" letter-spacing="6" fill="currentColor">PAVIA</text>
+  <!-- Signature crossing line (left) + underline (right) -->
+  <line x1="14" y1="92" x2="338" y2="92" stroke="currentColor" stroke-width="3"/>
+  <line x1="440" y1="146" x2="672" y2="146" stroke="currentColor" stroke-width="4"/>
 </svg>
