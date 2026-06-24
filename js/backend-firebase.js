@@ -247,6 +247,14 @@
 
   async function transactStock(path, delta) {
     const result = await firebaseState.databaseApi.runTransaction(databaseReference(path), (current) => {
+      // Firebase runs this first against the LOCALLY CACHED value, which is null
+      // for a stock path the storefront never subscribed to. Returning undefined
+      // (a bare `return`) on that first null pass aborts the transaction before
+      // it ever round-trips to the server, so every decrement died with
+      // committed === false ("Stock is no longer available."), blocking checkout.
+      // Returning null instead is a no-op that still forces the server round-trip;
+      // Firebase then re-runs this with the real stock value and the clamp applies.
+      if (current === null) return null;
       const stock = Number(current);
       if (!Number.isFinite(stock) || stock + delta < 0) return;
       return stock + delta;
