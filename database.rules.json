@@ -47,6 +47,7 @@
       }
     },
     "orders": {
+      ".indexOn": ["createdAt"],
       ".read": "auth != null && auth.token.email == 'paviadata@gmail.com'",
       "$orderId": {
         ".read": "auth != null && (auth.token.email == 'paviadata@gmail.com' || !data.exists() || data.child('createdBy').val() == auth.uid)",
@@ -109,7 +110,7 @@
         "events": {
           "$eventName": {
             ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider === 'anonymous' && newData.exists() && ($eventName === 'product_view' || $eventName === 'add_to_cart' || $eventName === 'checkout_started' || $eventName === 'order_created')",
-            ".validate": "newData.hasChildren(['count','lastAt']) && newData.child('count').isNumber() && newData.child('count').val() > 0 && ((!data.exists() && newData.child('count').val() === 1) || (data.child('count').isNumber() && newData.child('count').val() === data.child('count').val() + 1)) && newData.child('lastAt').isNumber() && newData.child('lastAt').val() <= now && newData.child('lastAt').val() >= now - 10000"
+            ".validate": "newData.hasChildren(['count','lastAt']) && newData.child('count').isNumber() && newData.child('count').val() > 0 && ((!data.exists() && newData.child('count').val() === 1) || (data.child('count').isNumber() && newData.child('count').val() === data.child('count').val() + 1)) && newData.child('lastAt').isNumber() && newData.child('lastAt').val() <= now && newData.child('lastAt').val() >= now - 10000 && (!data.exists() || newData.child('lastAt').val() > data.child('lastAt').val() + 500)"
           }
         },
         "eventHistory": {

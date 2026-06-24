@@ -29,6 +29,9 @@
   // the optional "Questions? Message us" link — never an automatic redirect.
   let WHATSAPP_NUMBER = '9613017725';
   const RECENT_LIMIT = 8;
+  // Mirror the backend per-line clamp (normalizeOrderItems maxQty) so the qty a
+  // shopper sees always matches the qty the stored order will actually hold.
+  const MAX_QTY_PER_ITEM = 20;
 
   // ---------- Helpers ----------
   const $  = (sel, scope = document) => scope.querySelector(sel);
@@ -46,6 +49,11 @@
   };
   const money = CORE.formatMoney || ((v) => `$${Number(v || 0).toFixed(0)}`);
   const norm  = CORE.normalizeText || ((v) => String(v || '').trim().toLowerCase());
+  const num   = CORE.safeNumber || ((v, f = 0) => { const n = Number(v); return Number.isFinite(n) ? n : f; });
+  // Persisted arrays (cart/wishlist/recent) must survive a localStorage value that
+  // is valid JSON but not an array (e.g. "{}" or the literal "null"): without this
+  // guard cart.reduce/.map throw on load and brick the whole storefront.
+  const asArray = (v) => (Array.isArray(v) ? v : []);
 
   // ---------- Output escaping (storefront XSS hardening) ----------
   // Every dynamic string rendered via innerHTML below is escaped. `html` is an
@@ -358,9 +366,9 @@
   function indexProducts() { productById = new Map(products.map((p) => [String(p.id), p])); }
   indexProducts();
 
-  let cart        = readJSON(STORE_KEYS.cart, []);
-  let wishlist    = readJSON(STORE_KEYS.wishlist, []);
-  let recent      = readJSON(STORE_KEYS.recent, []);
+  let cart        = asArray(readJSON(STORE_KEYS.cart, []));
+  let wishlist    = asArray(readJSON(STORE_KEYS.wishlist, []));
+  let recent      = asArray(readJSON(STORE_KEYS.recent, []));
   let activeCategory = 'All';
   // Product-grid pagination ("Load more"); reset whenever the filter set changes.
   const PAGE_SIZE = 8;
@@ -428,8 +436,8 @@
 
   // ---------- Derived ----------
   const categories = () => ['All', ...new Set(products.map(p => p.category))];
-  const cartSubtotal = () => cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const cartQty = () => cart.reduce((s, i) => s + i.qty, 0);
+  const cartSubtotal = () => cart.reduce((s, i) => s + num(i.price) * num(i.qty), 0);
+  const cartQty = () => cart.reduce((s, i) => s + num(i.qty), 0);
   const getProduct = (id) => productById.get(String(id));
   const cartLineQty = (productId, size = '', color = '') => cart
     .filter((item) => String(item.id) === String(productId)
@@ -1929,7 +1937,11 @@
       toast(`Only ${product.stock} of ${product.name} available.`, 'error');
       return;
     }
-    const addQty = Math.min(Number(qty) || 1, available);
+    const addQty = Math.min(Number(qty) || 1, available, Math.max(0, MAX_QTY_PER_ITEM - currentQty));
+    if (addQty <= 0) {
+      toast(`You can add up to ${MAX_QTY_PER_ITEM} of one item.`, 'error');
+      return;
+    }
     if (existing) {
       existing.qty = currentQty + addQty;
       existing.price = product.price;
@@ -2013,17 +2025,28 @@
 
   function changeCartQty(key, dir) {
     const item = cart.find(r => r.key === key);
-    const product = getProduct(item?.id);
-    if (!item || !product) return;
+    if (!item) return;
     if (dir === 'plus') {
+      // A product can leave the catalog (deleted / sold out) while it sits in the
+      // bag; only the increment needs the live record, so guard just this branch
+      // and still let the shopper decrement or remove an orphaned line below.
+      const product = getProduct(item.id);
+      if (!product) {
+        toast('This style is no longer available.', 'error');
+        return;
+      }
       // Block once the product's TOTAL across all options reaches its stock.
       if (cartProductQty(item.id) >= product.stock) {
         toast(`Only ${product.stock} of ${product.name} available.`, 'error');
         return;
       }
-      item.qty += 1;
+      if (num(item.qty) >= MAX_QTY_PER_ITEM) {
+        toast(`You can add up to ${MAX_QTY_PER_ITEM} of one item.`, 'error');
+        return;
+      }
+      item.qty = num(item.qty) + 1;
     } else {
-      item.qty -= 1;
+      item.qty = num(item.qty) - 1;
     }
     if (item.qty <= 0) cart = cart.filter(r => r.key !== key);
     saveCart();
@@ -2184,6 +2207,11 @@
     `);
   }
 
+  // Floor between real place-order attempts. The submit button is already disabled
+  // mid-request; this just spaces retries so a frantic or scripted tap-storm can't
+  // fire a burst of order writes. Validation bounces below do not start the clock.
+  const ORDER_SUBMIT_COOLDOWN_MS = 1500;
+  let lastOrderSubmitAt = 0;
   async function submitCheckout(e) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -2200,6 +2228,12 @@
       renderCheckoutSummary();
       return;
     }
+    const nowMs = Date.now();
+    if (nowMs - lastOrderSubmitAt < ORDER_SUBMIT_COOLDOWN_MS) {
+      toast('One moment, still finishing your last try.', 'info');
+      return;
+    }
+    lastOrderSubmitAt = nowMs;
     const subtotal = cartSubtotal();
     const delivery = deliveryFee();
     const total = subtotal + delivery;

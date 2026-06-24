@@ -27,6 +27,11 @@
   let activeProvider = 'local';
   let initializationError = null;
   let adminUnlocked = false;
+  // Cap how many orders the studio pulls at once so the read stays bounded as the
+  // order history grows (newest first, by createdAt). Older orders stay in the DB;
+  // this is a page size, not a delete. Pairs with the `.indexOn: ["createdAt"]`
+  // rule so the server returns only this many rows instead of the entire node.
+  const ORDERS_LOAD_LIMIT = 300;
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -66,6 +71,13 @@
   // sibling marketing sites). A short session cookie dedupes repeat pageviews
   // so visits/count increments once per session, not once per page. ---
   const VISIT_EVENTS = new Set(['product_view', 'add_to_cart', 'checkout_started', 'order_created']);
+  // Best-effort client throttle: collapse machine-speed repeats of the same event
+  // type (a stuck page, a tight loop, a casual script) into at most one write per
+  // interval. Analytics is non-critical, so a dropped duplicate is invisible to the
+  // shopper, and real browsing never fires the same event this fast. This is a UX
+  // guardrail, not a security control — the rules are the enforced limit.
+  const EVENT_MIN_INTERVAL_MS = 1000;
+  const lastEventAt = new Map();
   const VISIT_SESSION_COOKIE = 'pavia_visit_session';
 
   function createEventId() {
@@ -192,10 +204,12 @@
     return snapshot.exists() ? snapshot.val() : null;
   }
 
-  function subscribePath(path, listener) {
+  function subscribePath(path, listener, makeQuery) {
     if (!firebaseState.initialized) return () => {};
+    const base = databaseReference(path);
+    const target = makeQuery ? makeQuery(base, firebaseState.databaseApi) : base;
     const unsubscribe = firebaseState.databaseApi.onValue(
-      databaseReference(path),
+      target,
       () => listener(),
       (error) => {
         const optionalPublicPath = /^public(?:Products|StoreSettings|CatalogManifest)/.test(path);
@@ -256,7 +270,11 @@
       // Firebase then re-runs this with the real stock value and the clamp applies.
       if (current === null) return null;
       const stock = Number(current);
-      if (!Number.isFinite(stock) || stock + delta < 0) return;
+      // Abort (no-op) on a non-finite stock OR a non-finite delta. Without the
+      // delta guard, a NaN delta passes `stock + NaN < 0` (false) and writes NaN
+      // into stock, permanently breaking that product (every later read stays NaN
+      // and every decrement aborts → a stuck false "sold out").
+      if (!Number.isFinite(stock) || !Number.isFinite(delta) || stock + delta < 0) return;
       return stock + delta;
     });
     if (!result.committed) throw new Error('Stock is no longer available.');
@@ -586,18 +604,55 @@
       async list() {
         if (activeProvider === 'local') return localBackend.orders.list();
         await assertAdminReady();
-        return values(await readPath('orders'));
+        // Newest ORDERS_LOAD_LIMIT only, server-side (needs the createdAt index).
+        const api = firebaseState.databaseApi;
+        const recent = api.query(
+          databaseReference('orders'),
+          api.orderByChild('createdAt'),
+          api.limitToLast(ORDERS_LOAD_LIMIT),
+        );
+        const snapshot = await api.get(recent);
+        return values(snapshot.exists() ? snapshot.val() : null);
       },
       async create(order) {
         if (activeProvider === 'local') return localBackend.orders.create(order);
         const uid = firebaseState.auth?.currentUser?.uid;
         if (!uid) throw new Error('Anonymous sign-in is required before placing an order.');
-        const requestId = safeKey(order.requestId, `req-${Date.now()}`);
-        let orderId = safeKey(order.id, `order-${Date.now()}`);
+        // Scope the dedupe identity to THIS anonymous uid. The client persists a
+        // requestId/orderId in localStorage and replays them across retries so a
+        // dropped response dedupes instead of duplicating. But an anonymous uid
+        // can change (the SDK re-signs-in as a new anonymous user if the old
+        // token/account is gone), and the persisted requestId then points at an
+        // orderRequests node owned by the OLD uid. The rules correctly deny
+        // reading or overwriting another uid's request, so this optimistic read
+        // returned PERMISSION_DENIED and aborted checkout — permanently, because
+        // every retry replayed the same poisoned id. Binding the id to the
+        // current uid means we only ever touch our own node, so the read can
+        // never be denied and a uid change simply starts a clean order.
+        const uidTag = safeKey(uid).slice(0, 16);
+        const requestId = safeKey(`${safeKey(order.requestId, `req-${Date.now()}`)}-${uidTag}`);
+        let orderId = safeKey(`${safeKey(order.id, `order-${Date.now()}`)}-${uidTag}`);
         const now = new Date().toISOString();
-        const existingRequest = await readPath(`orderRequests/${requestId}`);
+
+        // Best-effort idempotency. These reads must NEVER be fatal: if one fails
+        // (transient network or any rules edge case) we fall through and place a
+        // fresh order rather than wedging checkout. A rare duplicate is the worst
+        // case, and the disabled submit button plus the 15s 'creating' window
+        // already make that unlikely; a hard failure here is exactly what the
+        // "could not place your order" error was.
+        let existingRequest = null;
+        try {
+          existingRequest = await readPath(`orderRequests/${requestId}`);
+        } catch {
+          existingRequest = null;
+        }
         if (existingRequest?.orderId) {
-          const existingOrder = await readPath(`orders/${existingRequest.orderId}`);
+          let existingOrder = null;
+          try {
+            existingOrder = await readPath(`orders/${existingRequest.orderId}`);
+          } catch {
+            existingOrder = null;
+          }
           // Already created → return it so a retry (e.g. a response lost to a
           // dropped connection) is an idempotent no-op, never a duplicate order.
           if (existingOrder) return clone(existingOrder);
@@ -613,11 +668,18 @@
           orderId = existingRequest.orderId;
         }
 
-        await firebaseState.databaseApi.set(databaseReference(`orderRequests/${requestId}`), {
+        // A prior attempt under this same id may have already reserved (decremented)
+        // stock but failed before writing the order. A flag on the request node lets
+        // a retry SKIP the decrement instead of draining inventory a second time and
+        // showing a false "sold out". update (not set) so the flag survives retries;
+        // error:null clears any stale failure note from the previous attempt.
+        const alreadyReserved = existingRequest?.stockReserved === true;
+        await firebaseState.databaseApi.update(databaseReference(`orderRequests/${requestId}`), {
           uid,
           orderId,
           status: 'creating',
           createdAt: now,
+          error: null,
         });
 
         // Everything below runs inside the try so ANY failure (validation, stock,
@@ -631,7 +693,10 @@
           for (const item of items) {
             const product = await readPath(`publicProducts/${item.id}`);
             if (!product || product.active !== true) throw new Error(`${item.name || item.id} is no longer available.`);
-            if (Number(product.stock || 0) < item.qty) throw new Error(`${product.name} has only ${product.stock || 0} left.`);
+            // On a retry that already reserved, our units are already out of stock,
+            // so the live count would wrongly read as too low — skip the availability
+            // check and trust the prior reservation.
+            if (!alreadyReserved && Number(product.stock || 0) < item.qty) throw new Error(`${product.name} has only ${product.stock || 0} left.`);
             publicProducts[item.id] = product;
           }
 
@@ -648,9 +713,20 @@
           const delivery = calculateDelivery(settings);
           const total = subtotal + delivery;
 
-          for (const item of pricingItems) {
-            await transactStock(`products/${item.id}/stock`, -item.qty);
-            await transactStock(`publicProducts/${item.id}/stock`, -item.qty);
+          // Skip the decrement if a previous attempt already reserved stock for this
+          // request; re-running it would double-count. Mark the reservation AFTER the
+          // loop and BEFORE the order write so an interruption past this point
+          // recovers as a no-op rather than reserving a second time. (A failure
+          // mid-loop, before the mark, is the rare exception — it under-counts, never
+          // oversells, and the owner can correct it in the studio.)
+          if (!alreadyReserved) {
+            for (const item of pricingItems) {
+              await transactStock(`products/${item.id}/stock`, -item.qty);
+              await transactStock(`publicProducts/${item.id}/stock`, -item.qty);
+            }
+            await firebaseState.databaseApi.update(databaseReference(`orderRequests/${requestId}`), {
+              stockReserved: true,
+            });
           }
 
           const paymentMethod = order.paymentMethod === 'whish_money' || customer.payment === 'Whish Money'
@@ -778,7 +854,9 @@
       },
       subscribe(listener) {
         if (activeProvider === 'local') return localBackend.orders.subscribe(listener);
-        return subscribePath('orders', listener);
+        // Bound the live subscription to the same newest-N window as list().
+        return subscribePath('orders', listener, (ref, api) =>
+          api.query(ref, api.orderByChild('createdAt'), api.limitToLast(ORDERS_LOAD_LIMIT)));
       },
     },
 
@@ -878,6 +956,10 @@
         if (!VISIT_EVENTS.has(name)) return;
         const user = firebaseState.auth?.currentUser;
         if (!user?.uid || !user.isAnonymous) return;
+        // Drop repeats fired faster than a human ever could (see EVENT_MIN_INTERVAL_MS).
+        const nowMs = Date.now();
+        if (nowMs - (lastEventAt.get(name) || 0) < EVENT_MIN_INTERVAL_MS) return;
+        lastEventAt.set(name, nowMs);
         const api = firebaseState.databaseApi;
         const base = `users/${user.uid}`;
         const createdAt = Date.parse(user.metadata?.creationTime) || Date.now();

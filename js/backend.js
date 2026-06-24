@@ -310,7 +310,13 @@
 
     orders: {
       async list() {
-        return clone(read(keys.orders, []));
+        // Mirror the Firebase provider's bounded read: newest-first, capped so the
+        // studio never loads the entire order history at once.
+        const LIMIT = 300;
+        const all = read(keys.orders, []);
+        return clone([...all]
+          .sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0))
+          .slice(0, LIMIT));
       },
       async create(order) {
         const requestId = String(order.requestId || '').trim();
@@ -337,9 +343,18 @@
         write(keys.products, products);
         emit('products');
         const orders = read(keys.orders, []);
+        // Recompute money from the normalized (re-priced, qty-clamped) items so the
+        // stored total can't disagree with its own line items — the local mirror of
+        // the Firebase provider's server-authoritative totals.
+        const subtotal = normalizedItems.reduce((sum, item) => sum + item.price * item.qty, 0);
+        const delivery = Math.max(0, Number(order.delivery) || 0);
         const created = {
           ...clone(order),
           items: normalizedItems,
+          subtotal,
+          discount: 0,
+          delivery,
+          total: subtotal + delivery,
           stockReserved: true,
           stockRestored: false,
         };
