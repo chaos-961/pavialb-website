@@ -1421,7 +1421,7 @@ body {
 
 .color-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto 38px;
+  grid-template-columns: 48px minmax(0, 1fr) 112px 38px;
   gap: 10px;
   align-items: end;
   padding: 10px;
@@ -1463,13 +1463,16 @@ body {
   min-height: 40px;
 }
 
-.color-row code {
-  align-self: center;
-  padding: 6px 8px;
-  color: var(--muted);
-  background: #fff;
-  border-radius: 6px;
-  font-size: 10px;
+.color-hex-field {
+  gap: 4px !important;
+  font-size: 9px !important;
+}
+
+.color-hex-field input {
+  min-height: 40px;
+  font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  text-transform: lowercase;
 }
 
 .remove-color {
@@ -1928,8 +1931,9 @@ body {
     gap: 10px;
   }
 
-  /* Lift the tiny color-name label out of near-illegible 9px. */
-  .color-name-field { font-size: 11px !important; }
+  /* Lift the tiny color-name/hex labels out of near-illegible 9px. */
+  .color-name-field,
+  .color-hex-field { font-size: 11px !important; }
 
   .panel-heading {
     display: grid;
@@ -1969,13 +1973,19 @@ body {
     grid-template-columns: 1fr;
   }
 
+  /* Keep the swatch, name, and remove button on one line; drop the hex box onto
+     its own full-width row so it stays easy to type into on a phone. */
   .color-row {
     grid-template-columns: 48px minmax(0, 1fr) 38px;
+    grid-template-areas:
+      "swatch name remove"
+      "hex hex hex";
   }
 
-  .color-row code {
-    display: none;
-  }
+  .color-swatch-control { grid-area: swatch; }
+  .color-name-field { grid-area: name; }
+  .color-hex-field { grid-area: hex; }
+  .remove-color { grid-area: remove; }
 
   .toast-wrap {
     right: 14px;

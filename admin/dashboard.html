@@ -142,7 +142,7 @@
           <div>
             <p class="admin-kicker">Catalog editor</p>
             <h2 id="formTitle">Add a product</h2>
-            <p class="desc">Inline checks keep IDs, SKUs, and the storefront projection clean.</p>
+            <p class="desc">Inline checks keep IDs and the storefront projection clean.</p>
           </div>
           <button type="button" class="btn btn-ghost" id="formReset">New product</button>
         </div>
@@ -171,11 +171,6 @@
               <label>
                 Product badge
                 <input id="prodBadge" type="text" placeholder="New, Best Seller, Limited" />
-              </label>
-              <label>
-                SKU
-                <input id="prodSku" type="text" placeholder="PVA-TOP-001" />
-                <small class="field-error" data-error-for="prodSku"></small>
               </label>
               <label>
                 Visibility
@@ -333,7 +328,7 @@
       <div class="admin-toolbar">
         <label>
           Product search
-          <input id="productSearch" type="search" placeholder="Name, SKU, category" />
+          <input id="productSearch" type="search" placeholder="Name, category, tags" />
         </label>
         <label>
           Image status
@@ -388,12 +383,12 @@
       </div>
       <div class="drive-panel" id="libraryDrivePanel">
         <div>
-          <strong id="libraryDriveStatus">Connect the image library</strong>
-          <small id="libraryDriveDetail">Connect once to browse and upload images.</small>
+          <strong id="libraryDriveStatus">Browse the library anytime</strong>
+          <small id="libraryDriveDetail">Connect Google Drive only to upload or delete images.</small>
         </div>
         <button type="button" class="btn btn-secondary" id="libraryConnectBtn">Connect Google Drive</button>
       </div>
-      <label class="image-dropzone" id="libraryDropzone">
+      <label class="image-dropzone" id="libraryDropzone" hidden>
         <input id="libraryFile" type="file" accept="image/jpeg,image/png,image/webp" multiple />
         <span class="upload-icon" aria-hidden="true">+</span>
         <strong>Upload image(s) to the library</strong>

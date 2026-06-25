@@ -78,6 +78,13 @@
       ".read": "auth != null && auth.token.email == 'paviadata@gmail.com'",
       ".write": "auth != null && auth.token.email == 'paviadata@gmail.com'"
     },
+    "mediaLibrary": {
+      ".read": "auth != null && auth.token.email == 'paviadata@gmail.com'",
+      ".write": "auth != null && auth.token.email == 'paviadata@gmail.com'",
+      "$fileId": {
+        ".validate": "!newData.exists() || (newData.child('id').isString() && newData.child('id').val() == $fileId && newData.child('imageUrl').isString() && newData.child('imageUrl').val().beginsWith('https://') && !newData.child('accessToken').exists() && !newData.child('refreshToken').exists() && !newData.child('clientSecret').exists() && !newData.child('privateKey').exists() && !newData.child('serviceAccount').exists())"
+      }
+    },
     "orderRequests": {
       ".read": "auth != null && auth.token.email == 'paviadata@gmail.com'",
       "$requestId": {

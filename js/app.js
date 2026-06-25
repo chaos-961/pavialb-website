@@ -350,7 +350,6 @@
           tags,
           featured: Boolean(p.featured || tags.map(norm).includes('featured')),
           active: p.active !== false,
-          sku: p.sku || '',
           material: p.material || '',
           fit: p.fit || '',
           care: p.care || '',
@@ -1298,8 +1297,8 @@
     const avail = n.availFilter?.value || 'all';
 
     let result = products.filter(p => {
-      // Widened haystack: also match SKU, material, color names, and tags.
-      const hay = [p.name, p.category, p.description, p.badge, p.sku, p.material,
+      // Widened haystack: also match material, color names, and tags.
+      const hay = [p.name, p.category, p.description, p.badge, p.material,
         ...(p.colors || []).map((c) => colorObj(c).name), ...(p.tags || [])].map(norm).join(' ');
       if (q && !hay.includes(q)) return false;
       if (activeCategory !== 'All' && p.category !== activeCategory) return false;
@@ -1765,12 +1764,6 @@
           </div>
 
           <p class="stock-note">${inBagTotal ? `${inBagTotal} already in your bag.` : 'Ready to add.'}</p>
-
-          ${p.sku ? html`
-            <dl class="product-extra-details">
-              <div><dt>SKU</dt><dd>${p.sku}</dd></div>
-            </dl>
-          ` : ''}
 
           <div class="modal-meta">
             <div>

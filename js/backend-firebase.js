@@ -302,7 +302,6 @@
     return {
       id,
       slug: product.slug || id,
-      sku: product.sku || '',
       name: product.name || 'Untitled product',
       category: product.category || 'New Arrivals',
       badge: product.badge || '',
@@ -441,6 +440,24 @@
     };
     await firebaseState.databaseApi.update(databaseReference('/'), updates);
     return record;
+  }
+
+  // Shape a Drive file record for the saved media-library index. Coerces every
+  // field (Firebase rejects undefined) and never carries a token/secret.
+  function normalizeMediaRecord(item) {
+    const id = String(item?.id || '').trim();
+    return {
+      id,
+      name: String(item?.name || ''),
+      mimeType: String(item?.mimeType || ''),
+      size: Number(item?.size) || 0,
+      createdTime: String(item?.createdTime || ''),
+      width: Number(item?.width) || 0,
+      height: Number(item?.height) || 0,
+      imageUrl: String(item?.imageUrl || ''),
+      imageVersion: String(item?.imageVersion || ''),
+      contentHash: String(item?.contentHash || ''),
+    };
   }
 
   const backend = {
@@ -971,6 +988,67 @@
       subscribeStatistics(listener) {
         if (activeProvider !== 'firebase') return () => {};
         return subscribePath('users', listener);
+      },
+    },
+
+    // Saved image-library index. The studio reads this to browse/pick images with
+    // no Google Drive connection (admin-only node). Upload/delete still need Drive;
+    // a connected session reconciles this index against the live Drive listing.
+    mediaLibrary: {
+      async list() {
+        if (activeProvider === 'local') return localBackend.mediaLibrary.list();
+        try {
+          const record = await readPath('mediaLibrary');
+          return values(record)
+            .map(normalizeMediaRecord)
+            .filter((item) => item.id && item.imageUrl)
+            .sort((a, b) => String(b.createdTime).localeCompare(String(a.createdTime)));
+        } catch (error) {
+          console.warn('Pavia media library read failed.', error);
+          return [];
+        }
+      },
+      async upsert(item) {
+        if (activeProvider === 'local') return localBackend.mediaLibrary.upsert(item);
+        await assertAdminReady();
+        const record = normalizeMediaRecord(item);
+        if (!record.id || !record.imageUrl) return;
+        await firebaseState.databaseApi.update(databaseReference('/'), {
+          [`mediaLibrary/${record.id}`]: record,
+        });
+      },
+      async remove(id) {
+        if (activeProvider === 'local') return localBackend.mediaLibrary.remove(id);
+        await assertAdminReady();
+        const fileId = String(id || '').trim();
+        if (!fileId) return;
+        await firebaseState.databaseApi.update(databaseReference('/'), {
+          [`mediaLibrary/${fileId}`]: null,
+        });
+      },
+      // Reconcile the saved library against an authoritative Drive listing: write
+      // only new/changed entries and drop entries whose Drive file is gone, so a
+      // routine refresh with no changes costs no write at all.
+      async replaceAll(items) {
+        if (activeProvider === 'local') return localBackend.mediaLibrary.replaceAll(items);
+        await assertAdminReady();
+        const incoming = new Map(
+          (Array.isArray(items) ? items : [])
+            .map(normalizeMediaRecord)
+            .filter((item) => item.id && item.imageUrl)
+            .map((item) => [item.id, item]),
+        );
+        const current = (await readPath('mediaLibrary')) || {};
+        const updates = {};
+        incoming.forEach((record, id) => {
+          if (JSON.stringify(current[id]) !== JSON.stringify(record)) updates[`mediaLibrary/${id}`] = record;
+        });
+        Object.keys(current).forEach((id) => {
+          if (!incoming.has(id)) updates[`mediaLibrary/${id}`] = null;
+        });
+        if (Object.keys(updates).length) {
+          await firebaseState.databaseApi.update(databaseReference('/'), updates);
+        }
       },
     },
 

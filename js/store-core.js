@@ -76,7 +76,6 @@
       stock: safeNumber(product.stock),
       featured: Boolean(product.featured || tags.map(normalizeText).includes('featured')),
       active: product.active !== false,
-      sku: product.sku || '',
       material: product.material || '',
       fit: product.fit || '',
       care: product.care || '',
@@ -336,7 +335,6 @@
         };
         if (image) item.image = image;
         if (product.description) item.description = String(product.description).slice(0, 300);
-        if (product.sku) item.sku = String(product.sku);
         if (product.category) item.category = String(product.category);
         return { '@type': 'ListItem', position: index + 1, item };
       });

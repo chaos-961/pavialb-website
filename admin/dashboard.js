@@ -332,7 +332,6 @@
       name: $('#prodName').value,
       category: $('#prodCategory').value,
       badge: $('#prodBadge').value,
-      sku: $('#prodSku').value,
       status: $('#prodStatus').value,
       featured: $('#prodFeatured').checked,
       description: $('#prodDesc').value,
@@ -389,7 +388,6 @@
     $('#prodName').value = draft.name || '';
     $('#prodCategory').value = draft.category || '';
     $('#prodBadge').value = draft.badge || '';
-    $('#prodSku').value = draft.sku || '';
     $('#prodStatus').value = draft.status || 'published';
     $('#prodFeatured').checked = Boolean(draft.featured);
     $('#prodDesc').value = draft.description || '';
@@ -474,6 +472,15 @@
     }).join(', ');
   }
 
+  // Accept a typed color like "#c9a779", "c9a779", "#fff", or "FFF" and return a
+  // canonical 6-digit "#rrggbb" the native swatch can hold. Returns null while the
+  // text is not yet a valid hex color, so callers can wait for more typing.
+  function normalizeHex(value) {
+    let v = String(value == null ? '' : value).trim().replace(/^#+/, '');
+    if (/^[0-9a-fA-F]{3}$/.test(v)) v = v.split('').map((c) => c + c).join('');
+    return /^[0-9a-fA-F]{6}$/.test(v) ? `#${v.toLowerCase()}` : null;
+  }
+
   const PRESET_SIZES = ['One size', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
   function selectedSizes() {
@@ -535,27 +542,55 @@
   }
 
   function addColorRow(color = { name: '', hex: '#c9a779' }) {
+    const startHex = normalizeHex(color.hex) || '#c9a779';
     const row = document.createElement('div');
     row.className = 'color-row';
     row.innerHTML = `
       <label class="color-swatch-control" title="Choose color">
-        <input data-color-value type="color" value="${escapeHtml(color.hex || '#c9a779')}" />
-        <span style="background:${escapeHtml(color.hex || '#c9a779')}"></span>
+        <input data-color-value type="color" value="${escapeHtml(startHex)}" />
+        <span style="background:${escapeHtml(startHex)}"></span>
       </label>
       <label class="color-name-field">
         Color name
         <input data-color-name type="text" value="${escapeHtml(color.name || '')}" placeholder="e.g. Ivory" />
       </label>
-      <code data-color-code>${escapeHtml(color.hex || '#c9a779')}</code>
+      <label class="color-hex-field">
+        Hex
+        <input data-color-hex type="text" value="${escapeHtml(startHex)}" placeholder="#c9a779"
+          spellcheck="false" autocapitalize="off" autocomplete="off" maxlength="7" aria-label="Hex color code" />
+      </label>
       <button type="button" class="remove-color" aria-label="Remove color">&times;</button>
     `;
     $('#colorBuilder').appendChild(row);
 
     const picker = $('[data-color-value]', row);
-    picker.addEventListener('input', () => {
-      $('.color-swatch-control span', row).style.background = picker.value;
-      $('[data-color-code]', row).textContent = picker.value;
+    const hexInput = $('[data-color-hex]', row);
+    const swatch = $('.color-swatch-control span', row);
+
+    // Keep the swatch, the native picker, and the typed hex box in lockstep.
+    function applyHex(hex) {
+      picker.value = hex;
+      swatch.style.background = hex;
       syncColorsField();
+    }
+    // Native picker -> hex text box.
+    picker.addEventListener('input', () => {
+      hexInput.value = picker.value;
+      swatch.style.background = picker.value;
+      syncColorsField();
+    });
+    // Typed hex -> picker, but only once it parses to a real color so a
+    // half-typed value does not snap the swatch around mid-keystroke.
+    hexInput.addEventListener('input', () => {
+      const hex = normalizeHex(hexInput.value);
+      if (hex) applyHex(hex);
+    });
+    // On blur, tidy the field: canonicalize a valid value to #rrggbb, or restore
+    // the last good color when the text was left incomplete.
+    hexInput.addEventListener('blur', () => {
+      const hex = normalizeHex(hexInput.value);
+      hexInput.value = hex || picker.value;
+      if (hex) applyHex(hex);
     });
     $('[data-color-name]', row).addEventListener('input', syncColorsField);
     $('.remove-color', row).addEventListener('click', () => {
@@ -613,7 +648,6 @@
       ...product,
       id: product.id || product.slug || slugify(product.name),
       slug: product.slug || product.id || slugify(product.name),
-      sku: product.sku || '',
       name: product.name || 'Untitled product',
       category: product.category || 'New Arrivals',
       price: Number(product.price) || 0,
@@ -1128,9 +1162,6 @@
     if (productsCache.some((item) => item.id === id && item.id !== $('#prodId').value)) {
       errors.prodSlug = 'This slug is already used.';
     }
-    if (product.sku && productsCache.some((item) => norm(item.sku) === norm(product.sku) && item.id !== $('#prodId').value)) {
-      errors.prodSku = 'This SKU is already used.';
-    }
     if (product.price <= 0) errors.prodPrice = 'Price must be greater than zero.';
     if (!product.imageUrl) {
       errors.prodImageUrl = 'Choose a main product image from the Library.';
@@ -1200,7 +1231,6 @@
     $('#prodName').value = product.name;
     $('#prodCategory').value = product.category;
     $('#prodBadge').value = product.badge;
-    $('#prodSku').value = product.sku;
     $('#prodStatus').value = product.active ? 'published' : 'draft';
     $('#prodFeatured').checked = product.featured;
     $('#prodDesc').value = product.description;
@@ -1243,7 +1273,6 @@
     const product = normalizeProduct({
       id,
       slug: id,
-      sku: $('#prodSku').value.trim(),
       name: $('#prodName').value.trim(),
       category: $('#prodCategory').value.trim(),
       badge: $('#prodBadge').value.trim(),
@@ -1351,7 +1380,7 @@
   function productMatchesFilters(product) {
     const query = norm($('#productSearch')?.value || '');
     const imageFilter = $('#imageMigrationFilter')?.value || '';
-    const haystack = norm([product.name, product.sku, product.category, product.tags?.join(' ')].join(' '));
+    const haystack = norm([product.name, product.category, product.tags?.join(' ')].join(' '));
     return (!query || haystack.includes(query))
       && (!imageFilter || (imageFilter === 'needs-image' && productNeedsImageMigration(product)));
   }
@@ -1415,7 +1444,7 @@
                 <strong>${escapeHtml(product.name)}</strong>
                 <span class="status-pill ${product.active ? 'published' : 'draft'}">${product.active ? 'Published' : 'Draft'}</span>
               </div>
-              <p>${escapeHtml(product.category)}${product.sku ? ` - ${escapeHtml(product.sku)}` : ''}</p>
+              <p>${escapeHtml(product.category)}</p>
               <div class="product-row-inline">
                 <strong class="row-price">${fmt(product.price)}</strong>
                 ${productNeedsImageMigration(product) ? '<span class="row-flag">Needs image migration</span>' : ''}
@@ -1820,19 +1849,24 @@
   }
   function refreshLibraryDrivePanel() {
     const button = $('#libraryConnectBtn');
+    const dropzone = $('#libraryDropzone');
     if (!button) return;
     if (!drive()?.configured?.()) {
       setLibraryDriveStatus('Google Drive not configured', 'Add the OAuth client ID and Drive folder ID in js/backend-config.js.');
       button.disabled = true;
+      if (dropzone) dropzone.hidden = true;
       return;
     }
     const connected = Boolean(drive().accessToken?.());
     setLibraryDriveStatus(
-      connected ? 'Image library connected' : 'Connect the image library',
-      connected ? 'Ready to browse and upload images.' : 'Connect once to browse and upload images.',
+      connected ? 'Google Drive connected' : 'Browse the library anytime',
+      connected ? 'Ready to upload and delete images.' : 'Connect Google Drive only to upload or delete images.',
     );
     button.disabled = connected;
     button.textContent = connected ? 'Google Drive connected' : 'Connect Google Drive';
+    // Upload is the one action that needs Drive, so the dropzone only shows once
+    // connected. Browsing and picking images work from the saved library.
+    if (dropzone) dropzone.hidden = !connected;
   }
 
   function setLibraryStatus(message, isError = false) {
@@ -1846,16 +1880,29 @@
 
   // ---- Load + render the library grid ----
   async function loadLibrary({ silent = false } = {}) {
-    if (!drive()?.configured?.()) { libraryCache = []; renderLibrary(); refreshLibraryDrivePanel(); return; }
-    refreshLibraryDrivePanel();
-    if (!drive().accessToken?.()) { renderLibrary(); return; }
     if (libraryLoading) return;
     libraryLoading = true;
-    if (!silent) setLibraryStatus('Loading library…');
+    refreshLibraryDrivePanel();
     try {
-      libraryCache = await drive().listFiles({ pageSize: 300 });
+      // The saved library lives in the backend, so images show without a Google
+      // Drive connection. Connecting is only needed to upload or delete.
+      const saved = await BACKEND?.mediaLibrary?.list?.();
+      libraryCache = Array.isArray(saved) ? saved : [];
       libraryPage = 0;
-      if (!silent) setLibraryStatus('');
+      renderLibrary();
+
+      // When connected, the live Drive listing is authoritative and also surfaces
+      // images not yet saved. Show it, then reconcile the saved index so the next
+      // offline visit shows the same set.
+      if (drive()?.configured?.() && drive().accessToken?.()) {
+        if (!silent) setLibraryStatus('Loading library…');
+        const files = await drive().listFiles({ pageSize: 300 });
+        libraryCache = files;
+        libraryPage = 0;
+        if (!silent) setLibraryStatus('');
+        try { await BACKEND?.mediaLibrary?.replaceAll?.(files); }
+        catch (error) { console.warn('Could not save the image library index.', error); }
+      }
     } catch (error) {
       setLibraryStatus(error.message || 'Could not load the library', true);
     } finally {
@@ -1864,7 +1911,7 @@
     }
   }
 
-  function libraryTileHtml(file, usage, picker) {
+  function libraryTileHtml(file, usage, picker, connected = false) {
     const used = usage.get(file.id) || [];
     const dims = file.width && file.height ? ` · ${file.width}×${file.height}` : '';
     const usageText = used.length ? `Used by ${used.length} product${used.length === 1 ? '' : 's'}` : 'Unused';
@@ -1884,13 +1931,18 @@
           <span class="library-pick-check" aria-hidden="true">Select</span>
         </button>`;
     }
+    // Delete needs Google Drive, so it only appears when connected. Copy URL is
+    // safe offline.
+    const deleteButton = connected
+      ? `<button type="button" class="btn btn-ghost danger-button" data-lib-delete${used.length ? ' title="In use, remove from products first"' : ''}>Delete</button>`
+      : '';
     return `
       <figure class="library-tile" data-file-id="${escapeHtml(file.id)}">
         ${thumb}
         ${caption}
         <div class="library-tile-actions">
           <button type="button" class="btn btn-ghost" data-lib-copy>Copy URL</button>
-          <button type="button" class="btn btn-ghost danger-button" data-lib-delete${used.length ? ' title="In use, remove from products first"' : ''}>Delete</button>
+          ${deleteButton}
         </div>
       </figure>`;
   }
@@ -1900,19 +1952,16 @@
     const pager = $('#libraryPager');
     if (!grid) return;
     $('#libraryCount').textContent = libraryCache.length;
+    const connected = Boolean(drive()?.configured?.() && drive().accessToken?.());
 
-    if (!drive()?.configured?.()) {
-      grid.innerHTML = '<div class="empty-state-admin"><strong>Google Drive not configured</strong><p>Add the OAuth client ID and Drive folder ID in js/backend-config.js.</p></div>';
-      pager.hidden = true;
-      return;
-    }
-    if (!drive().accessToken?.()) {
-      grid.innerHTML = '<div class="empty-state-admin"><strong>Connect Google Drive</strong><p>Connect to browse the images your studio uploaded.</p></div>';
-      pager.hidden = true;
-      return;
-    }
     if (!libraryCache.length) {
-      grid.innerHTML = '<div class="empty-state-admin"><strong>No images yet</strong><p>Upload images above, or add them while editing a product.</p></div>';
+      if (!drive()?.configured?.()) {
+        grid.innerHTML = '<div class="empty-state-admin"><strong>Google Drive not configured</strong><p>Add the OAuth client ID and Drive folder ID in js/backend-config.js.</p></div>';
+      } else if (connected) {
+        grid.innerHTML = '<div class="empty-state-admin"><strong>No images yet</strong><p>Upload images above, or add them while editing a product.</p></div>';
+      } else {
+        grid.innerHTML = '<div class="empty-state-admin"><strong>No images yet</strong><p>Connect Google Drive to upload your first image.</p></div>';
+      }
       pager.hidden = true;
       return;
     }
@@ -1922,7 +1971,7 @@
     libraryPage = Math.min(libraryPage, pages - 1);
     const start = libraryPage * LIBRARY_PAGE_SIZE;
     const slice = libraryCache.slice(start, start + LIBRARY_PAGE_SIZE);
-    grid.innerHTML = slice.map((file) => libraryTileHtml(file, usage, false)).join('');
+    grid.innerHTML = slice.map((file) => libraryTileHtml(file, usage, false, connected)).join('');
 
     $$('[data-lib-delete]', grid).forEach((button) => {
       button.addEventListener('click', () => {
@@ -1963,9 +2012,11 @@
     if (!ok) return;
     try {
       await drive().deleteFile(fileId);
+      try { await BACKEND?.mediaLibrary?.remove?.(fileId); }
+      catch (error) { console.warn('Could not update the saved image library.', error); }
       libraryCache = libraryCache.filter((item) => item.id !== fileId);
       renderLibrary();
-      toast('Image deleted from Drive');
+      toast('Image deleted');
     } catch (error) {
       toast(error.message || 'Could not delete the image');
     }
@@ -2009,7 +2060,7 @@
         const optimized = await drive().optimizeImage(file, imageOptimizationOptions());
         setLibraryStatus(`Uploading ${file.name} (${done + 1}/${list.length})…`);
         const uploaded = await drive().uploadOptimizedImage(optimized);
-        libraryCache.unshift({
+        const record = {
           id: uploaded.driveFileId,
           name: uploaded.imageMeta?.optimizedName || file.name,
           mimeType: uploaded.imageMeta?.mimeType || 'image/webp',
@@ -2020,7 +2071,11 @@
           imageUrl: uploaded.imageUrl,
           imageVersion: uploaded.imageVersion || uploaded.imageMeta?.imageVersion || '',
           contentHash: uploaded.imageMeta?.contentHash || '',
-        });
+        };
+        libraryCache.unshift(record);
+        // Save the record so the image shows in the library even before connecting.
+        try { await BACKEND?.mediaLibrary?.upsert?.(record); }
+        catch (error) { console.warn('Could not save the uploaded image to the library index.', error); }
         done += 1;
         libraryPage = 0;
         renderLibrary();
@@ -2058,7 +2113,7 @@
     picker.hidden = false;
     const grid = $('#libraryPickerGrid');
     grid.innerHTML = '<div class="empty-state-admin"><strong>Loading…</strong></div>';
-    if (drive()?.accessToken?.() && !libraryCache.length) await loadLibrary({ silent: true });
+    if (!libraryCache.length) await loadLibrary({ silent: true });
     renderLibraryPicker();
   }
   function closeLibraryPicker() { $('#libraryPicker').hidden = true; }

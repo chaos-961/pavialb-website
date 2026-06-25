@@ -12,6 +12,7 @@
     statistics: 'PAVIA_STATISTICS',
     subscribers: 'PAVIA_SUBSCRIBERS',
     orderRequests: 'PAVIA_ORDER_REQUESTS',
+    mediaLibrary: 'PAVIA_MEDIA_LIBRARY',
   };
   const listeners = {
     products: new Set(),
@@ -473,6 +474,30 @@
       async fetchProducts(ids) {
         const wanted = new Set((ids || []).map((id) => String(id)));
         return clone(read(keys.products, []).filter((product) => wanted.has(String(product.id))));
+      },
+    },
+
+    // Saved image-library index (Drive file records) so the studio can browse and
+    // pick images without a Google Drive connection. Local mirror of the Firebase
+    // `mediaLibrary` node; upload/delete still go through Drive.
+    mediaLibrary: {
+      async list() {
+        return clone(read(keys.mediaLibrary, []));
+      },
+      async upsert(item) {
+        const id = String(item?.id || '').trim();
+        if (!id) return;
+        const items = read(keys.mediaLibrary, []).filter((entry) => String(entry.id) !== id);
+        items.unshift(clone(item));
+        write(keys.mediaLibrary, items);
+      },
+      async remove(id) {
+        const target = String(id || '').trim();
+        const items = read(keys.mediaLibrary, []).filter((entry) => String(entry.id) !== target);
+        write(keys.mediaLibrary, items);
+      },
+      async replaceAll(items) {
+        write(keys.mediaLibrary, clone(Array.isArray(items) ? items : []));
       },
     },
 
