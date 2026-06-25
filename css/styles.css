@@ -625,35 +625,6 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .filter-field select:focus, .filter-field input:focus { border-color: var(--cocoa); }
 
-/* In-stock pill switch (filter panel) */
-.instock-toggle {
-  display: inline-flex; align-items: center; gap: 10px;
-  margin-top: 12px;
-  font-size: 13px; font-weight: 600; color: var(--ink-soft);
-  cursor: pointer; user-select: none;
-}
-.instock-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.instock-track {
-  position: relative;
-  width: 38px; height: 22px;
-  border-radius: var(--r-pill);
-  background: var(--line-strong);
-  transition: background 0.25s var(--ease-out);
-  flex-shrink: 0;
-}
-.instock-track::after {
-  content: '';
-  position: absolute; top: 2px; left: 2px;
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  background: var(--paper);
-  box-shadow: var(--shadow-xs);
-  transition: transform 0.25s var(--ease-spring);
-}
-.instock-toggle input:checked + .instock-track { background: var(--ink); }
-.instock-toggle input:checked + .instock-track::after { transform: translateX(16px); }
-.instock-toggle input:focus-visible + .instock-track { outline: 2px solid var(--cocoa); outline-offset: 2px; }
-
 /* Active-filter chips (removable summary of what's narrowing the grid) */
 .active-filters {
   display: flex; flex-wrap: wrap; gap: 8px;
@@ -800,10 +771,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   color: var(--ink);
   box-shadow: var(--shadow-xs);
 }
-.badge.sale { background: var(--cocoa); color: var(--paper); border-color: var(--cocoa); }
 .badge.new { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.badge.low { background: #2a2a2a; color: var(--paper); border-color: #2a2a2a; }
-.badge.sold { background: #767676; color: var(--paper); border-color: #767676; }
 
 /* Wishlist heart */
 .wish-btn {
@@ -849,7 +817,6 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .product-card:hover .quick-add,
 .product-card:focus-within .quick-add { opacity: 1; transform: translateY(0); }
-.product-card[data-sold-out="true"] .product-media img { filter: grayscale(0.35); opacity: 0.72; }
 
 @media (hover: none) {
   .quick-add { opacity: 1; transform: none; height: 44px; }
@@ -900,20 +867,6 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   font-size: 15px;
   color: var(--ink);
 }
-.product-price .was {
-  font-size: 12px;
-  color: var(--muted);
-  text-decoration: line-through;
-}
-.product-price .save {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--cocoa);
-  margin-left: auto;
-}
-
 /* Color swatches mini */
 .color-mini {
   display: flex; gap: 4px;
@@ -926,18 +879,6 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   display: inline-block;
 }
 .color-mini-count { font-size: 10px; color: var(--muted); margin-left: 2px; }
-
-/* Stock urgency */
-.stock-bar {
-  margin-top: 4px;
-  font-size: 10px;
-  color: #2a2a2a;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  display: none;
-}
-.product-card[data-low-stock="true"] .stock-bar { display: block; }
-.product-card[data-sold-out="true"] .stock-bar { display: block; color: #767676; }
 
 /* Empty state */
 .empty-state {
@@ -1540,16 +1481,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   font-size: 13px;
 }
 .modal-price-row .now { font-size: 22px; font-weight: 700; }
-.modal-price-row .was { font-size: 14px; color: var(--muted); text-decoration: line-through; }
-.modal-price-row .save {
-  margin-left: auto;
-  font-size: 11px; font-weight: 700;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--paper);
-  background: var(--cocoa);
-  padding: 4px 10px;
-  border-radius: var(--r-pill);
-}
 
 .option-group {
   display: grid;
@@ -1622,7 +1553,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   font-size: 12px;
   margin-top: -4px;
 }
-.notify-back { margin-top: 6px; }
 
 .modal-meta {
   display: flex; flex-direction: column; gap: 5px;
@@ -1882,11 +1812,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 
   .product-info {
     padding: 12px;
-  }
-
-  .product-price .save {
-    flex-basis: 100%;
-    margin-left: 0;
   }
 
   .toolbar {

@@ -801,30 +801,32 @@ body {
 
 /* Segmented status views (Pending / Completed / Cancelled / All). */
 .segmented {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
   margin-bottom: 16px;
   padding: 5px;
   background: var(--paper);
   border: 1px solid var(--line-soft);
-  border-radius: 12px;
+  border-radius: 14px;
 }
 .segmented-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
-  min-height: 38px;
-  padding: 8px 16px;
+  min-height: 44px;
+  padding: 8px 10px;
   color: var(--muted);
   background: transparent;
-  border-radius: 9px;
+  border-radius: 10px;
   font: 700 12px/1 var(--sans);
-  letter-spacing: 0.03em;
-  transition: color 0.2s, background 0.2s, transform 0.2s;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition: color 0.2s, background 0.2s, transform 0.14s var(--ease-spring, ease), box-shadow 0.2s;
 }
-.segmented-btn:hover { color: var(--ink); }
-.segmented-btn:active { transform: scale(0.97); }
+.segmented-btn:hover { color: var(--ink); background: rgba(0, 0, 0, 0.045); }
+.segmented-btn:active { transform: scale(0.96); }
 /* Keyboard-focus rings for the studio button controls not covered by .btn. */
 .admin-tab:focus-visible,
 .segmented-btn:focus-visible,
@@ -833,6 +835,7 @@ body {
 .segmented-btn.is-active {
   color: var(--paper);
   background: var(--ink);
+  box-shadow: var(--shadow-sm);
 }
 .segmented-count {
   display: inline-grid;
@@ -850,10 +853,17 @@ body {
   color: var(--ink);
   background: rgba(255, 255, 255, 0.85);
 }
+/* 2x2 grid on phones so the four status tabs stay big and tappable. */
+@media (max-width: 560px) {
+  .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
-/* Orders toolbar holds fewer controls now (search / date / sort). */
+/* Orders toolbar holds search + sort. */
 .orders-toolbar {
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+@media (max-width: 560px) {
+  .orders-toolbar { grid-template-columns: 1fr; }
 }
 
 .order-list {
@@ -1780,6 +1790,17 @@ body {
   .preview-media {
     margin-top: 0;
   }
+
+  /* On a single-column layout the form is tall; a floating action bar would cover
+     the fields you scroll past. Let it sit naturally at the end of the form. */
+  .sticky-actions {
+    position: static;
+    box-shadow: none;
+    backdrop-filter: none;
+    background: transparent;
+    border: 0;
+    padding: 4px 0 0;
+  }
 }
 
 /* Intermediate tablet tier so small tablets aren't sparse single columns. */
@@ -1896,11 +1917,6 @@ body {
   .metrics-grid.visitor-metrics {
     grid-template-columns: 1fr;
   }
-
-  /* Reserve scroll room so the last field is never hidden behind the sticky
-     form action bar. */
-  .product-editor-layout .panel-card,
-  .settings-card { padding-bottom: 72px; }
 
   /* Stack the order id/total instead of letting them compete on a narrow row. */
   .order-topline { flex-direction: column; gap: 8px; }
@@ -2112,33 +2128,60 @@ body {
 .drag-handle {
   cursor: grab;
   color: var(--muted);
-  font-weight: 700;
-  letter-spacing: -2px;
+  font-size: 15px;
+  line-height: 1;
   user-select: none;
 }
+
+/* Reorder cluster: up / drag-handle / down, stacked in the lead column. */
+.row-move {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.row-move-btn {
+  width: 28px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-soft);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.row-move-btn:hover:not(:disabled) { background: var(--cream); border-color: var(--cocoa); color: var(--ink); }
+.row-move-btn:active:not(:disabled) { transform: scale(0.92); }
+.row-move-btn:disabled { opacity: 0.35; cursor: default; }
 
 .product-row-inline {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px 12px;
   align-items: center;
   margin-top: 6px;
   color: var(--muted);
   font-size: 13px;
 }
-.inline-edit {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  font-weight: 600;
-  color: var(--ink-soft);
+.row-price {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
 }
-.inline-edit input {
-  width: 84px;
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font: inherit;
+.row-flag {
+  padding: 3px 8px;
+  color: var(--ink-soft);
+  background: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .order-timeline {
@@ -2282,8 +2325,56 @@ body {
   width: 40px; height: 40px; border: 0; border-radius: 9px; cursor: pointer;
   background: var(--cream); color: var(--ink); font-size: 20px; line-height: 1;
 }
-.library-grid-picker { margin: 0; padding: 18px 20px; overflow-y: auto; }
+/* Scrollable, self-contained grid (explicit so tiles never collapse or overlap);
+   flex:1 + min-height:0 lets it scroll inside the flex-column picker card. */
+.library-grid-picker {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  align-content: start;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .library-grid-picker .library-tile-actions { padding: 0 11px 11px; }
+
+/* Picker tiles: the whole card is the tap target. */
+.library-tile-pick {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.2s, transform 0.12s;
+}
+.library-tile-pick:hover { border-color: var(--cocoa); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.library-tile-pick:active { transform: translateY(0) scale(0.98); }
+.library-tile-pick:focus-visible { outline: 2px solid var(--cocoa); outline-offset: 2px; }
+.library-pick-check {
+  position: absolute; top: 8px; right: 8px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px;
+  background: var(--ink); color: var(--paper);
+  border-radius: 999px;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+  opacity: 0; transform: translateY(-4px);
+  transition: opacity 0.15s, transform 0.15s;
+  pointer-events: none;
+}
+.library-tile-pick:hover .library-pick-check,
+.library-tile-pick:focus-visible .library-pick-check { opacity: 1; transform: translateY(0); }
+/* No hover on touch, so always show the Select affordance there. */
+@media (hover: none) {
+  .library-pick-check { opacity: 1; transform: none; }
+}
 
 /* =========================================================
    P5 — scroll/entrance animations (G-ANIM)
@@ -2443,4 +2534,56 @@ body {
     background: var(--paper);
     border-top: 1px solid var(--line);
   }
+}
+
+/* =========================================================
+   Custom dialog (replaces native confirm / alert / prompt)
+   ========================================================= */
+.pavia-dialog {
+  position: fixed; inset: 0; z-index: 300;
+  display: grid; place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.pavia-dialog[hidden] { display: none; }
+.pavia-dialog-card {
+  width: min(420px, 100%);
+  padding: 24px;
+  background: var(--paper);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(10px) scale(0.97);
+  opacity: 0;
+  transition: transform 0.2s var(--ease-spring, cubic-bezier(0.22, 1, 0.36, 1)), opacity 0.2s;
+}
+.pavia-dialog.show .pavia-dialog-card { transform: none; opacity: 1; }
+.pavia-dialog-title { margin: 0 0 6px; font: 600 19px/1.25 var(--display); color: var(--ink); }
+.pavia-dialog-title[hidden] { display: none; }
+.pavia-dialog-message { margin: 0; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
+.pavia-dialog-message[hidden] { display: none; }
+.pavia-dialog-field { display: grid; gap: 6px; margin-top: 14px; }
+.pavia-dialog-field[hidden] { display: none; }
+.pavia-dialog-field span { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.pavia-dialog-field input {
+  width: 100%; min-height: 42px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; font: inherit;
+}
+.pavia-dialog-field input:focus { border-color: var(--cocoa); outline: none; }
+.pavia-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.pavia-dialog-actions .btn { min-height: 42px; }
+.pavia-dialog-actions .btn[hidden] { display: none; }
+/* Filled-red affirmative for destructive actions (delete / overwrite). */
+.pavia-dialog-actions .btn-primary.danger-button {
+  color: var(--paper);
+  background: #9d2e24;
+  border-color: #9d2e24;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pavia-dialog-card { transition: none; transform: none; opacity: 1; }
+}
+@media (max-width: 480px) {
+  .pavia-dialog-actions { flex-direction: column-reverse; }
+  .pavia-dialog-actions .btn { width: 100%; }
 }

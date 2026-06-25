@@ -161,7 +161,20 @@
     const app = appApi.getApps().length
       ? appApi.getApp()
       : appApi.initializeApp(firebaseAppConfig());
-    const auth = authApi.getAuth(app);
+    // Use initializeAuth WITHOUT a popupRedirectResolver. The Studio signs in with
+    // email/password and customers sign in anonymously — neither needs the
+    // popup/redirect flow. getAuth() installs the default browser resolver, which
+    // eagerly loads https://apis.google.com/js/api.js and trips the page CSP
+    // (script-src) with a console error. Skipping the resolver removes that load
+    // entirely. Fall back to getAuth() if auth was somehow already initialized.
+    let auth;
+    try {
+      auth = authApi.initializeAuth(app, {
+        persistence: [authApi.indexedDBLocalPersistence, authApi.browserLocalPersistence],
+      });
+    } catch {
+      auth = authApi.getAuth(app);
+    }
     const database = databaseApi.getDatabase(app);
 
     if (firebaseConfig.useEmulators) {
@@ -257,28 +270,6 @@
       ? Number(settings.deliveryFee)
       : 3;
     return Math.max(0, Number.isFinite(fee) ? fee : 3);
-  }
-
-  async function transactStock(path, delta) {
-    const result = await firebaseState.databaseApi.runTransaction(databaseReference(path), (current) => {
-      // Firebase runs this first against the LOCALLY CACHED value, which is null
-      // for a stock path the storefront never subscribed to. Returning undefined
-      // (a bare `return`) on that first null pass aborts the transaction before
-      // it ever round-trips to the server, so every decrement died with
-      // committed === false ("Stock is no longer available."), blocking checkout.
-      // Returning null instead is a no-op that still forces the server round-trip;
-      // Firebase then re-runs this with the real stock value and the clamp applies.
-      if (current === null) return null;
-      const stock = Number(current);
-      // Abort (no-op) on a non-finite stock OR a non-finite delta. Without the
-      // delta guard, a NaN delta passes `stock + NaN < 0` (false) and writes NaN
-      // into stock, permanently breaking that product (every later read stays NaN
-      // and every decrement aborts → a stuck false "sold out").
-      if (!Number.isFinite(stock) || !Number.isFinite(delta) || stock + delta < 0) return;
-      return stock + delta;
-    });
-    if (!result.committed) throw new Error('Stock is no longer available.');
-    return result;
   }
 
   async function assertAdminReady() {
@@ -668,12 +659,10 @@
           orderId = existingRequest.orderId;
         }
 
-        // A prior attempt under this same id may have already reserved (decremented)
-        // stock but failed before writing the order. A flag on the request node lets
-        // a retry SKIP the decrement instead of draining inventory a second time and
-        // showing a false "sold out". update (not set) so the flag survives retries;
-        // error:null clears any stale failure note from the previous attempt.
-        const alreadyReserved = existingRequest?.stockReserved === true;
+        // Mark the request 'creating' for idempotency/recovery. error:null clears any
+        // stale failure note from a previous attempt. (Stock is no longer tracked or
+        // reserved — every active product is always orderable — so there is no
+        // inventory decrement to guard against on a retry.)
         await firebaseState.databaseApi.update(databaseReference(`orderRequests/${requestId}`), {
           uid,
           orderId,
@@ -682,9 +671,9 @@
           error: null,
         });
 
-        // Everything below runs inside the try so ANY failure (validation, stock,
-        // or write) marks the request 'failed', leaving it safe to recover on a
-        // later retry under the same orderId.
+        // Everything below runs inside the try so ANY failure (validation or write)
+        // marks the request 'failed', leaving it safe to recover on a later retry
+        // under the same orderId.
         try {
           const items = normalizeOrderItems(order.items);
           if (!items.length) throw new Error('Your bag is empty.');
@@ -693,10 +682,6 @@
           for (const item of items) {
             const product = await readPath(`publicProducts/${item.id}`);
             if (!product || product.active !== true) throw new Error(`${item.name || item.id} is no longer available.`);
-            // On a retry that already reserved, our units are already out of stock,
-            // so the live count would wrongly read as too low — skip the availability
-            // check and trust the prior reservation.
-            if (!alreadyReserved && Number(product.stock || 0) < item.qty) throw new Error(`${product.name} has only ${product.stock || 0} left.`);
             publicProducts[item.id] = product;
           }
 
@@ -713,22 +698,10 @@
           const delivery = calculateDelivery(settings);
           const total = subtotal + delivery;
 
-          // Skip the decrement if a previous attempt already reserved stock for this
-          // request; re-running it would double-count. Mark the reservation AFTER the
-          // loop and BEFORE the order write so an interruption past this point
-          // recovers as a no-op rather than reserving a second time. (A failure
-          // mid-loop, before the mark, is the rare exception — it under-counts, never
-          // oversells, and the owner can correct it in the studio.)
-          if (!alreadyReserved) {
-            for (const item of pricingItems) {
-              await transactStock(`products/${item.id}/stock`, -item.qty);
-              await transactStock(`publicProducts/${item.id}/stock`, -item.qty);
-            }
-            await firebaseState.databaseApi.update(databaseReference(`orderRequests/${requestId}`), {
-              stockReserved: true,
-            });
-          }
-
+          // No stock reservation: stock has been removed from the store, so any active
+          // product is always orderable. The order record still carries the
+          // stockReserved/stockRestored flags below because the deployed database
+          // rules validate their presence on customer-created orders.
           const paymentMethod = order.paymentMethod === 'whish_money' || customer.payment === 'Whish Money'
             ? 'whish_money'
             : 'cash_on_delivery';
@@ -777,14 +750,8 @@
           });
           return clone(record);
         } catch (error) {
-          // No client-side stock rollback: the DB rules only let a customer
-          // DECREMENT stock (newData <= data), never raise it, so nobody can
-          // inflate inventory. A failure after a partial reservation therefore
-          // leaves those units decremented. It is rare (stock is pre-checked and
-          // the reservation transactions are concurrency-safe) and fails in the
-          // SAFE direction (undercount, never oversell); the owner can correct the
-          // count in the studio. Legitimate restores for a real order are handled
-          // admin-side when an order is cancelled (see orders.update).
+          // Mark the request 'failed' so a later retry recovers under the same
+          // orderId. There is no stock to roll back (stock was removed from the store).
           await firebaseState.databaseApi.update(databaseReference('/'), {
             [`orderRequests/${requestId}/status`]: 'failed',
             [`orderRequests/${requestId}/error`]: String(error.message || 'Order creation failed.').slice(0, 180),
@@ -837,20 +804,28 @@
           targetId: orderId,
           createdAt: now,
         };
-        if (status === 'cancelled'
-          && currentOrder.status !== 'cancelled'
-          && currentOrder.stockReserved === true
-          && currentOrder.stockRestored !== true) {
-          const items = normalizeOrderItems(currentOrder.items);
-          for (const item of items) {
-            await transactStock(`products/${item.id}/stock`, item.qty);
-            await transactStock(`publicProducts/${item.id}/stock`, item.qty);
-          }
-          updates[`orders/${orderId}/stockRestored`] = true;
-          updates[`orders/${orderId}/stockRestoredAt`] = now;
-        }
         await firebaseState.databaseApi.update(databaseReference('/'), updates);
         return readPath(`orders/${orderId}`);
+      },
+      async remove(id) {
+        if (activeProvider === 'local') return localBackend.orders.remove(id);
+        await assertAdminReady();
+        const orderId = String(id || '').trim();
+        if (!orderId) return false;
+        const now = new Date().toISOString();
+        // Admin-only hard delete. The deployed rules permit the admin identity to
+        // write (and therefore null out) any order node; the audit log records it.
+        await firebaseState.databaseApi.update(databaseReference('/'), {
+          [`orders/${orderId}`]: null,
+          [`auditLogs/${Date.now()}-${orderId}`]: {
+            actorUid: firebaseState.auth?.currentUser?.uid || '',
+            action: 'order.remove',
+            targetType: 'order',
+            targetId: orderId,
+            createdAt: now,
+          },
+        });
+        return true;
       },
       subscribe(listener) {
         if (activeProvider === 'local') return localBackend.orders.subscribe(listener);

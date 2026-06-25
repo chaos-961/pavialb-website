@@ -10,7 +10,6 @@
     settings: 'PAVIA_SETTINGS',
   };
   const BACKEND = window.PaviaBackend;
-  const LOW_STOCK_AT = 3;
   // Simplified order lifecycle (D3 / P1 1.3): pending -> completed (+ cancelled).
   const ORDER_STATUSES = ['pending', 'completed', 'cancelled'];
   const PAYMENT_STATUSES = ['pending', 'awaiting_confirmation', 'paid', 'failed', 'refunded'];
@@ -159,6 +158,89 @@
     }, 2400);
   }
 
+  // ---- Custom dialogs (replace native confirm/alert/prompt) ----
+  // Each returns a Promise: confirm/alert resolve a boolean, prompt resolves the
+  // entered string or null when cancelled. One dialog shows at a time.
+  let dialogResolve = null;
+  function closeDialog(result) {
+    const host = $('#paviaDialog');
+    if (!host) return;
+    host.classList.remove('show');
+    host.hidden = true;
+    const resolve = dialogResolve;
+    dialogResolve = null;
+    if (resolve) resolve(result);
+  }
+  function dialogOpen() {
+    const host = $('#paviaDialog');
+    return host && !host.hidden;
+  }
+  function openDialog({ title = '', message = '', confirmText = 'OK', cancelText = 'Cancel', showCancel = true, prompt = false, defaultValue = '', danger = false }) {
+    return new Promise((resolve) => {
+      const host = $('#paviaDialog');
+      if (!host) { resolve(prompt ? (window.prompt(message || title, defaultValue) ?? null) : window.confirm(message || title)); return; }
+      // Settle any dialog already open before opening a new one.
+      if (dialogResolve) { const prev = dialogResolve; dialogResolve = null; prev(prompt ? null : false); }
+      dialogResolve = resolve;
+      const titleEl = $('#paviaDialogTitle');
+      titleEl.textContent = title;
+      titleEl.hidden = !title;
+      const messageEl = $('#paviaDialogMessage');
+      messageEl.textContent = message;
+      messageEl.hidden = !message;
+      const field = $('#paviaDialogField');
+      const input = $('#paviaDialogInput');
+      field.hidden = !prompt;
+      if (prompt) input.value = defaultValue || '';
+      const confirmBtn = $('#paviaDialogConfirm');
+      const cancelBtn = $('#paviaDialogCancel');
+      confirmBtn.textContent = confirmText;
+      confirmBtn.classList.toggle('danger-button', Boolean(danger));
+      cancelBtn.textContent = cancelText;
+      cancelBtn.hidden = !showCancel;
+      host.hidden = false;
+      requestAnimationFrame(() => host.classList.add('show'));
+      (prompt ? input : confirmBtn).focus({ preventScroll: true });
+    });
+  }
+  function confirmDialog(message, opts = {}) {
+    return openDialog({
+      message,
+      title: opts.title || 'Please confirm',
+      confirmText: opts.confirmText || 'Confirm',
+      cancelText: opts.cancelText || 'Cancel',
+      danger: opts.danger,
+    }).then(Boolean);
+  }
+  function alertDialog(message, opts = {}) {
+    return openDialog({
+      message,
+      title: opts.title || 'Heads up',
+      confirmText: opts.confirmText || 'OK',
+      showCancel: false,
+    }).then(() => true);
+  }
+  function promptDialog(message, defaultValue = '', opts = {}) {
+    return openDialog({
+      message,
+      title: opts.title || message,
+      prompt: true,
+      defaultValue,
+      confirmText: opts.confirmText || 'OK',
+    });
+  }
+  function setupDialog() {
+    const host = $('#paviaDialog');
+    if (!host) return;
+    const prompting = () => !$('#paviaDialogField').hidden;
+    $('#paviaDialogConfirm').addEventListener('click', () => closeDialog(prompting() ? $('#paviaDialogInput').value : true));
+    $('#paviaDialogCancel').addEventListener('click', () => closeDialog(prompting() ? null : false));
+    host.addEventListener('click', (event) => { if (event.target === host) closeDialog(prompting() ? null : false); });
+    $('#paviaDialogInput').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') { event.preventDefault(); closeDialog($('#paviaDialogInput').value); }
+    });
+  }
+
   // ---- New-order alerts ----
   // The orders subscription fires live. Announce genuinely new orders with a
   // toast, a soft beep, and a (N) title badge cleared when the owner refocuses
@@ -237,8 +319,10 @@
     clearTimeout(draftTimer);
   }
 
+  // Returns a Promise<boolean>. Callers must await it (custom dialog is async).
   function confirmDiscardIfDirty(message) {
-    return !formDirty || window.confirm(message);
+    if (!formDirty) return Promise.resolve(true);
+    return confirmDialog(message, { title: 'Discard changes?', confirmText: 'Discard', danger: true });
   }
 
   function serializeProductForm() {
@@ -251,15 +335,9 @@
       sku: $('#prodSku').value,
       status: $('#prodStatus').value,
       featured: $('#prodFeatured').checked,
-      sortOrder: $('#prodSortOrder').value,
       description: $('#prodDesc').value,
       price: $('#prodPrice').value,
-      compareAt: $('#prodCompare').value,
-      stock: $('#prodStock').value,
       tags: $('#prodTags').value,
-      material: $('#prodMaterial').value,
-      fit: $('#prodFit').value,
-      care: $('#prodCare').value,
       sizes: $('#prodSizes').value,
       colors: $('#prodColors').value,
       imageUrl: $('#prodImageUrl').value,
@@ -314,15 +392,9 @@
     $('#prodSku').value = draft.sku || '';
     $('#prodStatus').value = draft.status || 'published';
     $('#prodFeatured').checked = Boolean(draft.featured);
-    $('#prodSortOrder').value = draft.sortOrder || nextSortOrder();
     $('#prodDesc').value = draft.description || '';
     $('#prodPrice').value = draft.price || '';
-    $('#prodCompare').value = draft.compareAt || '';
-    $('#prodStock').value = draft.stock || 0;
     $('#prodTags').value = draft.tags || '';
-    $('#prodMaterial').value = draft.material || '';
-    $('#prodFit').value = draft.fit || '';
-    $('#prodCare').value = draft.care || '';
     $('#prodImageUrl').value = draft.imageUrl || '';
     $('#prodImageId').value = draft.imageId || '';
     $('#prodImage').value = draft.imageUrl || draft.imageId || '';
@@ -546,7 +618,9 @@
       category: product.category || 'New Arrivals',
       price: Number(product.price) || 0,
       compareAt: Number(product.compareAt ?? product.comparePrice ?? 0) || 0,
-      stock: Math.max(0, Number(product.stock) || 0),
+      // Stock removed from the store: persist a high constant so any code path that
+      // still reads stock treats every product as always orderable.
+      stock: 999999,
       imageId,
       imageUrl,
       image: imageUrl || imageId || normalizeImagePath(product.image),
@@ -736,7 +810,6 @@
 
   function orderMatchesFilters(order) {
     const query = norm($('#orderSearch')?.value || '');
-    const date = $('#orderDateFilter')?.value || '';
     const customer = order.customer || {};
     const haystack = norm([
       order.id,
@@ -748,8 +821,7 @@
       order.status,
     ].join(' '));
     return orderMatchesView(order)
-      && (!query || haystack.includes(query))
-      && (!date || todayKey(order.createdAt || order.date) === date);
+      && (!query || haystack.includes(query));
   }
 
   function statusOptions(current, labels) {
@@ -824,8 +896,8 @@
           ${quick.join('')}
           ${callHref ? `<a class="btn btn-secondary" href="${escapeHtml(callHref)}">Call</a>` : ''}
           ${waHref ? `<a class="btn btn-secondary" href="${escapeHtml(waHref)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
-          <button class="btn btn-ghost" data-print-order="${id}">Print</button>
           <button class="btn btn-ghost" data-export-order="${id}">Export</button>
+          ${order.status === 'cancelled' ? `<button class="btn btn-ghost danger-button" data-delete-order="${id}"${disabled}>Delete</button>` : ''}
         </div>
         <details class="order-manage">
           <summary>Manage details</summary>
@@ -892,8 +964,8 @@
 
     $('#availableOrders').innerHTML = slice.length
       ? slice.map(renderOrderItem).join('')
-      : (($('#orderSearch')?.value || $('#orderDateFilter')?.value)
-        ? '<div class="empty-state-admin"><strong>No matching orders</strong><p>Try clearing the search or date filter.</p></div>'
+      : ($('#orderSearch')?.value
+        ? '<div class="empty-state-admin"><strong>No matching orders</strong><p>Try clearing the search.</p></div>'
         : `<div class="empty-state-admin"><strong>${emptyTitle}</strong><p>${emptyBody}</p></div>`);
 
     const pager = $('#orderPager');
@@ -914,11 +986,11 @@
     $$('[data-update-order]').forEach((button) => {
       button.addEventListener('click', () => updateOrder(button.dataset.updateOrder));
     });
-    $$('[data-print-order]').forEach((button) => {
-      button.addEventListener('click', () => printOrder(button.dataset.printOrder));
-    });
     $$('[data-export-order]').forEach((button) => {
       button.addEventListener('click', () => exportOrder(button.dataset.exportOrder));
+    });
+    $$('[data-delete-order]').forEach((button) => {
+      button.addEventListener('click', () => void deleteOrder(button.dataset.deleteOrder));
     });
   }
 
@@ -931,8 +1003,8 @@
     if (!ORDER_STATUSES.includes(status)) return;
     const changes = { status };
     if (status === 'cancelled') {
-      const reason = window.prompt('Reason for cancelling this order? (optional)', '');
-      if (reason === null) return; // cancelled the prompt
+      const reason = await promptDialog('Reason for cancelling this order? (optional)', '', { title: 'Cancel order', confirmText: 'Cancel order' });
+      if (reason === null) return; // dismissed the dialog
       changes.cancellationReason = String(reason || '').trim();
     }
     try {
@@ -983,36 +1055,37 @@
     }
   }
 
-  function printOrder(id) {
-    const order = ordersCache.find((item) => String(item.id) === String(id));
-    if (!order) return;
-    const customer = order.customer || {};
-    const printable = window.open('', '_blank', 'noopener,noreferrer,width=800,height=900');
-    if (!printable) {
-      toast('Pop-up blocked. Allow pop-ups to print orders.');
+  // Hard-delete an order. Guarded to cancelled orders only, with a custom confirm.
+  async function deleteOrder(id) {
+    if (!orderManagementEnabled()) {
+      toast('Order management is disabled for this session');
       return;
     }
-    const items = (order.items || []).map((item) => (
-      `<li>${escapeHtml(item.name)} - ${item.qty || 1} x ${fmt(item.price || 0)}</li>`
-    )).join('');
-    printable.document.write(`
-      <!doctype html>
-      <title>Pavia order ${escapeHtml(order.id)}</title>
-      <body style="font-family:Arial,sans-serif;padding:24px;line-height:1.5">
-        <h1>Pavia order #${escapeHtml(order.orderNumber || order.id || '')}</h1>
-        <p><strong>Status:</strong> ${escapeHtml(STATUS_LABELS[order.status] || order.status)}</p>
-        <p><strong>Payment:</strong> ${escapeHtml(PAYMENT_LABELS[order.paymentStatus] || order.paymentStatus)}</p>
-        <h2>Customer</h2>
-        <p>${escapeHtml(customer.name || '')}<br>${escapeHtml(customer.phone || '')}<br>${escapeHtml(customer.address || '')}</p>
-        <h2>Items</h2>
-        <ul>${items}</ul>
-        <h2>Total: ${fmt(order.total)}</h2>
-        <p>${escapeHtml(order.adminNotes || '')}</p>
-      </body>
-    `);
-    printable.document.close();
-    printable.focus();
-    printable.print();
+    const order = ordersCache.find((item) => String(item.id) === String(id));
+    if (!order) return;
+    if (normalizeStatus(order.status) !== 'cancelled') {
+      toast('Only cancelled orders can be deleted');
+      return;
+    }
+    const label = order.orderNumber || order.id;
+    const ok = await confirmDialog(
+      `Delete order #${label} permanently? This cannot be undone.`,
+      { title: 'Delete order', confirmText: 'Delete order', danger: true },
+    );
+    if (!ok) return;
+    try {
+      if (BACKEND?.orders?.remove) await BACKEND.orders.remove(id);
+      else {
+        ordersCache = ordersCache.filter((item) => String(item.id) !== String(id));
+        writeLS(KEYS.orders, ordersCache);
+      }
+      await loadOrders();
+      renderOrders();
+      renderMetrics();
+      toast('Order deleted');
+    } catch (error) {
+      toast(error.message || 'Could not delete order');
+    }
   }
 
   function exportOrder(id) {
@@ -1059,10 +1132,6 @@
       errors.prodSku = 'This SKU is already used.';
     }
     if (product.price <= 0) errors.prodPrice = 'Price must be greater than zero.';
-    if (product.compareAt && product.compareAt <= product.price) {
-      errors.prodCompare = 'Compare-at price must be higher than price.';
-    }
-    if (product.stock < 0) errors.prodStock = 'Stock cannot be negative.';
     if (!product.imageUrl) {
       errors.prodImageUrl = 'Choose a main product image from the Library.';
     } else if (!/^https:\/\//i.test(product.imageUrl)) {
@@ -1092,8 +1161,6 @@
     $('#productForm').reset();
     $('#prodId').value = '';
     $('#prodSlug').value = '';
-    $('#prodStock').value = 10;
-    $('#prodSortOrder').value = nextSortOrder();
     $('#prodStatus').value = 'published';
     $('#prodImageId').value = '';
     $('#prodImageUrl').value = '';
@@ -1121,10 +1188,10 @@
     return max + 1;
   }
 
-  function loadIntoForm(id) {
+  async function loadIntoForm(id) {
     const product = getProducts().find((item) => item.id === id);
     if (!product) return;
-    if (!confirmDiscardIfDirty('Discard unsaved changes and edit this product?')) return;
+    if (!(await confirmDiscardIfDirty('Discard unsaved changes and edit this product?'))) return;
     suppressDirty = true;
     setFormStatus('productFormStatus', '');
     editingBaseRev = Number(product.rev) || 0;
@@ -1136,15 +1203,9 @@
     $('#prodSku').value = product.sku;
     $('#prodStatus').value = product.active ? 'published' : 'draft';
     $('#prodFeatured').checked = product.featured;
-    $('#prodSortOrder').value = product.sortOrder || '';
     $('#prodDesc').value = product.description;
     $('#prodPrice').value = product.price;
-    $('#prodCompare').value = product.compareAt || '';
-    $('#prodStock').value = product.stock;
     $('#prodTags').value = product.tags.join(', ');
-    $('#prodMaterial').value = product.material || '';
-    $('#prodFit').value = product.fit || '';
-    $('#prodCare').value = product.care || '';
     $('#prodImageId').value = product.imageUrl ? '' : (product.imageId || '');
     $('#prodImageUrl').value = product.imageUrl || '';
     $('#prodImage').value = product.imageUrl || product.imageId || product.image;
@@ -1188,15 +1249,12 @@
       badge: $('#prodBadge').value.trim(),
       active: $('#prodStatus').value === 'published',
       featured: $('#prodFeatured').checked,
-      sortOrder: Number($('#prodSortOrder').value) || nextSortOrder(),
+      // Sort order is auto-managed: keep the existing position on edit, append new
+      // products to the end. Owners arrange products by dragging in the catalog.
+      sortOrder: Number(existing?.sortOrder) || nextSortOrder(),
       description: $('#prodDesc').value.trim(),
       price: Number($('#prodPrice').value) || 0,
-      compareAt: Number($('#prodCompare').value) || 0,
-      stock: Number.parseInt($('#prodStock').value, 10) || 0,
       tags: splitList($('#prodTags').value),
-      material: $('#prodMaterial').value.trim(),
-      fit: $('#prodFit').value.trim(),
-      care: $('#prodCare').value.trim(),
       image: imageUrl || imageId,
       imageId,
       imageUrl,
@@ -1221,8 +1279,9 @@
     // one we opened (another device/tab saved in the meantime), don't silently
     // clobber it — confirm first. productsCache is kept live by the subscription.
     if (existing && editingBaseRev !== null && (Number(existing.rev) || 0) > editingBaseRev) {
-      const proceed = window.confirm(
+      const proceed = await confirmDialog(
         'This product was changed elsewhere since you opened it. Save anyway and overwrite those changes?',
+        { title: 'Product changed elsewhere', confirmText: 'Overwrite', danger: true },
       );
       if (!proceed) {
         setFormStatus('productFormStatus', 'Save cancelled. Reopen the product to load the latest version.', 'error');
@@ -1273,7 +1332,11 @@
     }
     const product = productsCache.find((item) => item.id === id);
     const name = product?.name || id;
-    if (!window.confirm(`Delete "${name}" permanently? This removes it from the public storefront too.`)) return;
+    const ok = await confirmDialog(
+      `Delete "${name}" permanently? This removes it from the public storefront too.`,
+      { title: 'Delete product', confirmText: 'Delete product', danger: true },
+    );
+    if (!ok) return;
     try {
       await removeProduct(id);
       await renderProductList();
@@ -1287,12 +1350,9 @@
 
   function productMatchesFilters(product) {
     const query = norm($('#productSearch')?.value || '');
-    const stock = $('#stockFilter')?.value || '';
     const imageFilter = $('#imageMigrationFilter')?.value || '';
     const haystack = norm([product.name, product.sku, product.category, product.tags?.join(' ')].join(' '));
     return (!query || haystack.includes(query))
-      && (!stock || (stock === 'low' && product.stock > 0 && product.stock <= LOW_STOCK_AT)
-        || (stock === 'out' && product.stock <= 0))
       && (!imageFilter || (imageFilter === 'needs-image' && productNeedsImageMigration(product)));
   }
 
@@ -1300,11 +1360,10 @@
     return $('#productSort')?.value || 'sortOrder';
   }
 
-  // Drag reorder is only meaningful (and unambiguous) in the unfiltered sortOrder view.
+  // Reordering is only meaningful (and unambiguous) in the unfiltered "My order" view.
   function reorderEnabled() {
     return productSortKey() === 'sortOrder'
       && !norm($('#productSearch')?.value || '')
-      && !($('#stockFilter')?.value)
       && !($('#imageMigrationFilter')?.value);
   }
 
@@ -1330,32 +1389,37 @@
     )));
     const canReorder = reorderEnabled();
     $('#catalogCount').textContent = productsCache.length;
+    const total = matched.length;
     $('#productList').innerHTML = products.length
       ? products.map((product, index) => {
-        const stockClass = product.stock <= 0 ? 'out' : product.stock <= LOW_STOCK_AT ? 'low' : 'ok';
         const selected = selectedProductIds.has(product.id);
+        // Absolute position across the whole catalog (not just this page).
+        const position = catalogPage * CATALOG_PAGE_SIZE + index;
+        const move = canReorder ? `
+          <div class="row-move" role="group" aria-label="Reorder">
+            <button type="button" class="row-move-btn" data-move-up="${escapeHtml(product.id)}" aria-label="Move up"${position === 0 ? ' disabled' : ''}>↑</button>
+            <span class="drag-handle" aria-hidden="true" title="Drag to reorder">⠿</span>
+            <button type="button" class="row-move-btn" data-move-down="${escapeHtml(product.id)}" aria-label="Move down"${position >= total - 1 ? ' disabled' : ''}>↓</button>
+          </div>` : '';
         return `
           <article class="product-row${selected ? ' is-selected' : ''}" data-product-id="${escapeHtml(product.id)}"${canReorder ? ' draggable="true"' : ''}>
             <div class="row-lead">
               <label class="row-select">
                 <input type="checkbox" data-select="${escapeHtml(product.id)}"${selected ? ' checked' : ''} aria-label="Select ${escapeHtml(product.name)}" />
               </label>
-              ${canReorder ? '<span class="drag-handle" aria-hidden="true" title="Drag to reorder">::</span>' : ''}
+              ${move}
             </div>
             <img src="${escapeHtml(imageUrls[index])}" alt="" />
             <div class="product-row-info">
               <div class="product-row-title">
                 <strong>${escapeHtml(product.name)}</strong>
                 <span class="status-pill ${product.active ? 'published' : 'draft'}">${product.active ? 'Published' : 'Draft'}</span>
-                <span class="stock-pill ${stockClass}">${product.stock <= 0 ? 'Out of stock' : product.stock <= LOW_STOCK_AT ? 'Low stock' : 'In stock'}</span>
               </div>
               <p>${escapeHtml(product.category)}${product.sku ? ` - ${escapeHtml(product.sku)}` : ''}</p>
               <div class="product-row-inline">
-                <label class="inline-edit">Price <input type="number" min="0" step="0.01" data-quick-price="${escapeHtml(product.id)}" value="${Number(product.price) || 0}" /></label>
-                <label class="inline-edit">Stock <input type="number" min="0" step="1" data-quick-stock="${escapeHtml(product.id)}" value="${Number(product.stock) || 0}" /></label>
-                <span>Sort ${Number(product.sortOrder) || 0}</span>
-                ${productNeedsImageMigration(product) ? '<span>Needs image migration</span>' : ''}
-                ${product.featured ? '<span>Featured</span>' : ''}
+                <strong class="row-price">${fmt(product.price)}</strong>
+                ${productNeedsImageMigration(product) ? '<span class="row-flag">Needs image migration</span>' : ''}
+                ${product.featured ? '<span class="row-flag">Featured</span>' : ''}
               </div>
             </div>
             <div class="product-row-actions">
@@ -1373,7 +1437,7 @@
       }, { once: true });
     });
     $$('[data-edit]').forEach((button) => {
-      button.addEventListener('click', () => loadIntoForm(button.dataset.edit));
+      button.addEventListener('click', () => void loadIntoForm(button.dataset.edit));
     });
     $$('[data-delete]').forEach((button) => {
       button.addEventListener('click', () => void deleteProduct(button.dataset.delete));
@@ -1386,11 +1450,11 @@
         updateBulkBar();
       });
     });
-    $$('[data-quick-price]').forEach((input) => {
-      input.addEventListener('change', () => void quickEditProduct(input.dataset.quickPrice, 'price', input.value));
+    $$('[data-move-up]').forEach((button) => {
+      button.addEventListener('click', () => void moveProductByStep(button.dataset.moveUp, -1));
     });
-    $$('[data-quick-stock]').forEach((input) => {
-      input.addEventListener('change', () => void quickEditProduct(input.dataset.quickStock, 'stock', input.value));
+    $$('[data-move-down]').forEach((button) => {
+      button.addEventListener('click', () => void moveProductByStep(button.dataset.moveDown, 1));
     });
     if (canReorder) bindReorder();
     updateBulkBar();
@@ -1439,27 +1503,22 @@
     updateBulkBar();
   }
 
-  // Optimistic inline edit of price/stock; re-syncs from the backend on failure.
-  async function quickEditProduct(id, field, rawValue) {
+  // Move a product one position earlier/later in the custom order. Mobile-friendly
+  // alternative to dragging; delegates to reorderProducts with the neighbour's id.
+  async function moveProductByStep(id, delta) {
     if (!adminMutationsEnabled()) {
       toast('Catalog editing is disabled for this session');
       return;
     }
-    const product = productsCache.find((item) => item.id === id);
-    if (!product) return;
-    const value = Math.max(0, Number(rawValue) || 0);
-    if (Number(product[field]) === value) return;
-    const updated = { ...product, [field]: value };
-    product[field] = value;
-    try {
-      await upsertProduct(updated);
-      renderMetrics();
-      toast(`${field === 'price' ? 'Price' : 'Stock'} updated`);
-    } catch (error) {
-      await loadProducts();
-      await renderProductList();
-      toast(error.message || 'Could not update product');
-    }
+    const sortOrderComparator = CORE.compareProducts
+      ? CORE.compareProducts('sortOrder')
+      : (a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+    const ordered = [...productsCache].sort(sortOrderComparator);
+    const from = ordered.findIndex((item) => item.id === id);
+    if (from < 0) return;
+    const to = from + delta;
+    if (to < 0 || to >= ordered.length) return;
+    await reorderProducts(id, ordered[to].id);
   }
 
   // Persist the whole catalog in a single batched write (multi-path update on
@@ -1479,13 +1538,10 @@
     }
     const ids = new Set([...selectedProductIds]);
     if (!ids.size) return;
-    let stockValue = null;
-    if (action === 'stock') {
-      const input = window.prompt('Set stock for the selected products to:', '0');
-      if (input === null) return;
-      stockValue = Math.max(0, Number(input) || 0);
-    }
-    if (action === 'delete' && !window.confirm(`Delete ${ids.size} selected product(s) permanently?`)) return;
+    if (action === 'delete' && !(await confirmDialog(
+      `Delete ${ids.size} selected product(s) permanently?`,
+      { title: 'Delete products', confirmText: 'Delete', danger: true },
+    ))) return;
     try {
       let next;
       if (action === 'delete') {
@@ -1496,7 +1552,6 @@
           const updated = { ...product };
           if (action === 'publish') updated.active = true;
           if (action === 'unpublish') updated.active = false;
-          if (action === 'stock') updated.stock = stockValue;
           return updated;
         });
       }
@@ -1585,12 +1640,10 @@
   }
 
   function imageOptimizationOptions() {
-    const presets = {
-      compact: { longEdge: 1400, quality: 0.78, targetBytes: 260 * 1024 },
-      balanced: { longEdge: 1600, quality: 0.82, targetBytes: 300 * 1024 },
-      detail: { longEdge: 1800, quality: 0.86, targetBytes: 500 * 1024 },
-    };
-    return presets[$('#imageOptimization')?.value] || presets.balanced;
+    // Single balanced profile (the upload-detail selector was removed). ~1600px long
+    // edge at good quality, encoded down to stay comfortably under 400 KB — usually
+    // ~200-320 KB — so every product image is light but still sharp.
+    return { longEdge: 1600, quality: 0.82, targetBytes: 320 * 1024, maxDetailBytes: 380 * 1024 };
   }
 
   async function updateProductPreview() {
@@ -1599,7 +1652,6 @@
     const description = $('#prodDesc').value.trim() || 'Your product description will appear here.';
     const badge = $('#prodBadge').value.trim();
     const price = Number($('#prodPrice').value) || 0;
-    const compareAt = Number($('#prodCompare').value) || 0;
     const status = $('#prodStatus').value;
     const imageRef = imageReferenceFromFields();
 
@@ -1608,8 +1660,6 @@
     $('#productPreviewCategory').textContent = category;
     $('#productPreviewDescription').textContent = description;
     $('#productPreviewPrice').textContent = fmt(price);
-    $('#productPreviewCompare').hidden = !(compareAt > price);
-    $('#productPreviewCompare').textContent = fmt(compareAt);
     $('#productPreviewBadge').hidden = !badge;
     $('#productPreviewBadge').textContent = badge;
     $('#productPreviewStatus').textContent = status === 'published' ? 'Published' : 'Draft';
@@ -1818,21 +1868,30 @@
     const used = usage.get(file.id) || [];
     const dims = file.width && file.height ? ` · ${file.width}×${file.height}` : '';
     const usageText = used.length ? `Used by ${used.length} product${used.length === 1 ? '' : 's'}` : 'Unused';
-    const actions = picker
-      ? '<div class="library-tile-actions"><button type="button" class="btn btn-secondary" data-lib-pick>Use this image</button></div>'
-      : `<div class="library-tile-actions">
-           <button type="button" class="btn btn-ghost" data-lib-copy>Copy URL</button>
-           <button type="button" class="btn btn-ghost danger-button" data-lib-delete${used.length ? ' title="In use, remove from products first"' : ''}>Delete</button>
-         </div>`;
+    const thumb = `<div class="library-thumb"><img src="${escapeHtml(file.imageUrl)}" alt="${escapeHtml(file.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" /></div>`;
+    const caption = `
+      <figcaption>
+        <strong title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</strong>
+        <span>${escapeHtml(formatBytes(file.size))}${escapeHtml(dims)}</span>
+        <span class="library-usage ${used.length ? 'is-used' : 'is-free'}" title="${escapeHtml(used.join(', '))}">${escapeHtml(usageText)}</span>
+      </figcaption>`;
+    // Picker tiles are a single tappable button so the whole card selects the image.
+    if (picker) {
+      return `
+        <button type="button" class="library-tile library-tile-pick" data-file-id="${escapeHtml(file.id)}" data-lib-pick>
+          ${thumb}
+          ${caption}
+          <span class="library-pick-check" aria-hidden="true">Select</span>
+        </button>`;
+    }
     return `
       <figure class="library-tile" data-file-id="${escapeHtml(file.id)}">
-        <div class="library-thumb"><img src="${escapeHtml(file.imageUrl)}" alt="${escapeHtml(file.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" /></div>
-        <figcaption>
-          <strong title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</strong>
-          <span>${escapeHtml(formatBytes(file.size))}${escapeHtml(dims)}</span>
-          <span class="library-usage ${used.length ? 'is-used' : 'is-free'}" title="${escapeHtml(used.join(', '))}">${escapeHtml(usageText)}</span>
-        </figcaption>
-        ${actions}
+        ${thumb}
+        ${caption}
+        <div class="library-tile-actions">
+          <button type="button" class="btn btn-ghost" data-lib-copy>Copy URL</button>
+          <button type="button" class="btn btn-ghost danger-button" data-lib-delete${used.length ? ' title="In use, remove from products first"' : ''}>Delete</button>
+        </div>
       </figure>`;
   }
 
@@ -1897,10 +1956,11 @@
     const file = libraryCache.find((item) => item.id === fileId);
     const used = driveImageUsage().get(fileId) || [];
     if (used.length) {
-      window.alert(`This image is still used by: ${used.join(', ')}.\n\nRemove it from those products first, then delete it here.`);
+      await alertDialog(`This image is still used by: ${used.join(', ')}. Remove it from those products first, then delete it here.`, { title: 'Image in use' });
       return;
     }
-    if (!window.confirm(`Delete "${file?.name || 'this image'}" from Google Drive permanently?`)) return;
+    const ok = await confirmDialog(`Delete "${file?.name || 'this image'}" from Google Drive permanently?`, { title: 'Delete image', confirmText: 'Delete', danger: true });
+    if (!ok) return;
     try {
       await drive().deleteFile(fileId);
       libraryCache = libraryCache.filter((item) => item.id !== fileId);
@@ -2112,8 +2172,16 @@
         const tile = button.closest('[data-gallery-index]');
         const index = Number(tile.dataset.galleryIndex);
         if (index < 0) { // removing the main image
-          setMainImage({ imageUrl: '', driveFileId: '', imageVersion: '' });
-          $('#prodImageMeta').value = '';
+          if (galleryItems.length) {
+            // Promote the first gallery image so the product keeps a main image.
+            const next = galleryItems.shift();
+            syncGalleryField();
+            $('#prodImageMeta').value = '';
+            setMainImage(next);
+          } else {
+            setMainImage({ imageUrl: '', driveFileId: '', imageVersion: '' });
+            $('#prodImageMeta').value = '';
+          }
         } else {
           removeGalleryItem(index);
         }
@@ -2474,7 +2542,6 @@
       '#prodBadge',
       '#prodDesc',
       '#prodPrice',
-      '#prodCompare',
       '#prodImageId',
       '#prodImageUrl',
       '#prodStatus',
@@ -2507,12 +2574,12 @@
 
   function setupFilters() {
     const ordersChanged = () => { orderPage = 0; renderOrders(); };
-    ['#orderSearch', '#orderDateFilter', '#orderSort'].forEach((selector) => {
+    ['#orderSearch', '#orderSort'].forEach((selector) => {
       $(selector)?.addEventListener('input', ordersChanged);
       $(selector)?.addEventListener('change', ordersChanged);
     });
     const catalogChanged = () => { catalogPage = 0; void renderProductList(); };
-    ['#productSearch', '#stockFilter', '#imageMigrationFilter', '#productSort'].forEach((selector) => {
+    ['#productSearch', '#imageMigrationFilter', '#productSort'].forEach((selector) => {
       $(selector)?.addEventListener('input', catalogChanged);
       $(selector)?.addEventListener('change', catalogChanged);
     });
@@ -2571,6 +2638,11 @@
     // Keyboard shortcuts: Ctrl/Cmd+S saves the active form, Esc clears the product form.
     document.addEventListener('keydown', (event) => {
       const activePanel = $('.admin-panel.active')?.dataset.panel;
+      if (event.key === 'Escape' && dialogOpen()) {
+        event.preventDefault();
+        closeDialog(!$('#paviaDialogField').hidden ? null : false);
+        return;
+      }
       if (event.key === 'Escape' && !$('#cropModal')?.hidden) {
         event.preventDefault();
         finishCrop(null);
@@ -2586,7 +2658,7 @@
         else if (activePanel === 'settings') { event.preventDefault(); $('#settingsForm').requestSubmit(); }
       }
       if (event.key === 'Escape' && activePanel === 'products') {
-        if (confirmDiscardIfDirty('Discard unsaved product changes?')) resetForm();
+        confirmDiscardIfDirty('Discard unsaved product changes?').then((ok) => { if (ok) resetForm(); });
       }
     });
 
@@ -2638,17 +2710,18 @@
     await refreshAll();
     applyBackendCapabilities();
     $('#logoutBtn').addEventListener('click', () => {
-      if (!confirmDiscardIfDirty('You have unsaved product changes (saved as a recoverable draft). Lock the studio anyway?')) return;
-      window.PaviaAdminShell?.lock?.('Locked. Enter the admin credentials again.');
+      confirmDiscardIfDirty('You have unsaved product changes (saved as a recoverable draft). Lock the studio anyway?')
+        .then((ok) => { if (ok) window.PaviaAdminShell?.lock?.('Locked. Enter the admin credentials again.'); });
     });
     $('#productForm').addEventListener('submit', handleProductSubmit);
     $('#formReset').addEventListener('click', () => {
-      if (confirmDiscardIfDirty('Discard unsaved changes and start a new product?')) resetForm();
+      confirmDiscardIfDirty('Discard unsaved changes and start a new product?').then((ok) => { if (ok) resetForm(); });
     });
     $('#formCancel').addEventListener('click', () => {
-      if (confirmDiscardIfDirty('Discard unsaved changes?')) resetForm();
+      confirmDiscardIfDirty('Discard unsaved changes?').then((ok) => { if (ok) resetForm(); });
     });
     $('#settingsForm').addEventListener('submit', handleSettingsSubmit);
+    setupDialog();
     setupTabs();
     setupProductPreview();
     setupVariantBuilders();

@@ -331,8 +331,8 @@
           const product = products.find((entry) => String(entry.id) === String(item.id));
           const qty = Math.max(1, Number(item.qty) || 1);
           if (!product) throw new Error(`${item.name || item.id || 'Item'} is no longer available.`);
-          if (Number(product.stock || 0) < qty) throw new Error(`${product.name} has only ${product.stock || 0} left.`);
-          product.stock = Number(product.stock || 0) - qty;
+          // Stock removed from the store: any existing product is always orderable,
+          // so there is no availability check and no decrement.
           return {
             ...clone(item),
             name: product.name,
@@ -340,8 +340,6 @@
             qty,
           };
         });
-        write(keys.products, products);
-        emit('products');
         const orders = read(keys.orders, []);
         // Recompute money from the normalized (re-priced, qty-clamped) items so the
         // stored total can't disagree with its own line items — the local mirror of
@@ -388,24 +386,18 @@
         const orders = read(keys.orders, []);
         const order = orders.find((item) => String(item.id) === String(id));
         if (!order) return null;
-        const previousStatus = order.status;
         Object.assign(order, clone(changes), { updatedAt: new Date().toISOString() });
         if (order.status === 'completed' && !order.completedAt) order.completedAt = order.updatedAt;
         if (order.status === 'cancelled' && !order.cancelledAt) order.cancelledAt = order.updatedAt;
-        if (order.status === 'cancelled' && previousStatus !== 'cancelled' && order.stockReserved && !order.stockRestored) {
-          const products = read(keys.products, []);
-          (Array.isArray(order.items) ? order.items : Object.values(order.items || {})).forEach((item) => {
-            const product = products.find((entry) => String(entry.id) === String(item.id));
-            if (product) product.stock = Math.max(0, Number(product.stock || 0)) + Math.max(0, Number(item.qty || 0));
-          });
-          order.stockRestored = true;
-          order.stockRestoredAt = order.updatedAt;
-          write(keys.products, products);
-          emit('products');
-        }
         write(keys.orders, orders);
         emit('orders');
         return clone(order);
+      },
+      async remove(id) {
+        const orders = read(keys.orders, []).filter((item) => String(item.id) !== String(id));
+        write(keys.orders, orders);
+        emit('orders');
+        return true;
       },
       subscribe(listener) {
         return subscribe('orders', listener);

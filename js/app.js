@@ -320,40 +320,45 @@
     return lookup[norm(name)] || '#a78970';
   }
 
+  // Stock was removed from the store. Treat every product as effectively unlimited
+  // so nothing is ever gated, capped, or labelled "sold out"; the real value in the
+  // database is ignored on the storefront.
+  const ALWAYS_AVAILABLE = 999999;
   function normalizeProduct(p) {
-    if (CORE.normalizeProduct) {
-      return CORE.normalizeProduct(p, {
-        imageIdResolver: (image) => window.PaviaImages?.idFor?.(image) || '',
-        imageResolver: (image) => window.PaviaImages?.resolve?.(image) || image,
-      });
-    }
-    const tags = Array.isArray(p.tags) ? p.tags : [];
-    const compareAt = Number(p.compareAt ?? p.comparePrice ?? 0) || 0;
-    const stock = Number.isFinite(Number(p.stock)) ? Number(p.stock) : 0;
-    const imageSource = p.image || p.imageId || '';
-    return {
-      ...p,
-      id: p.id || `product-${Date.now()}`,
-      name: p.name || 'Untitled product',
-      category: p.category || 'New Arrivals',
-      price: Number(p.price) || 0,
-      compareAt,
-      badge: p.badge || (tags[0] || ''),
-      imageId: p.imageId || window.PaviaImages?.idFor?.(p.image) || '',
-      image: window.PaviaImages?.resolve?.(imageSource) || p.image || 'assets/logo.svg',
-      description: p.description || '',
-      sizes: Array.isArray(p.sizes) && p.sizes.length ? p.sizes : ['One size'],
-      colors: (Array.isArray(p.colors) && p.colors.length ? p.colors : ['Default']).map(colorObj),
-      tags,
-      stock,
-      featured: Boolean(p.featured || tags.map(norm).includes('featured')),
-      active: p.active !== false,
-      sku: p.sku || '',
-      material: p.material || '',
-      fit: p.fit || '',
-      care: p.care || '',
-      createdAt: Number(p.createdAt) || 0
-    };
+    const normalized = CORE.normalizeProduct
+      ? CORE.normalizeProduct(p, {
+          imageIdResolver: (image) => window.PaviaImages?.idFor?.(image) || '',
+          imageResolver: (image) => window.PaviaImages?.resolve?.(image) || image,
+        })
+      : (() => {
+        const tags = Array.isArray(p.tags) ? p.tags : [];
+        const compareAt = Number(p.compareAt ?? p.comparePrice ?? 0) || 0;
+        const imageSource = p.image || p.imageId || '';
+        return {
+          ...p,
+          id: p.id || `product-${Date.now()}`,
+          name: p.name || 'Untitled product',
+          category: p.category || 'New Arrivals',
+          price: Number(p.price) || 0,
+          compareAt,
+          badge: p.badge || (tags[0] || ''),
+          imageId: p.imageId || window.PaviaImages?.idFor?.(p.image) || '',
+          image: window.PaviaImages?.resolve?.(imageSource) || p.image || 'assets/logo.svg',
+          description: p.description || '',
+          sizes: Array.isArray(p.sizes) && p.sizes.length ? p.sizes : ['One size'],
+          colors: (Array.isArray(p.colors) && p.colors.length ? p.colors : ['Default']).map(colorObj),
+          tags,
+          featured: Boolean(p.featured || tags.map(norm).includes('featured')),
+          active: p.active !== false,
+          sku: p.sku || '',
+          material: p.material || '',
+          fit: p.fit || '',
+          care: p.care || '',
+          createdAt: Number(p.createdAt) || 0
+        };
+      })();
+    normalized.stock = ALWAYS_AVAILABLE;
+    return normalized;
   }
 
   // ---------- State ----------
@@ -398,7 +403,6 @@
     sortFilter:       $('#sortFilter'),
     priceFilter:      $('#priceFilter'),
     availFilter:      $('#availFilter'),
-    inStockToggle:    $('#inStockToggle'),
     categoryPills:    $('[data-category-pills]'),
     activeFilters:    $('[data-active-filters]'),
     resultCount:      $('[data-result-count]'),
@@ -450,14 +454,6 @@
     .filter((item) => String(item.id) === String(productId))
     .reduce((sum, item) => sum + Number(item.qty || 0), 0);
 
-  function stockMessage(product) {
-    const stock = Number(product?.stock || 0);
-    if (stock <= 0) return 'Sold out';
-    if (stock <= 3) return `Only ${stock} left`;
-    if (stock <= 6) return 'Almost gone';
-    return 'In stock';
-  }
-
   function normalizeLebanonPhone(value) {
     if (CORE.normalizeLebanonPhone) return CORE.normalizeLebanonPhone(value);
     const raw = String(value || '').trim();
@@ -470,23 +466,17 @@
 
   function revalidateCart({ notify = false } = {}) {
     let changed = false;
-    // Allocate stock across a product's lines in cart order so the SUM of all
-    // size/color lines for a product never exceeds its stock.
-    const remaining = new Map();
+    // Refresh each line against the live catalog: drop items whose product is gone,
+    // refresh name/price/image, and keep quantities within the per-item cap. There
+    // is no stock to allocate against any more.
     cart = cart
       .map((item) => {
         const product = getProduct(item.id);
-        if (!product || product.stock <= 0) {
+        if (!product) {
           changed = true;
           return null;
         }
-        const left = remaining.has(item.id) ? remaining.get(item.id) : Number(product.stock || 0);
-        const nextQty = Math.min(Number(item.qty || 1), Math.max(0, left));
-        remaining.set(item.id, Math.max(0, left - nextQty));
-        if (nextQty <= 0) {
-          changed = true;
-          return null;
-        }
+        const nextQty = Math.min(Math.max(1, Number(item.qty || 1)), MAX_QTY_PER_ITEM);
         const nextPrice = Number(product.price || item.price || 0);
         const nextImage = product.imageSource || product.image || item.image;
         if (nextQty !== item.qty || nextPrice !== item.price || nextImage !== item.image) changed = true;
@@ -503,7 +493,7 @@
     if (changed) {
       writeJSON(STORE_KEYS.cart, cart);
       renderCart();
-      if (notify) toast('Bag updated with the latest stock and prices.', 'info');
+      if (notify) toast('Bag updated with the latest prices.', 'info');
     }
     return !changed;
   }
@@ -884,6 +874,7 @@
     Object.assign(SITE_CONFIG, settings);
     const fee = Number(SITE_CONFIG.deliveryFee);
     DELIVERY_FEE = Number.isFinite(fee) ? Math.max(0, fee) : 3;
+    applyCheckoutState();
   }
 
   // Tell the inline splash screen (index.html) that real content is on screen so
@@ -1005,7 +996,7 @@
       resetPaging();
       renderProducts();
     });
-    [n.sizeFilter, n.colorFilter, n.sortFilter, n.priceFilter, n.availFilter, n.inStockToggle].forEach(el => {
+    [n.sizeFilter, n.colorFilter, n.sortFilter, n.priceFilter, n.availFilter].forEach(el => {
       el?.addEventListener('change', () => {
         updateFilterDot();
         resetPaging();
@@ -1116,8 +1107,8 @@
   function applyHeroImages() {
     const slots = $$('[data-hero-image]');
     if (!slots.length || !products.length) return;
-    const featured = products.filter(p => p.featured && p.stock > 0);
-    const pool = (featured.length >= slots.length ? featured : products.filter(p => p.stock > 0))
+    const featured = products.filter(p => p.featured);
+    const pool = (featured.length >= slots.length ? featured : products)
       .concat(products);
     const seen = new Set();
     const picks = [];
@@ -1245,7 +1236,6 @@
     const selectActive = [n.sizeFilter, n.colorFilter, n.priceFilter, n.availFilter]
       .some((s) => s && s.value !== 'all');
     const hasActive = selectActive
-      || Boolean(n.inStockToggle?.checked)
       || Boolean((n.productSearch?.value || '').trim())
       || (activeCategory && activeCategory !== 'All');
     n.filterToggle?.classList.toggle('has-active', hasActive);
@@ -1264,7 +1254,6 @@
     if (n.colorFilter && n.colorFilter.value !== 'all') chips.push({ key: 'color', label: n.colorFilter.value });
     if (n.priceFilter && n.priceFilter.value !== 'all') chips.push({ key: 'price', label: n.priceFilter.selectedOptions[0]?.textContent || 'Price' });
     if (n.availFilter && n.availFilter.value !== 'all') chips.push({ key: 'avail', label: n.availFilter.selectedOptions[0]?.textContent || '' });
-    if (n.inStockToggle?.checked) chips.push({ key: 'instock', label: 'In stock' });
 
     n.activeFilters.hidden = chips.length === 0;
     setHtml(n.activeFilters, html`
@@ -1292,8 +1281,6 @@
       n.priceFilter.value = 'all';
     } else if (key === 'avail' && n.availFilter) {
       n.availFilter.value = 'all';
-    } else if (key === 'instock' && n.inStockToggle) {
-      n.inStockToggle.checked = false;
     }
     updateFilterDot();
     resetPaging();
@@ -1309,7 +1296,6 @@
     const sort = n.sortFilter?.value || 'featured';
     const price = n.priceFilter?.value || 'all';
     const avail = n.availFilter?.value || 'all';
-    const inStockOnly = Boolean(n.inStockToggle?.checked);
 
     let result = products.filter(p => {
       // Widened haystack: also match SKU, material, color names, and tags.
@@ -1327,8 +1313,6 @@
         else if (p.price < min || p.price >= max) return false;
       }
       if (avail === 'featured' && !p.featured) return false;
-      if (avail === 'sale' && !(p.compareAt && p.compareAt > p.price)) return false;
-      if (inStockOnly && p.stock <= 0) return false;
       return true;
     });
 
@@ -1362,30 +1346,21 @@
     const swatches = colors.slice(0, 4)
       .map(c => html`<span style="background:${safeColor(c.hex)}"></span>`);
     const moreCount = colors.length > 4 ? html`<span class="color-mini-count">+${colors.length - 4}</span>` : '';
-    const onSale = p.compareAt && p.compareAt > p.price;
-    const savePct = onSale ? Math.round((1 - p.price / p.compareAt) * 100) : 0;
-    const soldOut = p.stock <= 0;
-    const lowStock = p.stock > 0 && p.stock <= 4;
-    const stockCopy = stockMessage(p);
-
     const badges = [];
     if (norm(p.badge) === 'new') badges.push(html`<span class="badge new">${p.badge}</span>`);
-    else if (onSale) badges.push(html`<span class="badge sale">-${savePct}%</span>`);
-    if (soldOut) badges.push(html.raw('<span class="badge sold">Sold out</span>'));
-    else if (lowStock) badges.push(html`<span class="badge low">Only ${p.stock} left</span>`);
     if (!badges.length && p.badge) badges.push(html`<span class="badge">${p.badge}</span>`);
 
     return html`
-      <article class="product-card reveal" data-low-stock="${lowStock}" data-sold-out="${soldOut}" data-product-id="${p.id}">
+      <article class="product-card reveal" data-product-id="${p.id}">
         <div class="product-media">
           <img ${lazyImgAttrs(p.image, p.id || p.name)} alt="${p.name}" decoding="async" width="640" height="800" />
           <div class="badge-stack">${badges}</div>
           <button class="wish-btn ${wishlist.includes(p.id) ? 'is-active' : ''}" data-wish="${p.id}" aria-label="Save ${p.name}">
             <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>
           </button>
-          <button class="quick-add" data-fast-add="${p.id}" aria-label="${soldOut ? `${p.name} is sold out` : `Quick add ${p.name}`}" ${soldOut ? 'disabled' : ''}>
+          <button class="quick-add" data-fast-add="${p.id}" aria-label="Quick add ${p.name}">
             <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            ${soldOut ? 'Sold out' : 'Quick add'}
+            Quick add
           </button>
         </div>
         <div class="product-info">
@@ -1393,10 +1368,8 @@
           <h3 class="product-name" data-quick-view="${p.id}" role="button" tabindex="0">${p.name}</h3>
           <div class="product-price">
             <span class="now">${money(p.price)}</span>
-            ${onSale ? html`<span class="was">${money(p.compareAt)}</span><span class="save">Save ${savePct}%</span>` : ''}
           </div>
           <div class="color-mini">${swatches}${moreCount}</div>
-          <div class="stock-bar">${stockCopy}</div>
         </div>
       </article>
     `;
@@ -1560,7 +1533,6 @@
     if (n.sortFilter) n.sortFilter.value = 'featured';
     if (n.priceFilter) n.priceFilter.value = 'all';
     if (n.availFilter) n.availFilter.value = 'all';
-    if (n.inStockToggle) n.inStockToggle.checked = false;
     updateFilterDot();
     resetPaging();
     renderCategories();
@@ -1582,12 +1554,6 @@
   // Pre-filled WhatsApp "let me know when it's back" message for a sold-out item.
   // Reuses the store's existing manual/WhatsApp confirmation flow — no new backend
   // write path, no anonymous-write DB rule, no email infrastructure.
-  function notifyBackHref(p) {
-    const num = String(WHATSAPP_NUMBER).replace(/\D/g, '') || '9613017725';
-    const name = SITE_CONFIG.siteName || 'Pavia';
-    const text = `Hi ${name}, please notify me when "${p.name}" is back in stock. ${productShareUrl(p)}`;
-    return `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
-  }
   function syncProductUrl(p) {
     if (!history.replaceState) return;
     try { history.replaceState(null, '', productShareUrl(p)); } catch { /* noop */ }
@@ -1608,7 +1574,7 @@
         '@type': 'Offer',
         price: Number(p.price) || 0,
         priceCurrency: SITE_CONFIG.currency || 'USD',
-        availability: p.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        availability: 'https://schema.org/InStock',
         url: productShareUrl(p),
       },
     };
@@ -1735,12 +1701,8 @@
   function renderProductModal() {
     const p = modalProduct;
     const colors = (p.colors || []).map(colorObj);
-    const onSale = p.compareAt && p.compareAt > p.price;
-    const savePct = onSale ? Math.round((1 - p.price / p.compareAt) * 100) : 0;
-    const soldOut = p.stock <= 0;
-    const inBagThisOption = cartLineQty(p.id, selectedSize, selectedColor);
     const inBagTotal = cartProductQty(p.id);
-    const maxQty = Math.max(0, p.stock - inBagTotal);
+    const maxQty = Math.max(0, MAX_QTY_PER_ITEM - inBagTotal);
     const gallery = modalGallery.length ? modalGallery : [p.image];
     selectedQty = Math.min(Math.max(1, selectedQty), Math.max(1, maxQty));
 
@@ -1771,7 +1733,6 @@
           <p class="muted modal-desc">${p.description}</p>
           <div class="modal-price-row">
             <span class="now">${money(p.price)}</span>
-            ${onSale ? html`<span class="was">${money(p.compareAt)}</span><span class="save">Save ${savePct}%</span>` : ''}
           </div>
 
           <div class="option-group">
@@ -1792,39 +1753,29 @@
             </div>
           </div>
 
-          ${soldOut ? html`
-            <a class="btn btn-primary full notify-back" data-notify-back href="${notifyBackHref(p)}" target="_blank" rel="noreferrer">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.2-5.6A8.4 8.4 0 1 1 21 11.5Z"/></svg>
-              Notify me when it's back
-            </a>
-          ` : html`
-            <div class="qty-add-row">
-              <div class="qty-control" aria-label="Quantity">
-                <button type="button" data-modal-qty="minus" aria-label="Decrease quantity">−</button>
-                <span>${selectedQty}</span>
-                <button type="button" data-modal-qty="plus" aria-label="Increase quantity" ${selectedQty >= maxQty ? 'disabled' : ''}>+</button>
-              </div>
-              <button class="btn btn-primary" data-modal-add ${maxQty <= 0 ? 'disabled' : ''}>
-                Add to bag · ${money(p.price * selectedQty)}
-              </button>
+          <div class="qty-add-row">
+            <div class="qty-control" aria-label="Quantity">
+              <button type="button" data-modal-qty="minus" aria-label="Decrease quantity">−</button>
+              <span>${selectedQty}</span>
+              <button type="button" data-modal-qty="plus" aria-label="Increase quantity" ${selectedQty >= maxQty ? 'disabled' : ''}>+</button>
             </div>
-          `}
+            <button class="btn btn-primary" data-modal-add ${maxQty <= 0 ? 'disabled' : ''}>
+              Add to bag · ${money(p.price * selectedQty)}
+            </button>
+          </div>
 
-          <p class="stock-note">${soldOut ? "This style is sold out. Tap above and we'll message you on WhatsApp when it's back." : `${stockMessage(p)}. ${inBagTotal ? `${inBagTotal} already in your bag.` : 'Ready to add.'}`}</p>
+          <p class="stock-note">${inBagTotal ? `${inBagTotal} already in your bag.` : 'Ready to add.'}</p>
 
-          ${(p.fit || p.material || p.care || p.sku) ? html`
+          ${p.sku ? html`
             <dl class="product-extra-details">
-              ${p.fit ? html`<div><dt>Fit</dt><dd>${p.fit}</dd></div>` : ''}
-              ${p.material ? html`<div><dt>Material</dt><dd>${p.material}</dd></div>` : ''}
-              ${p.care ? html`<div><dt>Care</dt><dd>${p.care}</dd></div>` : ''}
-              ${p.sku ? html`<div><dt>SKU</dt><dd>${p.sku}</dd></div>` : ''}
+              <div><dt>SKU</dt><dd>${p.sku}</dd></div>
             </dl>
           ` : ''}
 
           <div class="modal-meta">
             <div>
               <svg viewBox="0 0 24 24"><path d="M5 8h14l-1 11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 8z"/></svg>
-              <span>${p.stock} pieces available · Delivery across Lebanon</span>
+              <span>Delivery across Lebanon</span>
             </div>
             <div>
               <svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>
@@ -1841,11 +1792,9 @@
 
     const modalAddButton = $('[data-modal-add]', n.modalContent);
     if (modalAddButton) {
-      modalAddButton.textContent = soldOut
-        ? 'Sold out'
-        : maxQty <= 0
-          ? 'Already in bag'
-          : `Add to bag - ${money(p.price * selectedQty)}`;
+      modalAddButton.textContent = maxQty <= 0
+        ? 'Already in bag'
+        : `Add to bag - ${money(p.price * selectedQty)}`;
     }
     eagerLoadLazyImages(n.modalContent);
     $('[data-modal-share]', n.modalContent)?.addEventListener('click', () => shareProduct(p));
@@ -1883,7 +1832,7 @@
     $$('[data-size]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedSize = b.dataset.size; renderProductModal(); }));
     $$('[data-color]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedColor = b.dataset.color; renderProductModal(); }));
     $$('[data-modal-qty]', n.modalContent).forEach(b => b.addEventListener('click', () => {
-      const available = Math.max(0, modalProduct.stock - cartProductQty(modalProduct.id));
+      const available = Math.max(0, MAX_QTY_PER_ITEM - cartProductQty(modalProduct.id));
       selectedQty = b.dataset.modalQty === 'plus'
         ? Math.min(available, selectedQty + 1)
         : Math.max(1, selectedQty - 1);
@@ -1915,29 +1864,25 @@
   function fastAdd(id) {
     const p = getProduct(id);
     if (!p) return;
-    if (p.stock <= 0) {
-      toast(`${p.name} is sold out.`, 'error');
-      return;
-    }
     const firstColor = (p.colors[0] && p.colors[0].name) || '';
     addToCart(p, p.sizes[0], firstColor, 1);
   }
 
   function addToCart(product, size, color, qty) {
-    if (!product || product.stock <= 0) {
-      toast('This style is sold out.', 'error');
+    if (!product) {
+      toast('This style is no longer available.', 'error');
       return;
     }
     const key = `${product.id}-${size}-${color}`;
     const existing = cart.find(i => i.key === key);
     const currentQty = existing ? Number(existing.qty || 0) : 0;
-    // Cap against the product's TOTAL across every option already in the bag.
-    const available = Math.max(0, Number(product.stock) - cartProductQty(product.id));
-    if (available <= 0) {
-      toast(`Only ${product.stock} of ${product.name} available.`, 'error');
-      return;
-    }
-    const addQty = Math.min(Number(qty) || 1, available, Math.max(0, MAX_QTY_PER_ITEM - currentQty));
+    // Cap against the product's TOTAL across every option already in the bag, so a
+    // single product never exceeds the per-item limit.
+    const addQty = Math.min(
+      Number(qty) || 1,
+      Math.max(0, MAX_QTY_PER_ITEM - cartProductQty(product.id)),
+      Math.max(0, MAX_QTY_PER_ITEM - currentQty),
+    );
     if (addQty <= 0) {
       toast(`You can add up to ${MAX_QTY_PER_ITEM} of one item.`, 'error');
       return;
@@ -1967,7 +1912,20 @@
 
   function saveCart() { writeJSON(STORE_KEYS.cart, cart); renderCart(); }
 
+  // Reflect the store's "Checkout enabled" setting (publicStoreSettings.checkoutEnabled)
+  // in the cart's Checkout button. When ordering is paused the button is disabled and
+  // relabelled; openCheckout() also hard-blocks as a backstop.
+  function applyCheckoutState() {
+    const enabled = SITE_CONFIG.checkoutEnabled !== false;
+    const btn = $('[data-checkout]');
+    if (!btn) return;
+    btn.disabled = !enabled;
+    btn.textContent = enabled ? 'Checkout' : 'Ordering paused';
+    btn.title = enabled ? '' : 'Online ordering is paused right now.';
+  }
+
   function renderCart() {
+    applyCheckoutState();
     const qty = cartQty();
     n.cartCounts.forEach(c => {
       c.textContent = qty;
@@ -2000,7 +1958,7 @@
         <div class="cart-row-content">
           <h3>${i.name}</h3>
           <div class="meta">${i.size} · ${i.color}</div>
-          <div class="meta">${money(i.price)} each - ${stockMessage(getProduct(i.id))}</div>
+          <div class="meta">${money(i.price)} each</div>
           <div class="price-row">
             <div class="qty-control">
               <button type="button" data-cart-change="${i.key}" data-direction="minus" aria-label="Decrease">−</button>
@@ -2027,17 +1985,12 @@
     const item = cart.find(r => r.key === key);
     if (!item) return;
     if (dir === 'plus') {
-      // A product can leave the catalog (deleted / sold out) while it sits in the
-      // bag; only the increment needs the live record, so guard just this branch
-      // and still let the shopper decrement or remove an orphaned line below.
+      // A product can leave the catalog (deleted) while it sits in the bag; only the
+      // increment needs the live record, so guard just this branch and still let the
+      // shopper decrement or remove an orphaned line below.
       const product = getProduct(item.id);
       if (!product) {
         toast('This style is no longer available.', 'error');
-        return;
-      }
-      // Block once the product's TOTAL across all options reaches its stock.
-      if (cartProductQty(item.id) >= product.stock) {
-        toast(`Only ${product.stock} of ${product.name} available.`, 'error');
         return;
       }
       if (num(item.qty) >= MAX_QTY_PER_ITEM) {
@@ -2093,7 +2046,7 @@
             <strong>${money(p.price)}</strong>
             <div style="display:flex;gap:6px">
               <button class="btn btn-soft btn-sm" data-wish-quick="${p.id}">View</button>
-              <button class="btn btn-soft btn-sm" data-wish-add="${p.id}" ${p.stock <= 0 ? 'disabled' : ''}>${p.stock <= 0 ? 'Sold out' : '+ Bag'}</button>
+              <button class="btn btn-soft btn-sm" data-wish-add="${p.id}">+ Bag</button>
             </div>
           </div>
         </div>
@@ -2162,9 +2115,10 @@
   }
 
   function openCheckout() {
+    if (SITE_CONFIG.checkoutEnabled === false) { toast('Online ordering is paused right now.', 'info'); return; }
     if (!cart.length) { toast('Your bag is empty. Add an item first.', 'error'); return; }
     revalidateCart({ notify: true });
-    if (!cart.length) { toast('Your bag is empty after stock refresh.', 'error'); return; }
+    if (!cart.length) { toast('Your bag is empty.', 'error'); return; }
     void BACKEND?.analytics.recordEvent('checkout_started');
     closeDrawer(n.cartDrawer);
     renderCheckoutSummary();
@@ -2275,7 +2229,7 @@
       submitButton.disabled = true;
       submitButton.classList.add('is-loading');
       submitButton.dataset.originalText = submitButton.textContent.trim();
-      submitButton.textContent = 'Checking stock...';
+      submitButton.textContent = 'Placing order...';
     }
     try {
       if (submitButton) submitButton.textContent = 'Placing order...';
