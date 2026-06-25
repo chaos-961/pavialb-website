@@ -616,6 +616,12 @@
 
   function productNeedsImageMigration(product) {
     const provider = String(product.imageProvider || '').trim();
+    // A product intentionally saved with no image is not a migration candidate,
+    // even though normalizeProduct backfills image with the neutral logo path.
+    const image = String(product.image || '').trim();
+    const hasNoImage = !product.imageUrl && !product.imageId
+      && (!image || image === 'assets/logo.svg' || image === '../assets/logo.svg');
+    if (hasNoImage) return false;
     return !product.imageUrl || Boolean(product.imageId) || provider === 'local' || provider === 'local_legacy';
   }
 
@@ -1163,9 +1169,9 @@
       errors.prodSlug = 'This slug is already used.';
     }
     if (product.price <= 0) errors.prodPrice = 'Price must be greater than zero.';
-    if (!product.imageUrl) {
-      errors.prodImageUrl = 'Choose a main product image from the Library.';
-    } else if (!/^https:\/\//i.test(product.imageUrl)) {
+    // A product may have no image at all — the storefront shows an elegant
+    // placeholder. Only enforce HTTPS when an image URL is actually set.
+    if (product.imageUrl && !/^https:\/\//i.test(product.imageUrl)) {
       errors.prodImageUrl = 'Product image URLs must use HTTPS.';
     }
     Object.entries(errors).forEach(([field, message]) => setFieldError(field, message));
