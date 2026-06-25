@@ -292,6 +292,19 @@
   window.addEventListener('focus', clearOrderBadge);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) clearOrderBadge(); });
 
+  // Field info "i": tap/click toggles its hint tooltip (desktop hover and keyboard
+  // focus are handled in CSS). Tapping one closes any other; tapping away closes all.
+  document.addEventListener('click', (event) => {
+    const tip = event.target.closest ? event.target.closest('.field-tip') : null;
+    document.querySelectorAll('.field-tip.is-open').forEach((open) => { if (open !== tip) open.classList.remove('is-open'); });
+    if (tip) { event.preventDefault(); tip.classList.toggle('is-open'); }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { document.querySelectorAll('.field-tip.is-open').forEach((open) => open.classList.remove('is-open')); return; }
+    const tip = event.target.closest ? event.target.closest('.field-tip') : null;
+    if (tip && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); tip.classList.toggle('is-open'); }
+  });
+
   // ---- P15: save feedback, dirty tracking, draft autosave ----
   function setButtonLoading(button, loading, text) {
     if (!button) return;

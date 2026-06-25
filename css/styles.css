@@ -86,8 +86,10 @@ body.storefront::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(120% 70% at 50% -12%, rgba(0, 0, 0, 0.05), transparent 58%),
-    linear-gradient(180deg, #ffffff 0%, #f1f1f1 100%);
+    radial-gradient(125% 75% at 50% -14%, rgba(0, 0, 0, 0.06), transparent 56%),
+    radial-gradient(95% 55% at 50% 118%, rgba(255, 255, 255, 0.5), transparent 60%),
+    radial-gradient(60% 50% at 88% 8%, rgba(0, 0, 0, 0.025), transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #eeeeee 100%);
 }
 /* Scroll lock for open drawers/modals. position:fixed (not just overflow:hidden)
    so iOS Safari can't scroll the background; JS sets top:-scrollY and restores it
@@ -322,7 +324,8 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   position: relative;
 }
 .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-.btn:active { transform: translateY(0); }
+.btn:active { transform: translateY(0) scale(0.97); transition-duration: 0.08s; }
+.icon-btn:active { transform: scale(0.9); transition-duration: 0.08s; }
 .btn:focus-visible { outline: 2px solid var(--cocoa); outline-offset: 3px; }
 /* Shared keyboard-focus ring for the icon/overlay controls that lacked one. */
 .icon-btn:focus-visible,
@@ -472,6 +475,24 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .update-banner .update-reload { background: #fff; color: var(--ink, #1a1612); }
 .update-banner .update-reload:disabled { opacity: 0.6; cursor: default; }
 .update-banner .update-dismiss { background: transparent; color: rgba(255, 255, 255, 0.7); }
+/* Phones: the single-row pill is narrower than its content, so the message text
+   wrapped awkwardly inside the rounded ends. Lay it out as a tidy card instead --
+   message on its own line, actions below-right -- with a softer radius and a touch
+   more tap room. Desktop keeps the clean one-line pill. */
+@media (max-width: 560px) {
+  .update-banner {
+    flex-wrap: wrap;
+    width: calc(100vw - 24px);
+    max-width: none;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 18px;
+  }
+  .update-banner > span:first-child { flex: 1 1 100%; }
+  .update-banner-actions { width: 100%; justify-content: flex-end; }
+  .update-banner .update-reload,
+  .update-banner .update-dismiss { padding: 8px 16px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .update-banner { transition: opacity 0.2s ease; transform: translate(-50%, 0); }
 }
