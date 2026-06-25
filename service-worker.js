@@ -1,5 +1,5 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v59';
+const CACHE = 'pavia-v60';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const IMAGE_CACHE_MAX = 120;
 
@@ -15,9 +15,10 @@ async function trimImageCache(cache) {
 const ASSETS = [
   './',
   './index.html',
+  './favicon.ico',
   './js/splash.js?v=1',
   './js/construction-gate.js?v=1',
-  './js/config.js?v=37',
+  './js/config.js?v=38',
   './js/firebase-config.js?v=10',
   './js/backend-config.js?v=14',
   './js/image-catalog.js?v=11',
