@@ -1015,6 +1015,9 @@
       });
     });
 
+    // Hero collage → quick view (selectable floating looks)
+    setupHeroCollage();
+
     // Filter toggle
     n.filterToggle?.addEventListener('click', () => {
       n.filterPanel?.classList.toggle('is-open');
@@ -1122,6 +1125,63 @@
       if (!p) return;
       img.src = pickImage(p.image, p.id);
       img.alt = `${p.name}, Pavia`;
+      // Turn the collage card into a quick-view trigger for this product.
+      const card = img.closest('[data-hero-card]');
+      if (card) {
+        card.dataset.heroProduct = p.id;
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', `Quick view ${p.name}`);
+      }
+    });
+  }
+
+  // Wire the hero collage: each floating look opens its quick-view (add-to-cart)
+  // modal, with the tapped image morphing into the modal hero. Bound once.
+  function setupHeroCollage() {
+    const heroVisual = $('[data-hero-visual]');
+    if (!heroVisual || heroVisual.dataset.heroWired) return;
+    heroVisual.dataset.heroWired = '1';
+
+    const openFromCard = (card) => {
+      const id = card?.dataset.heroProduct;
+      if (!id) return;
+      openProductModal(id, $('img', card));
+    };
+    heroVisual.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-hero-card]');
+      if (card) openFromCard(card);
+    });
+    heroVisual.addEventListener('keydown', (e) => {
+      const card = e.target.closest('[data-hero-card]');
+      if (!card) return;
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFromCard(card); }
+    });
+
+    // Subtle 3D pointer-tilt — desktop mouse only, never for touch or reduced motion.
+    // Uses the `transform` longhand, which composes with the float (translate/rotate)
+    // and the hover (scale) without overwriting them.
+    const finePointer = window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+    if (!finePointer || prefersReducedMotion()) return;
+    $$('[data-hero-card]', heroVisual).forEach((card) => {
+      let raf = 0, rx = 0, ry = 0;
+      const apply = () => {
+        raf = 0;
+        card.style.transform = `perspective(900px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
+      };
+      card.addEventListener('pointermove', (e) => {
+        if (e.pointerType && e.pointerType !== 'mouse') return;
+        const r = card.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width - 0.5;   // -0.5 .. 0.5
+        const py = (e.clientY - r.top) / r.height - 0.5;
+        ry = px * 14;    // turn toward the cursor (max ~7deg)
+        rx = -py * 14;
+        if (!raf) raf = requestAnimationFrame(apply);
+      });
+      card.addEventListener('pointerleave', () => {
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        card.style.transform = '';   // springs back to the CSS base
+      });
     });
   }
 

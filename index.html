@@ -102,19 +102,29 @@
        is a pure-CSS backstop that reveals the site even if that script fails. */
     #pavia-splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#f5f5f5;color:#1a1a1a;opacity:1;transition:opacity .5s ease;animation:paviaSplashCap 6s ease forwards;}
     #pavia-splash.is-hidden{opacity:0;pointer-events:none;}
-    .pavia-splash__inner{display:flex;flex-direction:column;align-items:center;gap:22px;padding:24px;}
-    .pavia-splash__word{font-family:'Bodoni Moda',Didot,'Bodoni MT','Playfair Display',Georgia,'Times New Roman',serif;font-weight:500;font-size:clamp(34px,9vw,54px);letter-spacing:.42em;text-indent:.42em;line-height:1;}
+    .pavia-splash__inner{display:flex;flex-direction:column;align-items:center;gap:26px;padding:24px;}
+    .pavia-splash__word{color:#1a1a1a;line-height:0;}
+    .pavia-splash__word svg{display:block;width:clamp(196px,58vw,300px);height:auto;color:#1a1a1a;}
     .pavia-splash__track{width:min(180px,52vw);height:2px;border-radius:2px;background:rgba(0,0,0,.12);overflow:hidden;}
     .pavia-splash__bar{height:100%;width:8%;border-radius:2px;background:#1a1a1a;transition:width .3s ease;}
+    /* Signature draw-in for the splash wordmark: the word eases up, then the two
+       brand lines stroke themselves on. Pure decoration — disabled for reduced motion. */
+    .pavia-wordmark--draw .pavia-wordmark__text{opacity:0;animation:pvWordFade .85s ease forwards .12s;}
+    .pavia-wordmark--draw .pavia-wordmark__cross{stroke-dasharray:290;stroke-dashoffset:290;animation:pvLineDraw 1s cubic-bezier(.22,1,.36,1) forwards .5s;}
+    .pavia-wordmark--draw .pavia-wordmark__under{stroke-dasharray:200;stroke-dashoffset:200;animation:pvLineDraw .9s cubic-bezier(.22,1,.36,1) forwards .72s;}
+    @keyframes pvWordFade{from{opacity:0;}to{opacity:1;}}
+    @keyframes pvLineDraw{to{stroke-dashoffset:0;}}
     @keyframes paviaSplashCap{0%,82%{opacity:1;visibility:visible;}100%{opacity:0;visibility:hidden;}}
-    @media (prefers-reduced-motion:reduce){#pavia-splash,.pavia-splash__bar{transition:none;}}
+    @media (prefers-reduced-motion:reduce){#pavia-splash,.pavia-splash__bar{transition:none;}
+      .pavia-wordmark--draw .pavia-wordmark__text,.pavia-wordmark--draw .pavia-wordmark__cross,.pavia-wordmark--draw .pavia-wordmark__under{animation:none;opacity:1;stroke-dashoffset:0;}}
 
     /* Under-construction gate (storefront only). Covers everything until the preview
        password is entered. No real security, just a "not public yet" screen — the
        check lives in js/construction-gate.js and is visible in source by design. */
     .uc-gate{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:24px;background:#f4f4f4;color:#1a1a1a;font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;}
     .uc-card{width:min(420px,100%);text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;}
-    .uc-kicker{font-family:'Bodoni Moda',Didot,Georgia,serif;font-size:12px;font-weight:700;letter-spacing:.42em;text-indent:.42em;text-transform:uppercase;}
+    .uc-kicker{color:#1a1a1a;line-height:0;margin-bottom:4px;}
+    .uc-kicker svg{display:block;width:148px;height:auto;margin-inline:auto;color:#1a1a1a;}
     .uc-title{margin:0;font-family:'Bodoni Moda',Didot,Georgia,serif;font-weight:500;font-size:clamp(28px,7vw,42px);line-height:1.1;letter-spacing:.02em;}
     .uc-text{margin:0;max-width:34ch;color:#5a5a5a;font-size:14px;line-height:1.6;}
     .uc-form{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:8px;}
@@ -135,7 +145,15 @@
 <body class="storefront">
   <div id="ucGate" class="uc-gate" role="dialog" aria-modal="true" aria-label="Site under construction">
     <div class="uc-card">
-      <div class="uc-kicker">Pavia</div>
+      <div class="uc-kicker">
+        <svg class="pavia-wordmark" viewBox="0 0 700 168" role="img" aria-label="Pavia">
+          <text class="pavia-wordmark__text" x="350" y="120" text-anchor="middle"
+                font-family="'Bodoni Moda','Bodoni Moda SC',Didot,'Bodoni MT','Playfair Display',Georgia,serif"
+                font-size="150" font-weight="500" letter-spacing="6" fill="currentColor">PAVIA</text>
+          <line class="pavia-wordmark__cross" x1="16" y1="82" x2="302" y2="82" stroke="currentColor" stroke-width="3"/>
+          <line class="pavia-wordmark__under" x1="402" y1="140" x2="596" y2="140" stroke="currentColor" stroke-width="4"/>
+        </svg>
+      </div>
       <h1 class="uc-title">Under Construction</h1>
       <p class="uc-text">We are putting the finishing touches on the new Pavia. Please check back soon.</p>
       <form id="ucForm" class="uc-form" autocomplete="off">
@@ -151,7 +169,15 @@
   <script src="js/construction-gate.js?v=1"></script>
   <div id="pavia-splash" role="status" aria-live="polite" aria-label="Loading Pavia">
     <div class="pavia-splash__inner">
-      <div class="pavia-splash__word">PAVIA</div>
+      <div class="pavia-splash__word" aria-hidden="true">
+        <svg class="pavia-wordmark pavia-wordmark--draw" viewBox="0 0 700 168" focusable="false" aria-hidden="true">
+          <text class="pavia-wordmark__text" x="350" y="120" text-anchor="middle"
+                font-family="'Bodoni Moda','Bodoni Moda SC',Didot,'Bodoni MT','Playfair Display',Georgia,serif"
+                font-size="150" font-weight="500" letter-spacing="6" fill="currentColor">PAVIA</text>
+          <line class="pavia-wordmark__cross" x1="16" y1="82" x2="302" y2="82" stroke="currentColor" stroke-width="3"/>
+          <line class="pavia-wordmark__under" x1="402" y1="140" x2="596" y2="140" stroke="currentColor" stroke-width="4"/>
+        </svg>
+      </div>
       <div class="pavia-splash__track"><div class="pavia-splash__bar" id="pavia-splash-bar"></div></div>
     </div>
   </div>
@@ -173,12 +199,12 @@
   <header class="site-header" data-header>
     <div class="container nav-wrap">
       <a class="brand" href="#home" aria-label="Pavia home">
-        <svg class="brand-logo" width="700" height="168" viewBox="0 0 700 168" aria-hidden="true" focusable="false">
-          <text x="350" y="120" text-anchor="middle"
+        <svg class="brand-logo pavia-wordmark" width="700" height="168" viewBox="0 0 700 168" aria-hidden="true" focusable="false">
+          <text class="pavia-wordmark__text" x="350" y="120" text-anchor="middle"
                 font-family="'Bodoni Moda','Bodoni Moda SC',Didot,'Bodoni MT','Playfair Display',Georgia,serif"
                 font-size="150" font-weight="500" letter-spacing="6" fill="currentColor">PAVIA</text>
-          <line x1="14" y1="92" x2="338" y2="92" stroke="currentColor" stroke-width="3"/>
-          <line x1="440" y1="146" x2="672" y2="146" stroke="currentColor" stroke-width="4"/>
+          <line class="pavia-wordmark__cross" x1="16" y1="82" x2="302" y2="82" stroke="currentColor" stroke-width="3"/>
+          <line class="pavia-wordmark__under" x1="402" y1="140" x2="596" y2="140" stroke="currentColor" stroke-width="4"/>
         </svg>
       </a>
 
@@ -223,14 +249,26 @@
         </div>
 
         <div class="hero-visual reveal reveal-delay-150" data-hero-visual>
-          <div class="hero-card main">
+          <div class="hero-card main" data-hero-card>
             <img src="assets/logo.svg" alt="Pavia featured look" data-hero-image="0" />
+            <span class="hero-card__cue" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              <em>View</em>
+            </span>
           </div>
-          <div class="hero-card float-1">
+          <div class="hero-card float-1" data-hero-card>
             <img src="assets/logo.svg" alt="Pavia featured look" data-hero-image="1" />
+            <span class="hero-card__cue" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              <em>View</em>
+            </span>
           </div>
-          <div class="hero-card float-2">
+          <div class="hero-card float-2" data-hero-card>
             <img src="assets/logo.svg" alt="Pavia featured look" data-hero-image="2" />
+            <span class="hero-card__cue" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              <em>View</em>
+            </span>
           </div>
         </div>
       </div>
@@ -380,6 +418,15 @@
   <!-- ========== Footer ========== -->
   <footer class="site-footer">
     <div class="container reveal">
+      <a class="footer-brand" href="#home" aria-label="Pavia home">
+        <svg class="pavia-wordmark" viewBox="0 0 700 168" aria-hidden="true" focusable="false">
+          <text class="pavia-wordmark__text" x="350" y="120" text-anchor="middle"
+                font-family="'Bodoni Moda','Bodoni Moda SC',Didot,'Bodoni MT','Playfair Display',Georgia,serif"
+                font-size="150" font-weight="500" letter-spacing="6" fill="currentColor">PAVIA</text>
+          <line class="pavia-wordmark__cross" x1="16" y1="82" x2="302" y2="82" stroke="currentColor" stroke-width="3"/>
+          <line class="pavia-wordmark__under" x1="402" y1="140" x2="596" y2="140" stroke="currentColor" stroke-width="4"/>
+        </svg>
+      </a>
       <div class="social">
         <a href="https://instagram.com/pavia.leb" target="_blank" rel="noreferrer" aria-label="Instagram" data-instagram-link>
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/></svg>
@@ -393,7 +440,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.3.4</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.3.5</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 

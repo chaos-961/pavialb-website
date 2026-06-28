@@ -184,7 +184,9 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .brand {
   display: inline-flex; align-items: center;
   color: var(--ink);
+  transition: opacity 0.3s var(--ease-out);
 }
+.brand:hover { opacity: 0.82; }
 .brand-logo {
   display: block;
   /* Chromium ignores width:auto on an inline SVG that has intrinsic dims, so size
@@ -193,6 +195,11 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   width: 105px;
   color: var(--ink); /* drives the wordmark fill via currentColor */
 }
+/* Signature micro-interaction: the two brand lines glide apart on hover. */
+.brand .pavia-wordmark__cross,
+.brand .pavia-wordmark__under { transition: transform 0.55s var(--ease-out); }
+.brand:hover .pavia-wordmark__cross { transform: translateX(-12px); }
+.brand:hover .pavia-wordmark__under { transform: translateX(12px); }
 .desktop-nav { display: none; }
 .nav-actions { display: flex; align-items: center; gap: 6px; }
 .icon-btn {
@@ -268,44 +275,79 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   overflow: hidden;
   background: var(--cream);
   box-shadow: var(--shadow-md);
-  transition: transform 0.5s var(--ease-out);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* `transform` is reserved for the JS pointer-tilt; the idle float (translate),
+     each card's base rotation (rotate), and the hover lift (scale) are set as
+     INDEPENDENT longhands so they compose instead of overwriting one another. */
+  transform: perspective(900px);
+  transition: box-shadow 0.45s var(--ease-out), scale 0.5s var(--ease-spring),
+              transform 0.4s var(--ease-out);
+  will-change: transform, scale;
 }
-.hero-card img { width: 100%; height: 100%; object-fit: cover; }
-.hero-card.main {
-  inset: 0 0 12% 18%;
-  z-index: 2;
+.hero-card img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: scale 0.6s var(--ease-out), filter 0.5s var(--ease-out);
 }
-.hero-card.float-1 {
-  width: 42%; aspect-ratio: 3/4;
-  left: 0; top: 8%;
-  z-index: 1;
-  transform: rotate(-6deg);
-}
-.hero-card.float-2 {
-  width: 36%; aspect-ratio: 3/4;
-  right: 0; bottom: 0;
-  z-index: 3;
-  transform: rotate(5deg);
-}
-/* Gentle, continuous drift so the hero collage feels alive (GPU transform only;
-   keyframes preserve each card's base rotation; auto-disabled for reduced motion
-   via the global animation-duration override). */
-.hero-card.main   { animation: heroFloatMain 7s var(--ease-in-out) infinite; }
+.hero-card.main    { inset: 0 0 12% 18%; z-index: 2; }
+.hero-card.float-1 { width: 42%; aspect-ratio: 3/4; left: 0; top: 8%;  z-index: 1; rotate: -6deg; }
+.hero-card.float-2 { width: 36%; aspect-ratio: 3/4; right: 0; bottom: 0; z-index: 3; rotate: 5deg; }
+/* Gentle, continuous drift so the hero collage feels alive (GPU `translate`/`rotate`
+   longhands only, so hover `scale` + JS tilt never fight it; auto-disabled for
+   reduced motion via the global animation-duration override). */
+.hero-card.main    { animation: heroFloatMain 7s var(--ease-in-out) infinite; }
 .hero-card.float-1 { animation: heroFloat1 8s var(--ease-in-out) infinite; }
 .hero-card.float-2 { animation: heroFloat2 9s var(--ease-in-out) infinite; }
-@keyframes heroFloatMain {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-9px); }
+@keyframes heroFloatMain { 0%, 100% { translate: 0 0; }              50% { translate: 0 -9px; } }
+@keyframes heroFloat1    { 0%, 100% { translate: 0 0; rotate: -6deg; } 50% { translate: 0 -12px; rotate: -5deg; } }
+@keyframes heroFloat2    { 0%, 100% { translate: 0 0; rotate: 5deg; }  50% { translate: 0 -10px; rotate: 6deg; } }
+
+/* ---- Selectable affordance: the floating looks are quick-view buttons ---- */
+.hero-card:hover, .hero-card:focus-visible { animation-play-state: paused; }
+.hero-card:hover,
+.hero-card:focus-visible,
+.hero-card.is-active {
+  scale: 1.045;
+  box-shadow: var(--shadow-lg);
+  z-index: 6;
 }
-@keyframes heroFloat1 {
-  0%, 100% { transform: rotate(-6deg) translateY(0); }
-  50%      { transform: rotate(-5deg) translateY(-12px); }
+.hero-card:hover img,
+.hero-card:focus-visible img { scale: 1.07; filter: saturate(1.04); }
+.hero-card:active { scale: 0.99; transition-duration: 0.1s; }
+.hero-card:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+/* Light sheen sweeping across on hover. */
+.hero-card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.4) 48%, transparent 64%);
+  background-size: 250% 100%; background-position: 150% 0;
+  opacity: 0; transition: opacity 0.4s ease;
 }
-@keyframes heroFloat2 {
-  0%, 100% { transform: rotate(5deg) translateY(0); }
-  50%      { transform: rotate(6deg) translateY(-10px); }
+.hero-card:hover::after,
+.hero-card:focus-visible::after { opacity: 1; animation: heroSheen 0.9s var(--ease-out) forwards; }
+@keyframes heroSheen { from { background-position: 150% 0; } to { background-position: -120% 0; } }
+
+/* "View" cue — slides up on hover; a compact, always-on "+" on touch devices. */
+.hero-card__cue {
+  position: absolute; left: 50%; bottom: 12px; z-index: 3;
+  transform: translate(-50%, 10px);
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px 7px 9px; border-radius: var(--r-pill);
+  background: rgba(26, 26, 26, 0.86); color: #fafafa;
+  font-family: var(--body); font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; line-height: 1;
+  opacity: 0; pointer-events: none;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  transition: opacity 0.35s var(--ease-out), transform 0.45s var(--ease-spring);
 }
-.hero-card:hover { animation-play-state: paused; }
+.hero-card__cue svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 2.2; fill: none; }
+.hero-card__cue em { font-style: normal; }
+.hero-card:hover .hero-card__cue,
+.hero-card:focus-visible .hero-card__cue { opacity: 1; transform: translate(-50%, 0); }
+@media (hover: none) {
+  .hero-card__cue { opacity: 0.92; transform: translate(-50%, 0); padding: 6px; gap: 0; }
+  .hero-card__cue em { display: none; }
+}
 /* =========================================================
    Buttons
    ========================================================= */
@@ -1120,6 +1162,17 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.4);
 }
+.footer-brand {
+  display: inline-block;
+  color: rgba(255, 255, 255, 0.92);
+  margin-bottom: 20px;
+  transition: opacity 0.3s var(--ease-out);
+}
+.footer-brand:hover { opacity: 0.7; }
+/* Explicit width + height (and max-width:none) so the inline-block parent's
+   shrink-to-fit doesn't collapse the SVG to 0 via the global svg{max-width:100%}.
+   150 x (168/700) = 36. */
+.footer-brand .pavia-wordmark { width: 150px; height: 36px; max-width: none; }
 .site-footer .social {
   display: flex; justify-content: center; gap: 10px;
   margin-bottom: 18px;
