@@ -68,29 +68,14 @@ body {
   font-size: 15px;
   line-height: 1.6;
   color: var(--ink);
-  background: #f5f5f5; /* solid base; the decorative wash is a viewport-fixed ::before layer */
+  background: #e6e6e6; /* flat page background */
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-/* Calm, editorial warm-paper wash on a viewport-fixed layer. A fixed pseudo-
-   element replaces `background-attachment: fixed`, which forces an expensive
-   full-page repaint on every scroll frame (worst on mobile). Same look, no jank.
-   Scoped to the storefront (body.storefront) so it never bleeds onto /admin,
-   which shares this stylesheet but sets its own background in admin.css. */
-body.storefront::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(125% 75% at 50% -14%, rgba(0, 0, 0, 0.06), transparent 56%),
-    radial-gradient(95% 55% at 50% 118%, rgba(255, 255, 255, 0.5), transparent 60%),
-    radial-gradient(60% 50% at 88% 8%, rgba(0, 0, 0, 0.025), transparent 60%),
-    linear-gradient(180deg, #ffffff 0%, #eeeeee 100%);
-}
+/* Storefront uses the flat #e6e6e6 page background set on body (above). /admin
+   shares this stylesheet but overrides the background in admin.css. */
 /* Scroll lock for open drawers/modals. position:fixed (not just overflow:hidden)
    so iOS Safari can't scroll the background; JS sets top:-scrollY and restores it
    on close so the page doesn't jump. */
@@ -287,7 +272,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
      transform (the perspective + pointer-tilt), which flashed square corners on
      hover. An inherited radius on the image keeps the corners rounded regardless. */
   border-radius: inherit;
-  transition: scale 0.6s var(--ease-out), filter 0.5s var(--ease-out);
+  transition: filter 0.5s var(--ease-out);
 }
 .hero-card.main    { inset: 0 2% 14% 20%; z-index: 2; }
 .hero-card.float-1 { width: 38%; aspect-ratio: 3/4; left: 0; top: 9%;  z-index: 1; rotate: -3.5deg; }
@@ -312,8 +297,11 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   box-shadow: var(--shadow-lg);
   z-index: 6;
 }
+/* No inner image zoom on hover: scaling the image past the frame pushed its
+   rounded corners out of view and the card's overflow clip is unreliable under
+   the 3D tilt, so the corners flattened. The card still scales/lifts as a whole. */
 .hero-card:hover img,
-.hero-card:focus-visible img { scale: 1.05; filter: saturate(1.03); }
+.hero-card:focus-visible img { filter: saturate(1.03); }
 .hero-card:active { scale: 0.99; transition-duration: 0.1s; }
 .hero-card:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 

@@ -1,10 +1,7 @@
 /* Pavia Studio */
 body {
   min-height: 100vh;
-  background:
-    radial-gradient(72% 46% at 3% -6%, rgba(0, 0, 0, 0.11), transparent 60%),
-    radial-gradient(58% 42% at 100% 0%, rgba(0, 0, 0, 0.05), transparent 62%),
-    linear-gradient(180deg, var(--paper) 0%, var(--cream) 72%);
+  background: #e6e6e6;
 }
 
 .admin-shell {
