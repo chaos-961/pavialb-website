@@ -282,6 +282,21 @@
       throw new Error('The signed-in account is not the configured admin.');
     }
     if (!adminUnlocked) throw new Error('Admin unlock is required before this operation.');
+    // Force a fresh ID token before every admin write. While the Studio tab sits
+    // idle or backgrounded, browsers throttle the SDK's background token refresh
+    // (mobile especially), so the cached token can be expired by the time the owner
+    // comes back and saves — the write then fails the rules with PERMISSION_DENIED
+    // ("you don't have permission"). Forcing a refresh makes the Realtime DB re-auth
+    // (via onIdTokenChanged) before the write. A transient network failure is
+    // tolerated (fall through to the cached token); a real auth failure asks for a
+    // fresh sign-in instead of a confusing generic error.
+    try {
+      await user.getIdToken(true);
+    } catch (error) {
+      if (error?.code && error.code !== 'auth/network-request-failed') {
+        throw new Error('Your admin session expired. Please enter the admin password again.');
+      }
+    }
   }
 
   function normalizeProductRecord(product) {
@@ -1078,6 +1093,18 @@
         password,
       );
       adminUnlocked = true;
+      // One-time cleanup: the footer version is owned by js/config.js, so purge any
+      // legacy `version` field an older Studio build may have persisted into the
+      // settings nodes. The token is fresh here (just signed in); best-effort, never
+      // block unlock on it.
+      try {
+        await firebaseState.databaseApi.update(databaseReference('/'), {
+          'storeSettings/version': null,
+          'publicStoreSettings/version': null,
+        });
+      } catch (error) {
+        console.warn('Could not purge legacy settings/version.', error);
+      }
       return { uid: credential.user?.uid || '' };
     },
 

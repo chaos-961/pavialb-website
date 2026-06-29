@@ -282,6 +282,11 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .hero-card img {
   width: 100%; height: 100%; object-fit: cover;
+  /* Round the image itself (not just the card's overflow clip): Chrome drops a
+     border-radius + overflow:hidden clip on children while the card is under a 3D
+     transform (the perspective + pointer-tilt), which flashed square corners on
+     hover. An inherited radius on the image keeps the corners rounded regardless. */
+  border-radius: inherit;
   transition: scale 0.6s var(--ease-out), filter 0.5s var(--ease-out);
 }
 .hero-card.main    { inset: 0 2% 14% 20%; z-index: 2; }
@@ -315,6 +320,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 /* Light sheen sweeping across on hover. */
 .hero-card::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  border-radius: inherit; /* keep the sheen corners rounded under the 3D transform too */
   background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.4) 48%, transparent 64%);
   background-size: 250% 100%; background-position: 150% 0;
   opacity: 0; transition: opacity 0.4s ease;

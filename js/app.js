@@ -870,7 +870,10 @@
   async function loadBackendPublicConfig() {
     if (!BACKEND) return;
     const settings = (await (BACKEND.settings?.get?.() || {})) || {};
-    Object.assign(SITE_CONFIG, settings);
+    // The footer version is owned by js/config.js ONLY — never let a stale `version`
+    // persisted in the backend settings override it.
+    const { version: _ignoredVersion, ...safeSettings } = settings;
+    Object.assign(SITE_CONFIG, safeSettings);
     const fee = Number(SITE_CONFIG.deliveryFee);
     DELIVERY_FEE = Number.isFinite(fee) ? Math.max(0, fee) : 3;
     applyCheckoutState();
