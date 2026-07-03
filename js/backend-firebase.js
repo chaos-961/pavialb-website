@@ -67,6 +67,59 @@
     return app;
   }
 
+  // Local marker of the shopper's anonymous uid. Firebase's own IndexedDB/local
+  // persistence is the real store of the session; this is a lightweight, readable
+  // cache used to (a) detect when a returning shopper's session was NOT restored
+  // and a new anonymous account had to be minted, and (b) survive as a hint even
+  // if the SDK's persistence is cleared.
+  const ANON_UID_CACHE_KEY = 'PAVIA_ANON_UID';
+
+  function readCachedAnonUid() {
+    try {
+      return localStorage.getItem(ANON_UID_CACHE_KEY) || '';
+    } catch {
+      return '';
+    }
+  }
+
+  function cacheAnonUid(uid) {
+    if (!uid) return;
+    try {
+      localStorage.setItem(ANON_UID_CACHE_KEY, uid);
+    } catch {
+      // Storage unavailable (private mode / blocked) — the Firebase session
+      // persistence still works; this cache is best-effort.
+    }
+  }
+
+  // Reuse the shopper's existing anonymous account instead of creating a new one
+  // on every visit. initializeAuth restores the persisted session ASYNCHRONOUSLY,
+  // so reading auth.currentUser immediately after can be null even for a returning
+  // shopper who already has a cached anonymous account — signing in again there
+  // would mint a brand-new anonymous user in Firebase Auth on every page load.
+  // authStateReady() resolves once that restore settles; only then do we know
+  // whether a fresh anonymous sign-in is genuinely needed.
+  async function ensureAnonymousSession(auth, authApi) {
+    if (typeof auth.authStateReady === 'function') {
+      try {
+        await auth.authStateReady();
+      } catch {
+        // Fall through to the currentUser check below.
+      }
+    }
+    if (auth.currentUser) {
+      if (auth.currentUser.isAnonymous) cacheAnonUid(auth.currentUser.uid);
+      return;
+    }
+    const cachedUid = readCachedAnonUid();
+    const credential = await authApi.signInAnonymously(auth);
+    const uid = credential?.user?.uid || auth.currentUser?.uid || '';
+    cacheAnonUid(uid);
+    if (cachedUid && uid && cachedUid !== uid) {
+      console.info('Pavia: prior anonymous session was not restored; a new anonymous account was created.');
+    }
+  }
+
   async function initializeFirebase() {
     if (firebaseState.initialized) return;
 
@@ -111,9 +164,7 @@
       );
     }
 
-    if (!auth.currentUser) {
-      await authApi.signInAnonymously(auth);
-    }
+    await ensureAnonymousSession(auth, authApi);
 
     firebaseState.auth = auth;
     firebaseState.authApi = authApi;
@@ -953,7 +1004,7 @@
       if (activeProvider === 'firebase' && firebaseState.authApi && firebaseState.auth) {
         try {
           await firebaseState.authApi.signOut(firebaseState.auth);
-          await firebaseState.authApi.signInAnonymously(firebaseState.auth);
+          await ensureAnonymousSession(firebaseState.auth, firebaseState.authApi);
         } catch (error) {
           console.warn('Failed to restore anonymous session after lock.', error);
         }

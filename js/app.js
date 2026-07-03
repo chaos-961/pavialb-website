@@ -1112,10 +1112,9 @@
   // the elegant placeholder). These three are above the fold, so they load eagerly.
   function applyHeroImages() {
     const slots = $$('[data-hero-image]');
-    if (!slots.length || !products.length) return;
+    if (!slots.length) return;
     const featured = products.filter(p => p.featured);
-    const pool = (featured.length >= slots.length ? featured : products)
-      .concat(products);
+    const pool = (featured.length >= slots.length ? featured : featured.concat(products));
     const seen = new Set();
     const picks = [];
     for (const p of pool) {
@@ -1125,17 +1124,34 @@
       if (picks.length >= slots.length) break;
     }
     slots.forEach((img, i) => {
-      const p = picks[i] || picks[picks.length - 1];
-      if (!p) return;
-      img.src = pickImage(p.image, p.id);
-      img.alt = `${p.name}, Pavia`;
-      // Turn the collage card into a quick-view trigger for this product.
       const card = img.closest('[data-hero-card]');
+      const p = picks[i];
+      if (p) {
+        // Real product: fill the card and make it a quick-view trigger.
+        img.src = pickImage(p.image, p.id);
+        img.alt = `${p.name}, Pavia`;
+        if (card) {
+          card.dataset.heroProduct = p.id;
+          card.setAttribute('role', 'button');
+          card.setAttribute('tabindex', '0');
+          card.setAttribute('aria-label', `Quick view ${p.name}`);
+          card.classList.remove('is-empty');
+        }
+        return;
+      }
+      // No product for this slot (empty catalog, or fewer than three looks).
+      // Never leave the raw wide logo cover-cropped into a sliver: show the
+      // elegant portrait placeholder instead, varied per slot so the three
+      // cards don't repeat one image, and drop the quick-view affordance since
+      // there's nothing to open.
+      img.src = placeholderImage(`hero-${i}`);
+      img.alt = 'Pavia — new looks coming soon';
       if (card) {
-        card.dataset.heroProduct = p.id;
-        card.setAttribute('role', 'button');
-        card.setAttribute('tabindex', '0');
-        card.setAttribute('aria-label', `Quick view ${p.name}`);
+        delete card.dataset.heroProduct;
+        card.removeAttribute('role');
+        card.removeAttribute('tabindex');
+        card.removeAttribute('aria-label');
+        card.classList.add('is-empty');
       }
     });
   }

@@ -274,6 +274,25 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   border-radius: inherit;
   transition: filter 0.5s var(--ease-out);
 }
+/* Fallback state: before the storefront swaps in real product photos (and if JS
+   is disabled or the catalog is empty), the cards hold the brand mark. The logo
+   is a WIDE wordmark, so cover-cropping it into a portrait card left an
+   unreadable sliver. Contain + pad it instead so it reads as an intentional
+   little logo card. Targets the asset by filename, so the moment JS sets a real
+   image (or the generated data-URI placeholder) this no longer applies. */
+.hero-card img[src$="logo.svg"],
+.hero-card img[src$="icon.svg"] {
+  object-fit: contain;
+  box-sizing: border-box;
+  padding: 22%;
+  background: linear-gradient(160deg, var(--cream), #fff);
+}
+/* A slot with no product to show (empty catalog / fewer than three looks) gets
+   the elegant portrait placeholder and is purely decorative — no hover sheen,
+   no "View" cue, no pointer, since there is nothing to quick-view. */
+.hero-card.is-empty { cursor: default; }
+.hero-card.is-empty::after { display: none; }
+.hero-card.is-empty .hero-card__cue { display: none; }
 .hero-card.main    { inset: 0 2% 14% 20%; z-index: 2; }
 .hero-card.float-1 { width: 38%; aspect-ratio: 3/4; left: 0; top: 9%;  z-index: 1; rotate: -3.5deg; }
 .hero-card.float-2 { width: 32%; aspect-ratio: 3/4; right: 0; bottom: 0; z-index: 3; rotate: 3.5deg; }
