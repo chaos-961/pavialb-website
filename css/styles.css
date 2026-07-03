@@ -246,10 +246,11 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .hero-backdrop img {
   object-fit: cover;
   /* Mobile-first crop position. On phones the portrait shot is cropped
-     horizontally, so the X here slides the model toward the right of the frame
-     (leaving the left wall clear for the copy); the desktop landscape frame is
-     cropped vertically instead and overrides this at >=960px to lift her up. */
-  object-position: 40% 24%;
+     horizontally, so a LOW X slides the visible window left — pushing the model
+     toward the right edge of the frame, with her head beside (not behind) the
+     CTA buttons and the left wall clear for the copy. The desktop landscape
+     frame is cropped vertically instead and overrides this at >=960px. */
+  object-position: 18% 24%;
   transform-origin: 50% 30%;
   will-change: transform;
 }
@@ -2198,6 +2199,14 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 
 @media (min-width: 1200px) {
   .hero h1 { font-size: 64px; }
+}
+
+/* Large monitors (and Chrome zoomed out, which inflates the CSS viewport the
+   same way): scale the card fan up so the three looks keep their presence
+   against the full-bleed photo instead of shrinking into it. The 520px cap
+   still fits the right grid column at the 1240px container maximum. */
+@media (min-width: 1440px) {
+  .hero-visual { max-width: 520px; }
 }
 
 /* =========================================================
