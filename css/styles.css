@@ -245,9 +245,11 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .hero-backdrop img {
   object-fit: cover;
-  /* The model stands dead-center; bias the crop upward so her face stays in
-     frame on wide viewports (which crop top/bottom off the 4:3 shot). */
-  object-position: 50% 24%;
+  /* Mobile-first crop position. On phones the portrait shot is cropped
+     horizontally, so the X here slides the model toward the right of the frame
+     (leaving the left wall clear for the copy); the desktop landscape frame is
+     cropped vertically instead and overrides this at >=960px to lift her up. */
+  object-position: 40% 24%;
   transform-origin: 50% 30%;
   will-change: transform;
 }
@@ -2161,6 +2163,9 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero-grid { grid-template-columns: 1.05fr 0.95fr; grid-template-rows: none; gap: 48px; align-items: center; }
   .hero-copy { align-self: start; padding-top: clamp(8px, 7vh, 84px); }
   .hero-visual { max-width: 430px; align-self: end; margin-bottom: clamp(8px, 4vh, 44px); }
+  /* Landscape frame is cropped top/bottom here — raise the Y so the model sits
+     ~8% higher in the fold (more of her, less empty floor). */
+  .hero-backdrop img { object-position: 50% 40%; }
   /* Two-column wash: lighter header band + a left veil under the copy column
      (the phone top-band would fog the model's face here). */
   .hero-backdrop__wash {
