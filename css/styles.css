@@ -211,19 +211,74 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 
 /* =========================================================
-   Hero
-   ========================================================= */
+   Hero — full-bleed campaign photo under a sticky curtain
+   =========================================================
+   The hero pins to the viewport (position:sticky) while the opaque .page-sheet
+   below slides up and OVER it on scroll — that reveal IS the transition into
+   the collection. Works with no JS; app.js layers a camera-push zoom on the
+   photo plus a copy/card parallax fade on top of it. Height accounts for the
+   sticky header so the initial fold lands exactly on the sheet's rounded seam. */
 .hero {
-  padding: 18px 0 24px;
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: calc(100vh - var(--header-h));
+  min-height: calc(100svh - var(--header-h));
+  display: flex;
+  overflow: hidden; /* clips the backdrop's scroll zoom */
+  padding: 14px 0 34px;
+}
+/* Campaign photo layer. The background color is the wall tone of the shot, so
+   there is never a white flash while the image streams in. */
+.hero-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #d8d5d0;
+}
+.hero-backdrop picture,
+.hero-backdrop img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hero-backdrop img {
+  object-fit: cover;
+  /* The model stands dead-center; bias the crop upward so her face stays in
+     frame on wide viewports (which crop top/bottom off the 4:3 shot). */
+  object-position: 50% 24%;
+  transform-origin: 50% 30%;
+  will-change: transform;
+}
+/* Paper-tone washes over the photo: the top band keeps the header + headline
+   legible, the bottom band melts the photo into the sheet seam. Overlay only —
+   no blur, so the photo stays crisp. Phone-first values (copy sits ON the
+   photo there); desktop lightens the top and adds a left veil under the copy. */
+.hero-backdrop__wash {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(238, 237, 234, 0.78) 0%, rgba(238, 237, 234, 0.30) 22%, rgba(238, 237, 234, 0) 48%),
+    linear-gradient(90deg, rgba(238, 237, 234, 0.55) 0%, rgba(238, 237, 234, 0.28) 34%, rgba(238, 237, 234, 0) 62%),
+    linear-gradient(0deg, rgba(230, 230, 230, 0.85) 0%, rgba(230, 230, 230, 0.30) 14%, rgba(230, 230, 230, 0) 34%);
 }
 .hero-grid {
+  position: relative;
+  z-index: 1;
+  flex: 1;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 28px;
-  align-items: center;
+  /* Phone composition: copy at the top, card fan pinned to the bottom, the
+     model visible in the open middle band between them. */
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
 }
 .hero-copy { position: relative; z-index: 2; }
+/* Ghost CTA gets a faint paper fill here so its label never fights the photo. */
+.hero .btn-ghost { background: rgba(250, 250, 250, 0.55); }
+.hero .btn-ghost:hover { background: var(--ink); }
 .hero-copy h1 {
   margin: 8px 0 18px;
   font-style: normal;
@@ -242,18 +297,23 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .hero-actions {
   display: flex; gap: 10px; flex-wrap: wrap;
 }
+/* The three featured looks fan out like dealt lookbook cards — bottom-center on
+   phones (under the model), right column on desktop (on the empty wall). */
 .hero-visual {
   position: relative;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 10 / 8;
   width: 100%;
-  max-width: 440px;
+  max-width: 330px;
   margin-inline: auto;
+  align-self: end;
 }
 .hero-card {
   position: absolute;
   border-radius: var(--r-lg);
   overflow: hidden;
   background: var(--cream);
+  /* Paper frame so each look reads as a printed card lying on the photo. */
+  border: 4px solid rgba(252, 251, 249, 0.96);
   box-shadow: var(--shadow-md);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -293,9 +353,10 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .hero-card.is-empty { cursor: default; }
 .hero-card.is-empty::after { display: none; }
 .hero-card.is-empty .hero-card__cue { display: none; }
-.hero-card.main    { inset: 0 2% 14% 20%; z-index: 2; }
-.hero-card.float-1 { width: 38%; aspect-ratio: 3/4; left: 0; top: 9%;  z-index: 1; rotate: -3.5deg; }
-.hero-card.float-2 { width: 32%; aspect-ratio: 3/4; right: 0; bottom: 0; z-index: 3; rotate: 3.5deg; }
+.hero-card { width: 44%; aspect-ratio: 3 / 4; }
+.hero-card.main    { left: 28%; bottom: 12%; z-index: 2; }
+.hero-card.float-1 { left: 0;   bottom: 4%;  z-index: 1; rotate: -7deg; }
+.hero-card.float-2 { right: 0;  bottom: 2%;  z-index: 1; rotate: 7.5deg; }
 /* Gentle, continuous drift so the hero collage feels alive (GPU `translate`/`rotate`
    longhands only, so hover `scale` + JS tilt never fight it; auto-disabled for
    reduced motion via the global animation-duration override). Kept slow and
@@ -303,9 +364,9 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .hero-card.main    { animation: heroFloatMain 9s var(--ease-in-out) infinite; }
 .hero-card.float-1 { animation: heroFloat1 11s var(--ease-in-out) infinite; }
 .hero-card.float-2 { animation: heroFloat2 13s var(--ease-in-out) infinite; }
-@keyframes heroFloatMain { 0%, 100% { translate: 0 0; }                 50% { translate: 0 -5px; } }
-@keyframes heroFloat1    { 0%, 100% { translate: 0 0; rotate: -3.5deg; } 50% { translate: 0 -6px; rotate: -2.8deg; } }
-@keyframes heroFloat2    { 0%, 100% { translate: 0 0; rotate: 3.5deg; }  50% { translate: 0 -5px; rotate: 4.2deg; } }
+@keyframes heroFloatMain { 0%, 100% { translate: 0 0; }                50% { translate: 0 -6px; } }
+@keyframes heroFloat1    { 0%, 100% { translate: 0 0; rotate: -7deg; }  50% { translate: 0 -7px; rotate: -6.2deg; } }
+@keyframes heroFloat2    { 0%, 100% { translate: 0 0; rotate: 7.5deg; } 50% { translate: 0 -6px; rotate: 8.3deg; } }
 
 /* ---- Selectable affordance: the floating looks are quick-view buttons ---- */
 .hero-card:hover, .hero-card:focus-visible { animation-play-state: paused; }
@@ -562,13 +623,33 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .section-header p { color: var(--muted); max-width: 480px; }
 
 /* =========================================================
+   The sheet — everything after the hero rides on this layer
+   ========================================================= */
+/* Slides up and over the pinned hero photo (the scroll transition). Must stay
+   opaque, and must NOT get overflow:hidden — that would break the sticky
+   toolbar inside; the first section repeats the top radius instead. */
+.page-sheet {
+  position: relative;
+  z-index: 2;
+  background: #e6e6e6; /* = body background, so the seam disappears once scrolled past */
+  border-radius: clamp(22px, 4.5vw, 34px) clamp(22px, 4.5vw, 34px) 0 0;
+  box-shadow: 0 -22px 56px rgba(0, 0, 0, 0.20);
+}
+
+/* =========================================================
    SHOP — the centerpiece
    ========================================================= */
 .shop-section {
   background: rgba(255, 255, 255, 0.55);
-  border-block: 1px solid var(--line-soft);
-  padding: 36px 0 48px;
+  /* Top radius mirrors .page-sheet so this section's veil never squares off the
+     sheet's rounded corners (no overflow clip allowed on the sheet, see above).
+     border-bottom only — a top border would draw a line across the curved seam. */
+  border-radius: clamp(22px, 4.5vw, 34px) clamp(22px, 4.5vw, 34px) 0 0;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 42px 0 48px;
   position: relative;
+  /* Anchor target: land #shop below the sticky header. */
+  scroll-margin-top: calc(var(--header-h) + 8px);
 }
 .shop-header {
   margin-bottom: 18px;
@@ -1889,25 +1970,38 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   }
 
   .hero {
-    padding: 16px 0 18px;
+    padding: 12px 0 30px;
   }
 
   .hero-grid {
-    gap: 20px;
+    gap: 16px;
   }
 
-  .hero-actions .btn {
-    width: 100%;
+  /* Phones: the model stands at ~66% of the portrait crop, so the copy hugs a
+     narrow left column on the empty wall and never touches her face. Buttons
+     hug their labels (full-width bars would cross her chin). */
+  .hero-copy {
+    max-width: 68vw;
+  }
+  .hero-copy h1 {
+    font-size: clamp(29px, 9vw, 38px);
+  }
+  .hero-text {
+    font-size: 14px;
+  }
+  .hero-actions {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .hero-visual {
-    max-width: 300px;
-    margin-top: 6px;
-    margin-bottom: 6px;
+    max-width: 290px;
+    margin-bottom: 4px;
   }
 
   .hero-card {
     border-radius: var(--r-md);
+    border-width: 3px;
   }
 
   .product-grid {
@@ -1955,9 +2049,9 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 /* Landscape phones (short viewport): tighten the hero and let CTAs sit inline so
    the shop is reachable without excessive scrolling. */
 @media (max-width: 639px) and (max-height: 520px) {
-  .hero { padding: 20px 0 12px; }
-  .hero-grid { grid-template-columns: 1fr 1fr; gap: 16px; align-items: center; }
-  .hero-visual { max-width: 220px; margin-top: 0; margin-bottom: 0; }
+  .hero { padding: 12px 0 26px; }
+  .hero-grid { grid-template-columns: 1.1fr 0.9fr; grid-template-rows: none; gap: 16px; align-items: center; }
+  .hero-visual { max-width: 210px; align-self: center; margin-bottom: 0; }
   .hero-actions .btn { width: auto; }
   .modal-card { max-height: 96vh; }
   .modal-desc { -webkit-line-clamp: 2; }
@@ -1972,8 +2066,11 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     --header-h: 72px;
   }
   .product-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  .hero { padding: 28px 0 36px; }
-  .hero-grid { grid-template-columns: 1fr 1fr; gap: 36px; }
+  /* Tablets keep the phone composition (copy top-left on the wall, model at
+     ~62%, fan bottom) — a two-column split here would push the copy onto her
+     face. Two columns start at 960px. */
+  .hero { padding: 24px 0 44px; }
+  .hero-visual { max-width: 340px; }
   .filter-row { grid-template-columns: repeat(3, 1fr); }
   .modal-product { flex-direction: row; min-height: 520px; align-items: stretch; }
   .modal-product .image-wrap { width: 50%; aspect-ratio: auto; }
@@ -2057,7 +2154,21 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 
   .product-grid { grid-template-columns: repeat(4, 1fr); gap: 18px; }
   .section { padding: 56px 0; }
-  .hero { padding: 28px 0 40px; }
+  /* Desktop: two columns over the full landscape frame. The model stands at
+     the exact center of the viewport, so the composition is a diagonal —
+     copy top-left (above her face line), model center, card fan bottom-right. */
+  .hero { padding: 28px 0 52px; }
+  .hero-grid { grid-template-columns: 1.05fr 0.95fr; grid-template-rows: none; gap: 48px; align-items: center; }
+  .hero-copy { align-self: start; padding-top: clamp(8px, 7vh, 84px); }
+  .hero-visual { max-width: 430px; align-self: end; margin-bottom: clamp(8px, 4vh, 44px); }
+  /* Two-column wash: lighter header band + a left veil under the copy column
+     (the phone top-band would fog the model's face here). */
+  .hero-backdrop__wash {
+    background:
+      linear-gradient(180deg, rgba(238, 237, 234, 0.60) 0%, rgba(238, 237, 234, 0.20) 20%, rgba(238, 237, 234, 0) 44%),
+      linear-gradient(90deg, rgba(238, 237, 234, 0.62) 0%, rgba(238, 237, 234, 0.30) 28%, rgba(238, 237, 234, 0) 52%),
+      linear-gradient(0deg, rgba(230, 230, 230, 0.85) 0%, rgba(230, 230, 230, 0.30) 12%, rgba(230, 230, 230, 0) 30%);
+  }
 
   .modal { place-items: center; padding: 24px; }
   .modal-card { max-width: 1000px; max-height: 90vh; border-radius: var(--r-xl); transform: translateY(20px) scale(0.96); opacity: 0; transition: transform 0.4s var(--ease-out), opacity 0.4s var(--ease-out); }
@@ -2088,7 +2199,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
    Print (hide interactive)
    ========================================================= */
 @media print {
-  .site-header, .whatsapp-fab, .drawer, .modal { display: none !important; }
+  .site-header, .whatsapp-fab, .drawer, .modal, .hero-backdrop { display: none !important; }
 }
 
 /* =========================================================

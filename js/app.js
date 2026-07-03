@@ -963,21 +963,50 @@
       img.src = placeholderImage(img.alt || img.closest('[data-product-id]')?.dataset.productId || 'pavia');
     }, true);
 
-    // Header scroll state + subtle hero parallax (GPU transform only, rAF-batched,
-    // direction-agnostic since it derives from scrollY, disabled for reduced motion).
+    // Header scroll state + hero scroll choreography. The hero is position:sticky
+    // (pinned) while the .page-sheet slides up over it; CSS alone gives that
+    // curtain reveal, and this layers the motion on top: a slow camera-push zoom
+    // on the campaign photo, the copy floating up and fading, and the card fan
+    // drifting at its own (slower) parallax rate. GPU transform/opacity only,
+    // rAF-batched, direction-agnostic (derived from scrollY), disabled for
+    // reduced motion — the sticky reveal itself still works without it.
     const heroCopy = $('.hero-copy');
     const heroVisual = $('[data-hero-visual]');
-    const allowParallax = heroVisual && !prefersReducedMotion();
+    const heroEl = $('[data-hero]');
+    const heroBg = $('[data-hero-bg]');
+    const allowParallax = heroEl && !prefersReducedMotion();
+    let heroH = 0;
+    let toolbarStickAt = 280;
+    // Measured (not hardcoded) because the hero is now viewport-sized: the
+    // toolbar "stuck" threshold and the choreography span both track it.
+    const measureScrollScene = () => {
+      heroH = heroEl ? heroEl.offsetHeight : 0;
+      if (n.toolbar) {
+        toolbarStickAt = Math.max(0,
+          n.toolbar.getBoundingClientRect().top + window.scrollY - n.header.offsetHeight - 4);
+      }
+    };
+    measureScrollScene();
+    window.addEventListener('resize', debounce(measureScrollScene, 150));
+    window.addEventListener('load', measureScrollScene);
     let scrollTicking = false;
     const onScrollFrame = () => {
       scrollTicking = false;
       const y = window.scrollY;
       n.header.classList.toggle('is-scrolled', y > 8);
-      if (n.toolbar) n.toolbar.classList.toggle('is-stuck', y > 280);
-      // Only run the parallax math while the hero is plausibly on screen.
-      if (allowParallax && y < 900) {
-        heroVisual.style.transform = `translate3d(0, ${(y * 0.09).toFixed(1)}px, 0)`;
-        if (heroCopy) heroCopy.style.transform = `translate3d(0, ${(y * -0.04).toFixed(1)}px, 0)`;
+      if (n.toolbar) n.toolbar.classList.toggle('is-stuck', y > toolbarStickAt);
+      // Only run the choreography while the pinned hero can still peek out from
+      // under the sheet (values persist once fully covered, so nothing snaps).
+      if (!allowParallax || !heroH || y > heroH * 1.3) return;
+      const p = Math.min(1, y / (heroH * 0.85)); // 0 at top -> 1 when ~covered
+      if (heroBg) heroBg.style.transform = `scale(${(1 + p * 0.08).toFixed(4)})`;
+      if (heroCopy) {
+        heroCopy.style.transform = `translate3d(0, ${(y * -0.18).toFixed(1)}px, 0)`;
+        heroCopy.style.opacity = Math.max(0, 1 - p * 1.35).toFixed(3);
+      }
+      if (heroVisual) {
+        heroVisual.style.transform = `translate3d(0, ${(y * -0.08).toFixed(1)}px, 0)`;
+        heroVisual.style.opacity = Math.max(0, 1 - p * 0.95).toFixed(3);
       }
     };
     window.addEventListener('scroll', () => {

@@ -53,7 +53,7 @@
        + true italics for the serif accents, Jakarta 400-700). Bodoni Moda was
        only referenced by the construction gate and now falls back to Fraunces. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=31" />
+  <link rel="stylesheet" href="css/styles.css?v=32" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -223,7 +223,26 @@
   <main id="home">
 
     <!-- ========== Hero ========== -->
-    <section class="hero">
+    <section class="hero" data-hero>
+      <!-- Full-bleed campaign photo. The hero is position:sticky, so the shop
+           "sheet" below slides up and over it on scroll (curtain reveal); app.js
+           adds a gentle camera-push zoom + copy fade driven by the same scroll.
+           Mobile gets a tighter portrait crop of the same shot; AVIF first,
+           WebP fallback (~60-80 KB either way). Decorative -> empty alt. -->
+      <div class="hero-backdrop" aria-hidden="true">
+        <picture>
+          <!-- 959px matches the CSS breakpoint where the hero goes two-column.
+               Below it (single-column composition) the portrait crop places the
+               model at ~62% so the copy flows on the empty wall beside her; the
+               two-column desktop gets the full landscape frame (model centered
+               between the copy and the card fan). -->
+          <source type="image/avif" media="(max-width: 959px)" srcset="assets/hero-bg-mobile.avif" />
+          <source type="image/webp" media="(max-width: 959px)" srcset="assets/hero-bg-mobile.webp" />
+          <source type="image/avif" srcset="assets/hero-bg-1920.avif" />
+          <img src="assets/hero-bg-1920.webp" alt="" fetchpriority="high" decoding="async" data-hero-bg />
+        </picture>
+        <div class="hero-backdrop__wash"></div>
+      </div>
       <div class="container hero-grid">
         <div class="hero-copy reveal">
           <p class="eyebrow"><span data-site-location>Beirut</span> · <span data-delivery-area>Lebanon</span> delivery</p>
@@ -263,6 +282,12 @@
         </div>
       </div>
     </section>
+
+    <!-- The sheet: everything after the hero rides on this opaque, rounded-top
+         layer that slides OVER the sticky hero photo on scroll. It must stay
+         opaque edge-to-edge (no overflow:hidden here — that would break the
+         sticky toolbar inside the shop section). -->
+    <div class="page-sheet">
 
     <!-- ========== SHOP — the centerpiece (directly under the hero) ========== -->
     <section id="shop" class="shop-section">
@@ -385,6 +410,8 @@
         </div>
       </div>
     </section>
+
+    </div><!-- /.page-sheet -->
   </main>
 
   <!-- ========== Footer ========== -->
@@ -406,7 +433,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.4.3</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.4.4</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -536,7 +563,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=44"></script>
+  <script defer src="js/config.js?v=45"></script>
   <script defer src="js/firebase-config.js?v=12"></script>
   <script defer src="js/backend-config.js?v=17"></script>
   <script defer src="js/image-catalog.js?v=12"></script>
@@ -545,6 +572,6 @@
   <script defer src="js/backend.js?v=21"></script>
   <script defer src="js/backend-firebase.js?v=37"></script>
   <script defer src="js/products.js?v=12"></script>
-  <script defer src="js/app.js?v=38"></script>
+  <script defer src="js/app.js?v=39"></script>
 </body>
 </html>
