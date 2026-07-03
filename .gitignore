@@ -38,6 +38,16 @@ admin-secrets.local.*
 admin/dashboard.html
 admin/dashboard.js
 
+# Infra/architecture docs + Firebase deploy config kept LOCAL-ONLY (this is a
+# public GitHub Pages repo). None of these are served by Pages or needed at
+# runtime — the site's cp allowlist in .github/workflows/static.yml never copies
+# them. Keeping them out of the public repo avoids disclosing the exact database
+# rule logic and backend wiring. `firebase deploy --only database` still works
+# from the local copy.
+IMAGES.md
+database.rules.json
+firebase.json
+
 # Dependencies / build output
 node_modules/
 dist/
