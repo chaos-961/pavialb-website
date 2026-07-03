@@ -467,9 +467,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .announcement-bar[hidden] { display: none; }
 
-.empty-state.load-error h3 { font-style: normal; }
 .noscript-links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
-.empty-state.load-error .btn { margin-top: 14px; }
 
 /* "Update available -> reload" prompt (P1 caching foundation). */
 .update-banner {
@@ -801,10 +799,23 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   animation: lazy-shimmer 1.4s ease-in-out infinite;
 }
 @keyframes lazy-shimmer { from { background-position: 180% 0, 0 0; } to { background-position: -60% 0, 0 0; } }
+/* Quick-view hero while its image is still arriving (class set by app.js). */
+.image-wrap.is-waiting {
+  background:
+    linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%),
+    var(--cream, #efe6d4);
+  background-size: 220% 100%, auto;
+  animation: lazy-shimmer 1.4s ease-in-out infinite;
+}
+.image-wrap.is-waiting img { opacity: 0; }
+/* Small thumbs (bag / wishlist / recently viewed) keep a soft tone underneath
+   so a still-loading image never flashes as a white hole in the row. */
+.cart-row img, .recent-card img { background-color: var(--cream); }
 @media (prefers-reduced-motion: reduce) {
   .lazy-img { transition: none; }
   .product-media:has(.lazy-img:not(.is-loaded)),
-  .modal-gallery button:has(.lazy-img:not(.is-loaded)) { animation: none; }
+  .modal-gallery button:has(.lazy-img:not(.is-loaded)),
+  .image-wrap.is-waiting { animation: none; }
 }
 
 /* Badges */
@@ -945,6 +956,28 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .empty-state h3 { font-style: italic; }
 .empty-state p { color: var(--muted); margin-top: 8px; }
 
+/* Branded catalog states ("collection coming soon" / "taking a short pause"):
+   the wordmark + soft copy + gentle actions read as boutique, not as an error. */
+.empty-state.boutique-pause { padding: 72px 20px; }
+.empty-state.boutique-pause .pavia-wordmark {
+  width: min(150px, 44vw);
+  height: auto;
+  margin: 0 auto 18px;
+  color: var(--muted);
+  display: block;
+}
+.empty-state.boutique-pause p {
+  max-width: 42ch;
+  margin-inline: auto;
+}
+.empty-state-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
 /* Product card skeleton */
 .skeleton {
   background: var(--paper);
@@ -1056,34 +1089,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   font-size: 11px;
   color: var(--muted);
   font-weight: 600;
-}
-
-/* =========================================================
-   Trust strip
-   ========================================================= */
-.trust-strip {
-  background: var(--paper);
-  border-block: 1px solid var(--line-soft);
-  padding: 14px 0;
-}
-.trust-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-.trust-grid div {
-  display: grid;
-  gap: 2px;
-  padding: 10px 0;
-}
-.trust-grid strong {
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.trust-grid span {
-  color: var(--muted);
-  font-size: 13px;
 }
 
 /* =========================================================
@@ -1749,6 +1754,22 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 }
 .checkout-submit.is-loading {
   pointer-events: none;
+  opacity: 0.88;
+}
+/* Real progress cue while the order is being sent: a small spinner beside the
+   "Placing order..." label (the .btn is a flex row, so ::after slots inline). */
+.checkout-submit.is-loading::after {
+  content: '';
+  width: 15px; height: 15px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid rgba(250, 250, 250, 0.35);
+  border-top-color: var(--paper);
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .checkout-submit.is-loading::after { display: none; }
 }
 
 /* Animated "Order sent" confirmation (P1 — replaces the WhatsApp redirect). */
@@ -1935,8 +1956,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero { padding: 28px 0 36px; }
   .hero-grid { grid-template-columns: 1fr 1fr; gap: 36px; }
   .filter-row { grid-template-columns: repeat(3, 1fr); }
-  .trust-grid { grid-template-columns: repeat(3, 1fr); gap: 24px; }
-  .trust-grid div { padding: 6px 0; }
   .modal-product { flex-direction: row; min-height: 520px; align-items: stretch; }
   .modal-product .image-wrap { width: 50%; aspect-ratio: auto; }
   .modal-details { width: 50%; padding: 28px 28px; overflow-y: auto; }

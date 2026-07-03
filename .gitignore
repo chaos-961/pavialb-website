@@ -32,6 +32,12 @@ tools/
 *.secret.local
 admin-secrets.local.*
 
+# Admin dashboard source stays local-only: it ships ONLY as the AES-GCM
+# ciphertext in admin/payload.js (regenerate with scripts/encrypt-admin.mjs).
+# Committing the plaintext to a public repo would defeat that encryption.
+admin/dashboard.html
+admin/dashboard.js
+
 # Dependencies / build output
 node_modules/
 dist/

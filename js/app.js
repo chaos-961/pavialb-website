@@ -946,6 +946,8 @@
     updateOnlineStatus();
     window.addEventListener('online', onReconnect);
     window.addEventListener('offline', () => setOfflineBanner(true));
+    // Owner entered the gate password during a Firebase outage — retry the load.
+    window.addEventListener('pavia:gate-unlocked', () => { void retryLoad(); });
   }
 
   // ---------- Event bindings ----------
@@ -1509,24 +1511,48 @@
   function renderProducts() {
     renderActiveFilters();
     updateFilterDot();
+    // Major Firebase error (backend failed AND no cached catalog to fall back on)
+    // → reveal the branded gate so shoppers see a calm "back soon" screen instead
+    // of a broken page. Any healthy render hides it again. This is the ONLY thing
+    // that shows the gate; the storefront is otherwise fully public.
+    if (window.PaviaGate) {
+      if (loadError) window.PaviaGate.show();
+      else window.PaviaGate.hide();
+    }
     // Catalog-level states (error / genuinely empty) take precedence over filter-empty.
     if (!products.length) {
       setResultCount(0);
       lastShownIds = [];
       if (n.loadMoreWrap) n.loadMoreWrap.hidden = true;
+      const waLink = `https://wa.me/${String(WHATSAPP_NUMBER).replace(/\D/g, '')}`;
+      const igLink = safeUrl(
+        CORE.instagramUrlFromHandle ? CORE.instagramUrlFromHandle(SITE_CONFIG.instagramHandle) : '',
+        'https://instagram.com/pavia.leb',
+      );
       if (loadError) {
+        // Friendly, non-technical wording: a shopper only needs to know the
+        // boutique is briefly unavailable and how to reach us meanwhile.
         n.productGrid.innerHTML = `
-          <div class="empty-state load-error" role="alert">
-            <h3>Couldn't load the collection</h3>
-            <p>Check your connection and try again.</p>
-            <button type="button" class="btn btn-primary" data-retry-load>Retry</button>
+          <div class="empty-state boutique-pause" role="status">
+            <svg class="pavia-wordmark" viewBox="0 0 982 333" aria-hidden="true" focusable="false"><use href="#paviaWordmark"/></svg>
+            <h3>The boutique is taking a short pause</h3>
+            <p>Our collection will be back on screen in a moment. You can also message us and we'll help you shop directly.</p>
+            <div class="empty-state-actions">
+              <button type="button" class="btn btn-primary" data-retry-load>Try again</button>
+              <a class="btn btn-soft" href="${waLink}" target="_blank" rel="noreferrer">WhatsApp us</a>
+            </div>
           </div>`;
         $('[data-retry-load]', n.productGrid)?.addEventListener('click', () => void retryLoad());
       } else {
         n.productGrid.innerHTML = `
-          <div class="empty-state">
+          <div class="empty-state boutique-pause">
+            <svg class="pavia-wordmark" viewBox="0 0 982 333" aria-hidden="true" focusable="false"><use href="#paviaWordmark"/></svg>
             <h3>Collection coming soon</h3>
-            <p>New pieces are on their way.</p>
+            <p>We're preparing new pieces with care. Say hello and we'll let you know the moment they arrive.</p>
+            <div class="empty-state-actions">
+              <a class="btn btn-primary" href="${waLink}" target="_blank" rel="noreferrer">WhatsApp us</a>
+              <a class="btn btn-soft" href="${igLink}" target="_blank" rel="noreferrer">Instagram</a>
+            </div>
           </div>`;
       }
       return;
@@ -1730,6 +1756,19 @@
     }
   }
 
+  // Soft shimmer on the quick-view hero while its image is still arriving, so a
+  // slow network never reads as a frozen or broken modal. Data-URI placeholders
+  // decode instantly and skip it.
+  function trackHeroLoading(img) {
+    const wrap = img?.closest('.image-wrap');
+    if (!wrap) return;
+    const settle = () => wrap.classList.remove('is-waiting');
+    if (img.complete && img.naturalWidth > 0) { settle(); return; }
+    wrap.classList.add('is-waiting');
+    img.addEventListener('load', settle, { once: true });
+    img.addEventListener('error', settle, { once: true });
+  }
+
   // Switch the modal hero image in place (no full re-render): swap the main img,
   // move the selected thumbnail, and update the counter. Resets any active zoom.
   function selectGalleryImage(url) {
@@ -1740,6 +1779,7 @@
       heroImg.classList.remove('is-zoomed');
       heroImg.style.transformOrigin = '';
       heroImg.src = pickImage(url, modalProduct?.id);
+      trackHeroLoading(heroImg);
     }
     $$('[data-gallery-src]', n.modalContent).forEach((b) => {
       b.classList.toggle('is-selected', b.dataset.gallerySrc === url);
@@ -1854,6 +1894,7 @@
     $('[data-modal-share]', n.modalContent)?.addEventListener('click', () => shareProduct(p));
     // Tap-to-zoom the main image toward the click point; tap again to reset.
     const zoomImg = $('[data-modal-zoom]', n.modalContent);
+    if (zoomImg) trackHeroLoading(zoomImg);
     zoomImg?.addEventListener('click', (event) => {
       const zoomed = zoomImg.classList.toggle('is-zoomed');
       if (zoomed) {
@@ -1974,7 +2015,7 @@
     if (!btn) return;
     btn.disabled = !enabled;
     btn.textContent = enabled ? 'Checkout' : 'Ordering paused';
-    btn.title = enabled ? '' : 'Online ordering is paused right now.';
+    btn.title = enabled ? '' : 'Ordering is taking a short break.';
   }
 
   function renderCart() {
@@ -2168,7 +2209,7 @@
   }
 
   function openCheckout() {
-    if (SITE_CONFIG.checkoutEnabled === false) { toast('Online ordering is paused right now.', 'info'); return; }
+    if (SITE_CONFIG.checkoutEnabled === false) { toast("Ordering is taking a short break — message us on WhatsApp and we'll arrange it personally.", 'info'); return; }
     if (!cart.length) { toast('Your bag is empty. Add an item first.', 'error'); return; }
     revalidateCart({ notify: true });
     if (!cart.length) { toast('Your bag is empty.', 'error'); return; }
@@ -2295,7 +2336,7 @@
       }
     } catch (error) {
       console.warn('Order creation is unavailable.', error);
-      toast('We could not place your order right now. Your bag is the same, so please try again.', 'error');
+      toast("We couldn't send your order just now. Your bag is safe — please try again in a moment, or message us on WhatsApp.", 'error');
       if (submitButton) {
         submitButton.disabled = false;
         submitButton.classList.remove('is-loading');

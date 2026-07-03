@@ -9,7 +9,7 @@
        cloudflareinsights.com is Cloudflare's auto-injected analytics beacon. -->
   <!-- img-src allows the imgbb image CDN (i.ibb.co) where product images are hosted. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; script-src 'self' https://www.gstatic.com https://*.firebasedatabase.app https://*.firebaseio.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://i.ibb.co; connect-src 'self' https://www.gstatic.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://cloudflareinsights.com" />
-  <meta name="theme-color" content="#1a1a1a" />
+  <meta name="theme-color" content="#e6e6e6" />
   <meta name="description" content="Pavia is modern, elegant fashion from Lebanon. Soft, easy-to-wear pieces for women, with delivery across Lebanon from Beirut." data-site-description />
   <meta name="keywords" content="Pavia, Pavia Lebanon, Pavia Leb, Pavia Beirut, Pavia fashion, Pavia boutique, Pavia clothing, pavialeb, modern elegant fashion Lebanon, women's fashion Beirut, online clothing store Lebanon, fashion delivery Lebanon" />
   <meta name="author" content="Pavia" />
@@ -41,12 +41,19 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Warm up the Firebase SDK host and the realtime-database origin so the
+       catalog connection skips the cold DNS/TLS handshake. -->
+  <link rel="preconnect" href="https://www.gstatic.com">
+  <link rel="preconnect" href="https://pavia-leb-default-rtdb.europe-west1.firebasedatabase.app">
   <!-- Warm up the imgbb image CDN so the first product thumbnail skips the cold
        DNS/TLS handshake. -->
   <link rel="preconnect" href="https://i.ibb.co" crossorigin>
   <link rel="dns-prefetch" href="https://i.ibb.co">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=29" />
+  <!-- Slimmed to the weights the storefront CSS actually uses (Fraunces 300-500
+       + true italics for the serif accents, Jakarta 400-700). Bodoni Moda was
+       only referenced by the construction gate and now falls back to Fraunces. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="css/styles.css?v=30" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -113,11 +120,15 @@
     /* Under-construction gate (storefront only). Covers everything until the preview
        password is entered. No real security, just a "not public yet" screen — the
        check lives in js/construction-gate.js and is visible in source by design. */
-    .uc-gate{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:24px;background:#f4f4f4;color:#1a1a1a;font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;}
+    /* Hidden by default — the storefront is public. js/app.js only reveals this
+       (via .is-active) as a fallback when Firebase has a major error and there is
+       no catalog to show. The unlock is never remembered. */
+    .uc-gate{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:24px;background:#f4f4f4;color:#1a1a1a;font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;}
+    .uc-gate.is-active{display:flex;}
     .uc-card{width:min(420px,100%);text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;}
     .uc-kicker{color:#1a1a1a;line-height:0;margin-bottom:4px;}
     .uc-kicker svg{display:block;width:148px;height:auto;margin-inline:auto;color:#1a1a1a;}
-    .uc-title{margin:0;font-family:'Bodoni Moda',Didot,Georgia,serif;font-weight:500;font-size:clamp(28px,7vw,42px);line-height:1.1;letter-spacing:.02em;}
+    .uc-title{margin:0;font-family:'Fraunces',Didot,Georgia,serif;font-weight:500;font-size:clamp(28px,7vw,42px);line-height:1.1;letter-spacing:.02em;}
     .uc-text{margin:0;max-width:34ch;color:#5a5a5a;font-size:14px;line-height:1.6;}
     .uc-form{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:8px;}
     .uc-field{display:flex;flex-direction:column;gap:6px;text-align:left;}
@@ -157,7 +168,7 @@
       </form>
     </div>
   </div>
-  <script src="js/construction-gate.js?v=1"></script>
+  <script src="js/construction-gate.js?v=2"></script>
   <div id="pavia-splash" role="status" aria-live="polite" aria-label="Loading Pavia">
     <div class="pavia-splash__inner">
       <div class="pavia-splash__word" aria-hidden="true">
@@ -345,24 +356,6 @@
       </div>
     </section>
 
-    <!-- ========== Why shop with us ========== -->
-    <section class="trust-strip" aria-label="Shopping information">
-      <div class="container trust-grid">
-        <div>
-          <strong>Lebanon delivery</strong>
-          <span>We deliver in Beirut and all over Lebanon</span>
-        </div>
-        <div>
-          <strong>Easy payment</strong>
-          <span>Pay cash on delivery, or by Whish Money</span>
-        </div>
-        <div>
-          <strong>Order review</strong>
-          <span>We check every order before we send it</span>
-        </div>
-      </div>
-    </section>
-
     <!-- ========== Recently viewed (hidden until items exist) ========== -->
     <section class="recently-viewed-section" data-recent-section>
       <div class="container">
@@ -413,7 +406,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.4.1</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.4.2</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -543,7 +536,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=43"></script>
+  <script defer src="js/config.js?v=44"></script>
   <script defer src="js/firebase-config.js?v=12"></script>
   <script defer src="js/backend-config.js?v=17"></script>
   <script defer src="js/image-catalog.js?v=12"></script>
@@ -551,7 +544,7 @@
   <script defer src="js/catalog-cache.js?v=4"></script>
   <script defer src="js/backend.js?v=21"></script>
   <script defer src="js/backend-firebase.js?v=36"></script>
-  <script defer src="js/products.js?v=11"></script>
-  <script defer src="js/app.js?v=36"></script>
+  <script defer src="js/products.js?v=12"></script>
+  <script defer src="js/app.js?v=37"></script>
 </body>
 </html>
