@@ -1807,13 +1807,15 @@
     const store = imageStore();
     if (!store?.configured?.()) {
       setLibraryStorageStatus('Image storage not configured', 'Add your imgbb API key in js/backend-config.js.');
-      if (button) { button.disabled = true; button.hidden = false; }
+      // Use style.display, not the hidden attribute: .btn sets display, which
+      // overrides [hidden] and would leave the button visible.
+      if (button) { button.disabled = true; button.style.display = ''; }
       if (dropzone) dropzone.hidden = true;
       return;
     }
     // imgbb uploads need no connect step, so hide the connect button entirely and
     // always show the dropzone once configured.
-    if (button) button.hidden = true;
+    if (button) button.style.display = 'none';
     setLibraryStorageStatus('Image storage ready', 'Upload images below, or add them while editing a product.');
     if (dropzone) dropzone.hidden = false;
   }
