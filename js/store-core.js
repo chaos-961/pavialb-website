@@ -106,22 +106,23 @@
   }
 
   // ---- Multi-image gallery model (P2) ----
-  // A product has one MAIN image (imageUrl/driveFileId/imageVersion) plus an
+  // A product has one MAIN image (imageUrl/storageKey/imageVersion) plus an
   // ordered gallery of additional images. Each gallery entry carries its own
-  // driveFileId + imageVersion so it caches and busts independently of the main.
+  // storageKey (image host id) + imageVersion so it caches and busts
+  // independently of the main. Legacy records may still say driveFileId.
   const MAX_GALLERY = 12;
   function normalizeGalleryEntry(entry) {
     if (!entry) return null;
     if (typeof entry === 'string') {
       const url = entry.trim();
-      return url ? { imageUrl: url, driveFileId: '', imageVersion: '' } : null;
+      return url ? { imageUrl: url, storageKey: '', imageVersion: '' } : null;
     }
     if (typeof entry !== 'object') return null;
     const imageUrl = String(entry.imageUrl || entry.image || entry.url || '').trim();
     if (!imageUrl) return null;
     return {
       imageUrl,
-      driveFileId: String(entry.driveFileId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120),
+      storageKey: String(entry.storageKey || entry.driveFileId || '').replace(/[^a-zA-Z0-9/_.-]/g, '').slice(0, 240),
       imageVersion: String(entry.imageVersion || '').slice(0, 40),
     };
   }
@@ -254,7 +255,7 @@
 
   // Resolved-image-URL cache key: stable across reloads, busts when imageVersion changes.
   function imageCacheKey(product = {}) {
-    const base = String(product.driveFileId || product.imageId || product.image || '').trim();
+    const base = String(product.storageKey || product.driveFileId || product.imageId || product.image || '').trim();
     if (!base) return '';
     const version = String(product.imageVersion || '').trim();
     return `${base}::${version}`;

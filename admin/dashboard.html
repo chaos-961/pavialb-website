@@ -15,7 +15,6 @@
 
   <nav class="admin-tabs" role="tablist" aria-label="Admin sections">
     <button class="admin-tab active" data-tab="dashboard" role="tab" aria-selected="true">Overview</button>
-    <button class="admin-tab" data-tab="visitors" role="tab" aria-selected="false">Visitors</button>
     <button class="admin-tab" data-tab="orders" role="tab" aria-selected="false">Orders</button>
     <button class="admin-tab" data-tab="products" role="tab" aria-selected="false">Products</button>
     <button class="admin-tab" data-tab="library" role="tab" aria-selected="false">Library</button>
@@ -34,39 +33,6 @@
         <button type="button" class="btn btn-ghost" data-tab-link="orders">View all orders</button>
       </div>
       <div id="latestOrders" class="compact-list"></div>
-    </div>
-  </div>
-
-  <div class="admin-panel" data-panel="visitors">
-    <div class="panel-heading">
-      <div>
-        <p class="admin-kicker">Storefront analytics</p>
-        <h2>Visitors</h2>
-        <p class="desc">Live anonymous-visitor totals and engagement recorded from the storefront. Updates in real time.</p>
-      </div>
-    </div>
-    <div class="metrics-grid visitor-metrics" id="visitorMetricsGrid"></div>
-    <div class="ops-grid">
-      <div class="panel-card">
-        <div class="panel-heading">
-          <div>
-            <p class="admin-kicker">Storefront engagement</p>
-            <h2>Visitor activity</h2>
-            <p class="desc">Anonymous visitor sessions and engagement events recorded from the live storefront.</p>
-          </div>
-        </div>
-        <div id="visitorEvents" class="compact-list"></div>
-      </div>
-      <div class="panel-card">
-        <div class="panel-heading">
-          <div>
-            <p class="admin-kicker">Most recent</p>
-            <h2>Recent visitors</h2>
-            <p class="desc">The latest anonymous sessions, newest first. IDs are shortened for display.</p>
-          </div>
-        </div>
-        <div id="recentVisitors" class="compact-list"></div>
-      </div>
     </div>
   </div>
 
@@ -245,7 +211,7 @@
                 <input id="prodImage" type="hidden" />
                 <input id="prodImageVersion" type="hidden" />
                 <input id="prodImageMeta" type="hidden" />
-                <input id="prodDriveFileId" type="hidden" />
+                <input id="prodStorageKey" type="hidden" />
                 <input id="prodImageProvider" type="hidden" />
               </div>
               <div class="variant-builder span-2">
@@ -328,7 +294,7 @@
           Image status
           <select id="imageMigrationFilter">
             <option value="">All images</option>
-            <option value="needs-image">Needs Drive/external image</option>
+            <option value="needs-image">Needs a hosted image</option>
           </select>
         </label>
         <label>
@@ -368,25 +334,25 @@
         <div>
           <p class="admin-kicker">Media</p>
           <h2>Image library</h2>
-          <p class="desc">Images your studio uploaded to the Google Drive folder. Reuse them across products or delete the ones nothing uses.</p>
+          <p class="desc">Images your studio uploaded to imgbb. Reuse them across products or remove the ones nothing uses.</p>
         </div>
         <div class="library-head-actions">
           <span class="count-badge" id="libraryCount">0</span>
           <button type="button" class="btn btn-secondary" id="libraryRefresh">Refresh</button>
         </div>
       </div>
-      <div class="drive-panel" id="libraryDrivePanel">
+      <div class="drive-panel" id="libraryStoragePanel">
         <div>
-          <strong id="libraryDriveStatus">Browse the library anytime</strong>
-          <small id="libraryDriveDetail">Connect Google Drive only to upload or delete images.</small>
+          <strong id="libraryStorageStatus">Browse the library anytime</strong>
+          <small id="libraryStorageDetail">Connect storage only to upload or delete images.</small>
         </div>
-        <button type="button" class="btn btn-secondary" id="libraryConnectBtn">Connect Google Drive</button>
+        <button type="button" class="btn btn-secondary" id="libraryConnectBtn">Connect storage</button>
       </div>
       <label class="image-dropzone" id="libraryDropzone" hidden>
         <input id="libraryFile" type="file" accept="image/jpeg,image/png,image/webp" multiple />
         <span class="upload-icon" aria-hidden="true">+</span>
         <strong>Upload image(s) to the library</strong>
-        <small>Each is optimized to about 300 KB, then uploaded to your Drive folder.</small>
+        <small>Each is optimized to about 300 KB, then uploaded to imgbb.</small>
       </label>
       <div id="libraryUploadStatus" class="image-result" hidden></div>
       <div id="libraryGrid" class="library-grid"></div>

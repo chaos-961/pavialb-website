@@ -4,16 +4,14 @@
 
   window.PAVIA_BACKEND_CONFIG = Object.freeze({
     provider: localHost ? 'local' : 'firebase',
-    fallbackToLocal: localHost,
+    // Always allow the local fallback: while the new Firebase project is being
+    // provisioned (or if it is ever unreachable) the storefront must keep
+    // serving from the cached/local catalog instead of failing to boot.
+    fallbackToLocal: true,
     // Bump to invalidate the IndexedDB catalog/image caches when the stored data
-    // shape changes. v0.1.4 clears catalogs whose unchanged rev previously kept
-    // a newly assigned image hidden after reload.
-    schemaVersion: 4,
+    // shape changes. v0.4.1 renames driveFileId -> storageKey (image host id).
+    schemaVersion: 5,
     namespace: 'pavia',
-    analytics: Object.freeze({
-      enabled: true,
-      sessionKey: 'PAVIA_VISIT_RECORDED',
-    }),
     admin: Object.freeze({
       // Static admin identity. The browser signs in to Firebase Email/Password
       // with this address (using the unlock password) so the database rules can
@@ -29,13 +27,12 @@
       maxHeight: 2000,
       maxInputBytes: 15 * 1024 * 1024,
     }),
-    driveImages: Object.freeze({
-      // Public, non-secret values. A browser OAuth web client ID is not a secret;
-      // never put the OAuth client secret, a service-account JSON, refresh token,
-      // or any long-lived token here or anywhere in the frontend.
-      clientId: '571393548009-s3b667tgr13pddo9lv7gee8gn34sppe0.apps.googleusercontent.com',
-      folderId: '1PnoKTM312CxrOQooeB9sVLo5HLISEtQ3',
-      scope: 'https://www.googleapis.com/auth/drive.file',
+    imgbb: Object.freeze({
+      // imgbb image hosting (see IMAGES.md). The API key is public-ish — it is not
+      // an account login; the worst it allows is uploading images to your imgbb
+      // library, so it is acceptable in a static frontend. Get it from
+      // https://api.imgbb.com/ and paste it here.
+      apiKey: 'REDACTED-IMGBB-KEY',
       longEdge: 1600,
       targetBytes: 300 * 1024,
       maxDetailBytes: 500 * 1024,

@@ -38,13 +38,6 @@
   let editingBaseRev = null;
   let ordersCache = [];
   let settingsCache = {};
-  let statsCache = null;
-  const EVENT_LABELS = {
-    product_view: 'Product views',
-    add_to_cart: 'Add to cart',
-    checkout_started: 'Checkout started',
-    order_created: 'Orders placed',
-  };
   // P15 UX state
   let formDirty = false;
   let suppressDirty = false;
@@ -356,7 +349,7 @@
       imageId: $('#prodImageId').value,
       imageVersion: $('#prodImageVersion').value,
       imageMeta: $('#prodImageMeta').value,
-      driveFileId: $('#prodDriveFileId').value,
+      storageKey: $('#prodStorageKey').value,
       imageProvider: $('#prodImageProvider').value,
       gallery: $('#prodGallery').value,
       savedAt: new Date().toISOString(),
@@ -411,7 +404,7 @@
     $('#prodImage').value = draft.imageUrl || draft.imageId || '';
     $('#prodImageVersion').value = draft.imageVersion || '';
     $('#prodImageMeta').value = draft.imageMeta || '';
-    $('#prodDriveFileId').value = draft.driveFileId || '';
+    $('#prodStorageKey').value = draft.storageKey || '';
     $('#prodImageProvider').value = draft.imageProvider || '';
     $('#prodGallery').value = draft.gallery || '';
     loadGalleryFromProduct({ gallery: parseGalleryField() });
@@ -677,8 +670,8 @@
       imageId,
       imageUrl,
       image: imageUrl || imageId || normalizeImagePath(product.image),
-      imageProvider: product.imageProvider || (product.driveFileId ? 'google_drive' : imageUrl ? 'external' : 'local_legacy'),
-      driveFileId: product.driveFileId || '',
+      imageProvider: product.imageProvider || ((product.storageKey || imageUrl) ? 'external' : 'local_legacy'),
+      storageKey: product.storageKey || '',
       imageVersion: product.imageVersion || '',
       imageMeta: product.imageMeta || null,
       description: product.description || '',
@@ -744,12 +737,6 @@
       : readLS(KEYS.settings, window.PAVIA_CONFIG || {});
   }
 
-  async function loadStatistics() {
-    statsCache = BACKEND?.analytics?.readStatistics
-      ? await BACKEND.analytics.readStatistics().catch(() => null)
-      : null;
-  }
-
   function relativeTime(timestamp) {
     const ts = Number(timestamp) || 0;
     if (!ts) return 'unknown';
@@ -761,58 +748,6 @@
     if (hours < 24) return `${hours} hr ago`;
     const days = Math.floor(hours / 24);
     return `${days} day${days === 1 ? '' : 's'} ago`;
-  }
-
-  function renderVisitorMetrics() {
-    const grid = $('#visitorMetricsGrid');
-    if (!grid) return;
-    const stats = statsCache || { totalVisitors: 0, newToday: 0, activeNow: 0, active7d: 0, active30d: 0, sessions: 0, todaySessions: 0, events: [], recent: [] };
-    grid.innerHTML = [
-      ['Visitors', stats.totalVisitors, 'Unique anonymous visitors'],
-      ['New today', stats.newToday, 'First-time visitors today'],
-      ['Active now', stats.activeNow, 'Seen in the last 15 min'],
-      ['Active 7 days', stats.active7d || 0, 'Unique in the last week'],
-      ['Active 30 days', stats.active30d || 0, 'Unique in the last month'],
-      ['Sessions', stats.sessions, `${stats.todaySessions} today`],
-    ].map(([label, value, detail]) => `
-      <article class="metric-card">
-        <span>${escapeHtml(label)}</span>
-        <strong>${escapeHtml(value)}</strong>
-        <small>${escapeHtml(detail)}</small>
-      </article>
-    `).join('');
-
-    const events = $('#visitorEvents');
-    if (events) {
-      const rows = (stats.events || []).filter((entry) => Number(entry.count) > 0);
-      events.innerHTML = rows.length
-        ? rows.map((entry) => `
-            <div class="compact-row">
-              <div><strong>${escapeHtml(EVENT_LABELS[entry.type] || entry.type)}</strong></div>
-              <b>${escapeHtml(entry.count)}</b>
-            </div>
-          `).join('')
-        : '<div class="empty-state-admin compact-empty"><strong>No visitor activity yet</strong><p>Storefront sessions and engagement events will appear here.</p></div>';
-    }
-
-    const recent = $('#recentVisitors');
-    if (recent) {
-      const rows = (stats.recent || []).filter((entry) => entry && entry.lastAt);
-      recent.innerHTML = rows.length
-        ? rows.map((entry) => {
-            const visits = Number(entry.visitCount) || 0;
-            return `
-              <div class="compact-row">
-                <div>
-                  <strong>Visitor ${escapeHtml(String(entry.uid || '').slice(0, 6) || 'guest')}</strong>
-                  <span>${escapeHtml(relativeTime(entry.lastAt))}</span>
-                </div>
-                <b>${escapeHtml(visits)} ${visits === 1 ? 'visit' : 'visits'}</b>
-              </div>
-            `;
-          }).join('')
-        : '<div class="empty-state-admin compact-empty"><strong>No visitors yet</strong><p>Anonymous sessions will appear here as people browse the store.</p></div>';
-    }
   }
 
   function renderMetrics() {
@@ -1217,7 +1152,7 @@
     $('#prodImage').value = '';
     $('#prodImageVersion').value = '';
     $('#prodImageMeta').value = '';
-    $('#prodDriveFileId').value = '';
+    $('#prodStorageKey').value = '';
     $('#prodImageProvider').value = '';
     $('#prodGallery').value = '';
     galleryItems = [];
@@ -1260,7 +1195,7 @@
     $('#prodImage').value = product.imageUrl || product.imageId || product.image;
     $('#prodImageVersion').value = product.imageVersion || '';
     $('#prodImageMeta').value = product.imageMeta ? JSON.stringify(product.imageMeta) : '';
-    $('#prodDriveFileId').value = product.driveFileId || product.imageMeta?.driveFileId || '';
+    $('#prodStorageKey').value = product.storageKey || product.imageMeta?.storageKey || '';
     $('#prodImageProvider').value = product.imageProvider || (product.imageUrl ? 'external' : 'local_legacy');
     loadGalleryFromProduct(product);
     setSelectedSizes(product.sizes);
@@ -1285,9 +1220,9 @@
     const id = slugify($('#prodSlug').value || $('#prodId').value || $('#prodName').value);
     const imageUrl = $('#prodImageUrl').value.trim();
     const imageId = imageUrl ? '' : $('#prodImageId').value.trim();
-    const driveFileId = $('#prodDriveFileId').value.trim();
+    const storageKey = $('#prodStorageKey').value.trim();
     const imageProvider = $('#prodImageProvider').value.trim()
-      || (driveFileId ? 'google_drive' : imageUrl ? 'external' : 'local_legacy');
+      || ((storageKey || imageUrl) ? 'external' : 'local_legacy');
     const existing = productsCache.find((product) => product.id === $('#prodId').value);
     const product = normalizeProduct({
       id,
@@ -1307,7 +1242,7 @@
       imageId,
       imageUrl,
       imageProvider,
-      driveFileId,
+      storageKey,
       imageVersion: $('#prodImageVersion').value,
       imageMeta: parseImageMeta(),
       gallery: parseGalleryField(),
@@ -1840,10 +1775,10 @@
   let libraryPickerMode = 'gallery';
   let galleryDragIndex = -1;
 
-  function drive() { return window.PaviaDriveImages; }
+  function imageStore() { return window.PaviaImageStore; }
 
-  // Map of driveFileId -> [product names] using it (main image or a gallery entry).
-  function driveImageUsage() {
+  // Map of storageKey -> [product names] using it (main image or a gallery entry).
+  function storageImageUsage() {
     const usage = new Map();
     const add = (id, name) => {
       const key = String(id || '').trim();
@@ -1853,39 +1788,34 @@
     };
     productsCache.forEach((product) => {
       const name = product.name || product.id;
-      add(product.driveFileId || product.imageMeta?.driveFileId, name);
-      (Array.isArray(product.gallery) ? product.gallery : []).forEach((entry) => add(entry?.driveFileId, name));
+      add(product.storageKey || product.imageMeta?.storageKey, name);
+      (Array.isArray(product.gallery) ? product.gallery : []).forEach((entry) => add(entry?.storageKey, name));
     });
     const out = new Map();
     usage.forEach((set, key) => out.set(key, [...set]));
     return out;
   }
 
-  // ---- Library Drive status ----
-  function setLibraryDriveStatus(message, detail = '') {
-    if ($('#libraryDriveStatus')) $('#libraryDriveStatus').textContent = message;
-    if ($('#libraryDriveDetail')) $('#libraryDriveDetail').textContent = detail;
+  // ---- Library storage (imgbb) status ----
+  function setLibraryStorageStatus(message, detail = '') {
+    if ($('#libraryStorageStatus')) $('#libraryStorageStatus').textContent = message;
+    if ($('#libraryStorageDetail')) $('#libraryStorageDetail').textContent = detail;
   }
-  function refreshLibraryDrivePanel() {
+  function refreshLibraryStoragePanel() {
     const button = $('#libraryConnectBtn');
     const dropzone = $('#libraryDropzone');
-    if (!button) return;
-    if (!drive()?.configured?.()) {
-      setLibraryDriveStatus('Google Drive not configured', 'Add the OAuth client ID and Drive folder ID in js/backend-config.js.');
-      button.disabled = true;
+    const store = imageStore();
+    if (!store?.configured?.()) {
+      setLibraryStorageStatus('Image storage not configured', 'Add your imgbb API key in js/backend-config.js.');
+      if (button) { button.disabled = true; button.hidden = false; }
       if (dropzone) dropzone.hidden = true;
       return;
     }
-    const connected = Boolean(drive().accessToken?.());
-    setLibraryDriveStatus(
-      connected ? 'Google Drive connected' : 'Browse the library anytime',
-      connected ? 'Ready to upload and delete images.' : 'Connect Google Drive only to upload or delete images.',
-    );
-    button.disabled = connected;
-    button.textContent = connected ? 'Google Drive connected' : 'Connect Google Drive';
-    // Upload is the one action that needs Drive, so the dropzone only shows once
-    // connected. Browsing and picking images work from the saved library.
-    if (dropzone) dropzone.hidden = !connected;
+    // imgbb uploads need no connect step, so hide the connect button entirely and
+    // always show the dropzone once configured.
+    if (button) button.hidden = true;
+    setLibraryStorageStatus('Image storage ready', 'Upload images below, or add them while editing a product.');
+    if (dropzone) dropzone.hidden = false;
   }
 
   function setLibraryStatus(message, isError = false) {
@@ -1901,21 +1831,21 @@
   async function loadLibrary({ silent = false } = {}) {
     if (libraryLoading) return;
     libraryLoading = true;
-    refreshLibraryDrivePanel();
+    refreshLibraryStoragePanel();
     try {
-      // The saved library lives in the backend, so images show without a Google
-      // Drive connection. Connecting is only needed to upload or delete.
+      // The saved library lives in the backend, so images show without a storage
+      // connection. Connecting is only needed to upload or delete.
       const saved = await BACKEND?.mediaLibrary?.list?.();
       libraryCache = Array.isArray(saved) ? saved : [];
       libraryPage = 0;
       renderLibrary();
 
-      // When connected, the live Drive listing is authoritative and also surfaces
-      // images not yet saved. Show it, then reconcile the saved index so the next
-      // offline visit shows the same set.
-      if (drive()?.configured?.() && drive().accessToken?.()) {
+      // Some providers can list the live bucket and reconcile the saved index.
+      // imgbb can't from the browser, so this block is skipped and the RTDB
+      // library index above is authoritative.
+      if (imageStore()?.canList?.()) {
         if (!silent) setLibraryStatus('Loading library…');
-        const files = await drive().listFiles({ pageSize: 300 });
+        const files = await imageStore().listFiles({ pageSize: 300 });
         libraryCache = files;
         libraryPage = 0;
         if (!silent) setLibraryStatus('');
@@ -1950,8 +1880,8 @@
           <span class="library-pick-check" aria-hidden="true">Select</span>
         </button>`;
     }
-    // Delete needs Google Drive, so it only appears when connected. Copy URL is
-    // safe offline.
+    // Delete needs the storage connection, so it only appears when connected.
+    // Copy URL is safe offline.
     const deleteButton = connected
       ? `<button type="button" class="btn btn-ghost danger-button" data-lib-delete${used.length ? ' title="In use, remove from products first"' : ''}>Delete</button>`
       : '';
@@ -1971,21 +1901,21 @@
     const pager = $('#libraryPager');
     if (!grid) return;
     $('#libraryCount').textContent = libraryCache.length;
-    const connected = Boolean(drive()?.configured?.() && drive().accessToken?.());
+    // "connected" here means uploads/actions are available. imgbb is ready
+    // whenever it's configured (uploads need no connect step).
+    const connected = Boolean(imageStore()?.connected?.());
 
     if (!libraryCache.length) {
-      if (!drive()?.configured?.()) {
-        grid.innerHTML = '<div class="empty-state-admin"><strong>Google Drive not configured</strong><p>Add the OAuth client ID and Drive folder ID in js/backend-config.js.</p></div>';
-      } else if (connected) {
-        grid.innerHTML = '<div class="empty-state-admin"><strong>No images yet</strong><p>Upload images above, or add them while editing a product.</p></div>';
+      if (!imageStore()?.configured?.()) {
+        grid.innerHTML = '<div class="empty-state-admin"><strong>Image storage not configured</strong><p>Add your imgbb API key in js/backend-config.js.</p></div>';
       } else {
-        grid.innerHTML = '<div class="empty-state-admin"><strong>No images yet</strong><p>Connect Google Drive to upload your first image.</p></div>';
+        grid.innerHTML = '<div class="empty-state-admin"><strong>No images yet</strong><p>Upload images above, or add them while editing a product.</p></div>';
       }
       pager.hidden = true;
       return;
     }
 
-    const usage = driveImageUsage();
+    const usage = storageImageUsage();
     const pages = Math.max(1, Math.ceil(libraryCache.length / LIBRARY_PAGE_SIZE));
     libraryPage = Math.min(libraryPage, pages - 1);
     const start = libraryPage * LIBRARY_PAGE_SIZE;
@@ -2022,50 +1952,40 @@
     const fileId = String(id || '').trim();
     if (!fileId) return;
     const file = libraryCache.find((item) => item.id === fileId);
-    const used = driveImageUsage().get(fileId) || [];
+    const used = storageImageUsage().get(fileId) || [];
     if (used.length) {
       await alertDialog(`This image is still used by: ${used.join(', ')}. Remove it from those products first, then delete it here.`, { title: 'Image in use' });
       return;
     }
-    const ok = await confirmDialog(`Delete "${file?.name || 'this image'}" from Google Drive permanently?`, { title: 'Delete image', confirmText: 'Delete', danger: true });
+    const ok = await confirmDialog(`Remove "${file?.name || 'this image'}" from your library? The file stays on imgbb; you can delete it from your imgbb account later.`, { title: 'Remove image', confirmText: 'Remove', danger: true });
     if (!ok) return;
     try {
-      await drive().deleteFile(fileId);
+      await imageStore().deleteFile(fileId);
       try { await BACKEND?.mediaLibrary?.remove?.(fileId); }
       catch (error) { console.warn('Could not update the saved image library.', error); }
       libraryCache = libraryCache.filter((item) => item.id !== fileId);
       renderLibrary();
-      toast('Image deleted');
+      toast('Image removed from library');
     } catch (error) {
       toast(error.message || 'Could not delete the image');
     }
   }
 
-  async function connectLibraryDrive() {
-    if (!drive()?.configured?.()) { refreshLibraryDrivePanel(); return; }
-    const button = $('#libraryConnectBtn');
-    if (button) button.disabled = true;
-    setLibraryDriveStatus('Connecting Google Drive…', 'Approve the popup, then pick the Google account that owns the Drive folder.');
-    try {
-      await drive().connect();
-      await loadLibrary();
-    } catch (error) {
-      toast(error.message || 'Google Drive connection failed');
-    } finally {
-      // Always re-sync the button to the real connection state — a cancelled,
-      // blocked, or denied attempt must never leave it stuck disabled.
-      refreshLibraryDrivePanel();
-    }
+  // imgbb needs no connect step. This just refreshes the library; the connect
+  // button is hidden while imgbb is the provider.
+  async function connectLibraryStorage() {
+    refreshLibraryStoragePanel();
+    await loadLibrary();
   }
 
   async function handleLibraryUpload(files) {
     const list = Array.from(files || []).filter(Boolean);
     if (!list.length) return;
-    if (!drive()) { toast('Google Drive tools are unavailable'); return; }
-    try {
-      if (!drive().accessToken?.()) { await drive().connect(); refreshLibraryDrivePanel(); }
-    } catch (error) {
-      toast(error.message || 'Connect Google Drive first');
+    const store = imageStore();
+    if (!store) { toast('Image storage tools are unavailable'); return; }
+    if (!store.configured?.()) {
+      toast('Add your imgbb API key in js/backend-config.js first');
+      refreshLibraryStoragePanel();
       return;
     }
     let done = 0;
@@ -2076,11 +1996,11 @@
       $('#libraryDropzone')?.classList.add('is-processing');
       try {
         setLibraryStatus(`Optimizing ${file.name} (${done + 1}/${list.length})…`);
-        const optimized = await drive().optimizeImage(file, imageOptimizationOptions());
+        const optimized = await imageStore().optimizeImage(file, imageOptimizationOptions());
         setLibraryStatus(`Uploading ${file.name} (${done + 1}/${list.length})…`);
-        const uploaded = await drive().uploadOptimizedImage(optimized);
+        const uploaded = await imageStore().uploadOptimizedImage(optimized);
         const record = {
-          id: uploaded.driveFileId,
+          id: uploaded.storageKey,
           name: uploaded.imageMeta?.optimizedName || file.name,
           mimeType: uploaded.imageMeta?.mimeType || 'image/webp',
           size: Number(uploaded.imageMeta?.byteSize) || 0,
@@ -2111,13 +2031,13 @@
   function libraryItemFromFile(file) {
     return {
       imageUrl: file.imageUrl,
-      driveFileId: file.id,
+      storageKey: file.id,
       imageVersion: file.imageVersion || '',
       imageMeta: {
-        driveFileId: file.id,
+        storageKey: file.id,
         optimizedName: file.name,
         byteSize: file.size,
-        provider: 'google_drive',
+        provider: 'imgbb',
         publicUrl: file.imageUrl,
         imageVersion: file.imageVersion || '',
         contentHash: file.contentHash || '',
@@ -2148,7 +2068,7 @@
       });
       return;
     }
-    const usage = driveImageUsage();
+    const usage = storageImageUsage();
     grid.innerHTML = libraryCache.map((file) => libraryTileHtml(file, usage, true)).join('');
     $$('[data-lib-pick]', grid).forEach((button) => {
       button.addEventListener('click', () => {
@@ -2166,15 +2086,15 @@
   function currentMainItem() {
     const imageUrl = $('#prodImageUrl').value.trim();
     if (!imageUrl) return null;
-    return { imageUrl, driveFileId: $('#prodDriveFileId').value.trim(), imageVersion: $('#prodImageVersion').value.trim() };
+    return { imageUrl, storageKey: $('#prodStorageKey').value.trim(), imageVersion: $('#prodImageVersion').value.trim() };
   }
   function setMainImage(item) {
     $('#prodImageUrl').value = item.imageUrl || '';
     $('#prodImageId').value = '';
     $('#prodImage').value = item.imageUrl || '';
     $('#prodImageVersion').value = item.imageVersion || '';
-    $('#prodDriveFileId').value = item.driveFileId || '';
-    $('#prodImageProvider').value = item.driveFileId ? 'google_drive' : (item.imageUrl ? 'external' : 'local_legacy');
+    $('#prodStorageKey').value = item.storageKey || '';
+    $('#prodImageProvider').value = (item.storageKey || item.imageUrl) ? 'external' : 'local_legacy';
     if (item.imageMeta) $('#prodImageMeta').value = JSON.stringify(item.imageMeta);
     markFormDirty();
     renderGalleryStrip();
@@ -2190,7 +2110,7 @@
     const exists = galleryItems.some((g) => g.imageUrl === item.imageUrl)
       || $('#prodImageUrl').value.trim() === item.imageUrl;
     if (exists) { toast('That image is already used'); return; }
-    galleryItems.push({ imageUrl: item.imageUrl, driveFileId: item.driveFileId || '', imageVersion: item.imageVersion || '' });
+    galleryItems.push({ imageUrl: item.imageUrl, storageKey: item.storageKey || '', imageVersion: item.imageVersion || '' });
     syncGalleryField();
     renderGalleryStrip();
   }
@@ -2253,7 +2173,7 @@
             $('#prodImageMeta').value = '';
             setMainImage(next);
           } else {
-            setMainImage({ imageUrl: '', driveFileId: '', imageVersion: '' });
+            setMainImage({ imageUrl: '', storageKey: '', imageVersion: '' });
             $('#prodImageMeta').value = '';
           }
         } else {
@@ -2562,8 +2482,8 @@
 
   function setupLibrary() {
     setupCropper();
-    refreshLibraryDrivePanel();
-    $('#libraryConnectBtn')?.addEventListener('click', () => void connectLibraryDrive());
+    refreshLibraryStoragePanel();
+    $('#libraryConnectBtn')?.addEventListener('click', () => void connectLibraryStorage());
     $('#libraryRefresh')?.addEventListener('click', () => void loadLibrary());
     $('#libraryPrev')?.addEventListener('click', () => { if (libraryPage > 0) { libraryPage -= 1; renderLibrary(); } });
     $('#libraryNext')?.addEventListener('click', () => { libraryPage += 1; renderLibrary(); });
@@ -2590,7 +2510,6 @@
       panel.classList.toggle('active', panel.dataset.panel === target);
     });
     if (target === 'dashboard') renderMetrics();
-    if (target === 'visitors') renderVisitorMetrics();
     if (target === 'orders') renderOrders();
     if (target === 'products') void renderProductList();
     if (target === 'library') void loadLibrary();
@@ -2740,12 +2659,11 @@
   }
 
   async function refreshAll() {
-    await Promise.all([loadOrders(), loadProducts(), loadSettings(), loadStatistics()]);
+    await Promise.all([loadOrders(), loadProducts(), loadSettings()]);
     updateCategoryOptions();
     updateImageOptions();
     fillSettingsForm();
     renderMetrics();
-    renderVisitorMetrics();
     renderOrders();
     await renderProductList();
     await updateProductPreview();
@@ -2775,10 +2693,6 @@
       BACKEND.settings?.subscribe?.(async () => {
         await loadSettings();
         fillSettingsForm();
-      });
-      BACKEND.analytics?.subscribeStatistics?.(async () => {
-        await loadStatistics();
-        renderVisitorMetrics();
       });
     }
     await refreshAll();

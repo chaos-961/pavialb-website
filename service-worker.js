@@ -1,5 +1,5 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v64';
+const CACHE = 'pavia-v67';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const IMAGE_CACHE_MAX = 120;
 
@@ -18,17 +18,17 @@ const ASSETS = [
   './favicon.ico',
   './js/splash.js?v=1',
   './js/construction-gate.js?v=1',
-  './js/config.js?v=42',
-  './js/firebase-config.js?v=10',
-  './js/backend-config.js?v=14',
-  './js/image-catalog.js?v=11',
-  './js/store-core.js?v=8',
-  './js/catalog-cache.js?v=3',
-  './js/backend.js?v=20',
-  './js/backend-firebase.js?v=33',
+  './js/config.js?v=43',
+  './js/firebase-config.js?v=12',
+  './js/backend-config.js?v=17',
+  './js/image-catalog.js?v=12',
+  './js/store-core.js?v=9',
+  './js/catalog-cache.js?v=4',
+  './js/backend.js?v=21',
+  './js/backend-firebase.js?v=36',
   './css/styles.css?v=29',
   './js/products.js?v=11',
-  './js/app.js?v=35',
+  './js/app.js?v=36',
   './manifest.webmanifest',
   './assets/logo.svg',
   './assets/icon.svg',
@@ -92,8 +92,8 @@ self.addEventListener('fetch', (event) => {
         const cached = await cache.match(req);
         const networked = fetch(req)
           .then((response) => {
-            // Only same-origin / CORS responses are cacheable. Cross-origin Drive
-            // thumbnails come back opaque (ok === false); those are left to the
+            // Only same-origin / CORS responses are cacheable. Cross-origin imgbb
+            // images may come back opaque (ok === false); those are left to the
             // browser HTTP cache, which busts on the ?pv= image version.
             if (response && response.ok) {
               cache.put(req, response.clone())

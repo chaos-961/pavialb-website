@@ -140,7 +140,7 @@
     BACKEND?.setAdminUnlocked?.(false);
     // Drop the Firebase admin credential and fall back to an anonymous session.
     void BACKEND?.lockAdmin?.();
-    window.PaviaDriveImages?.disconnect?.();
+    window.PaviaImageStore?.disconnect?.();
     clearTimeout(state.inactivityTimer);
     clearTimeout(state.warnTimer);
     clearLockWarning();
@@ -224,7 +224,9 @@
       state.failedAttempts = 0;
       state.unlocked = true;
       BACKEND?.setAdminUnlocked?.(true);
-      window.PaviaDriveImages?.setPassword?.(password);
+      // imgbb uploads use a config API key (no per-session token); this is a
+      // no-op kept for interface parity in case the image provider is swapped later.
+      window.PaviaImageStore?.setToken?.(password);
       clearSensitiveInputs();
       resetPasswordVisibility();
       injectDashboard(payload.html, payload.code);

@@ -9,7 +9,6 @@
     products: 'PAVIA_PRODUCTS',
     orders: 'PAVIA_ORDERS',
     settings: 'PAVIA_SETTINGS',
-    statistics: 'PAVIA_STATISTICS',
     subscribers: 'PAVIA_SUBSCRIBERS',
     orderRequests: 'PAVIA_ORDER_REQUESTS',
     mediaLibrary: 'PAVIA_MEDIA_LIBRARY',
@@ -247,18 +246,6 @@
     })));
   }
 
-  function updateStatistics(mutator) {
-    const statistics = read(keys.statistics, {
-      visits: 0,
-      events: {},
-      lastVisitAt: null,
-      updatedAt: null,
-    });
-    mutator(statistics);
-    statistics.updatedAt = new Date().toISOString();
-    write(keys.statistics, statistics);
-  }
-
   const backend = {
     provider: config.provider || 'local',
     schemaVersion: config.schemaVersion || 1,
@@ -441,26 +428,6 @@
       },
     },
 
-    analytics: {
-      async recordSessionVisit() {
-        if (config.analytics?.enabled === false) return;
-        const sessionKey = config.analytics?.sessionKey || 'PAVIA_VISIT_RECORDED';
-        if (sessionStorage.getItem(sessionKey)) return;
-        sessionStorage.setItem(sessionKey, '1');
-        updateStatistics((statistics) => {
-          statistics.visits = (Number(statistics.visits) || 0) + 1;
-          statistics.lastVisitAt = new Date().toISOString();
-        });
-      },
-      async recordEvent(name) {
-        if (config.analytics?.enabled === false || !name) return;
-        updateStatistics((statistics) => {
-          statistics.events ||= {};
-          statistics.events[name] = (Number(statistics.events[name]) || 0) + 1;
-        });
-      },
-    },
-
     catalog: {
       // Local mode has no manifest; returning null tells the storefront to take
       // the full-list path (localStorage reads are already instant). The catalog
@@ -477,9 +444,9 @@
       },
     },
 
-    // Saved image-library index (Drive file records) so the studio can browse and
-    // pick images without a Google Drive connection. Local mirror of the Firebase
-    // `mediaLibrary` node; upload/delete still go through Drive.
+    // Saved image-library index (hosted-image records) so the studio can browse
+    // and pick images. Local mirror of the Firebase `mediaLibrary` node; uploads
+    // go to the image host (imgbb).
     mediaLibrary: {
       async list() {
         return clone(read(keys.mediaLibrary, []));

@@ -281,7 +281,7 @@
         : (raw && typeof raw === 'object' ? raw : { imageUrl: String(raw || '') });
       if (!entry || !entry.imageUrl) continue;
       const key = CORE.imageCacheKey
-        ? CORE.imageCacheKey({ driveFileId: entry.driveFileId, image: entry.imageUrl, imageVersion: entry.imageVersion })
+        ? CORE.imageCacheKey({ storageKey: entry.storageKey, image: entry.imageUrl, imageVersion: entry.imageVersion })
         : '';
       let url = key && CatalogCache ? await CatalogCache.getResolvedImage(key) : null;
       if (!url) {
@@ -915,7 +915,6 @@
         applySiteConfig();
         renderCart();
       });
-      void BACKEND.analytics.recordSessionVisit();
     } else {
       await syncCatalog();
     }
@@ -1684,7 +1683,6 @@
     selectedImage = p.image;
     lastFocusedElement = document.activeElement;
     addToRecent(id);
-    void BACKEND?.analytics.recordEvent('product_view');
 
     const revealModal = () => {
       renderProductModal();
@@ -1961,7 +1959,6 @@
       qty: addQty
     });
     saveCart();
-    void BACKEND?.analytics.recordEvent('add_to_cart');
     bumpCounter('[data-cart-count]');
     toast(`${product.name} added to bag.`);
   }
@@ -2175,7 +2172,6 @@
     if (!cart.length) { toast('Your bag is empty. Add an item first.', 'error'); return; }
     revalidateCart({ notify: true });
     if (!cart.length) { toast('Your bag is empty.', 'error'); return; }
-    void BACKEND?.analytics.recordEvent('checkout_started');
     closeDrawer(n.cartDrawer);
     renderCheckoutSummary();
     n.checkoutForm?.classList.remove('is-confirmed');
@@ -2307,7 +2303,6 @@
       }
       return;
     }
-    void BACKEND?.analytics.recordEvent('order_created');
 
     // Order landed — retire the pending identity so the next order gets fresh ids.
     writeJSON(STORE_KEYS.pendingOrder, null);

@@ -3,7 +3,7 @@
    IndexedDB stale-while-revalidate cache for the storefront:
    - raw public product records (for differential rebuild across reloads)
    - the publicCatalogManifest (for rev diffing)
-   - a resolved-image-URL cache keyed by imageId|driveFileId + imageVersion
+   - a resolved-image-URL cache keyed by imageId|storageKey + imageVersion
    Namespaced by backend schemaVersion; invalidated cleanly on a schema bump.
    Degrades gracefully to no-ops when IndexedDB is unavailable.
    ========================================================= */
@@ -23,7 +23,7 @@
   // Resolved image URLs are tiny strings (~200 bytes), so this cap can be large:
   // 1000 entries is well under 1 MB and comfortably covers any realistic catalog
   // plus gallery images, so URLs never churn out of the cache. The actual image
-  // bytes are NOT stored here — cross-origin Drive thumbnails live in the
+  // bytes are NOT stored here — cross-origin imgbb images live in the
   // browser HTTP cache, which is sized in hundreds of MB and auto-managed.
   const IMAGE_CACHE_MAX = 1000;
   // Run the (full-scan) prune only once every this many resolved-URL writes.

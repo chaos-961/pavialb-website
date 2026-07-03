@@ -67,89 +67,6 @@
     return app;
   }
 
-  // --- Visitor analytics helpers (anonymous users/{uid} model, matching the
-  // sibling marketing sites). A short session cookie dedupes repeat pageviews
-  // so visits/count increments once per session, not once per page. ---
-  const VISIT_EVENTS = new Set(['product_view', 'add_to_cart', 'checkout_started', 'order_created']);
-  // Best-effort client throttle: collapse machine-speed repeats of the same event
-  // type (a stuck page, a tight loop, a casual script) into at most one write per
-  // interval. Analytics is non-critical, so a dropped duplicate is invisible to the
-  // shopper, and real browsing never fires the same event this fast. This is a UX
-  // guardrail, not a security control — the rules are the enforced limit.
-  const EVENT_MIN_INTERVAL_MS = 1000;
-  const lastEventAt = new Map();
-  const VISIT_SESSION_COOKIE = 'pavia_visit_session';
-
-  function createEventId() {
-    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-  }
-
-  function getVisitSessionId() {
-    const match = document.cookie.match(/(?:^|; )pavia_visit_session=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
-  }
-
-  function setVisitSessionId(sessionId) {
-    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-    document.cookie = `${VISIT_SESSION_COOKIE}=${encodeURIComponent(sessionId)}; Path=/; Max-Age=1800; SameSite=Lax${secure}`;
-  }
-
-  function startOfLocalDay(timestamp) {
-    const date = new Date(timestamp);
-    date.setHours(0, 0, 0, 0);
-    return date.getTime();
-  }
-
-  // Pure aggregation of the raw users node into the figures the admin Overview
-  // shows. Mirrors the sibling sites' stats-core summarizer.
-  function summarizeVisitors(rawUsers, now = Date.now()) {
-    const dayMs = 86400000;
-    const startOfDay = startOfLocalDay(now);
-    const activeNowStart = now - 15 * 60000;
-    const weekStart = startOfDay - 6 * dayMs;
-    const monthStart = startOfDay - 29 * dayMs;
-    const eventTypes = ['product_view', 'add_to_cart', 'checkout_started', 'order_created'];
-    const eventTotals = Object.fromEntries(eventTypes.map((type) => [type, 0]));
-    const recent = [];
-    let totalVisitors = 0;
-    let newToday = 0;
-    let activeNow = 0;
-    let active7d = 0;
-    let active30d = 0;
-    let sessions = 0;
-    let todaySessions = 0;
-
-    Object.entries(rawUsers || {}).forEach(([uid, user = {}]) => {
-      totalVisitors += 1;
-      const createdAt = Number(user.profile?.createdAt) || 0;
-      const lastAt = Number(user.activity?.lastSeenAt || user.visits?.lastAt) || 0;
-      sessions += Number(user.visits?.count) || 0;
-      if (createdAt >= startOfDay) newToday += 1;
-      if (lastAt >= activeNowStart) activeNow += 1;
-      if (lastAt >= weekStart) active7d += 1;
-      if (lastAt >= monthStart) active30d += 1;
-      Object.values(user.sessionHistory || {}).forEach((entry) => {
-        if ((Number(entry?.startedAt) || 0) >= startOfDay) todaySessions += 1;
-      });
-      eventTypes.forEach((type) => { eventTotals[type] += Number(user.events?.[type]?.count) || 0; });
-      recent.push({ uid, lastAt, visitCount: Number(user.visits?.count) || 0 });
-    });
-
-    recent.sort((left, right) => right.lastAt - left.lastAt);
-    return {
-      totalVisitors,
-      newToday,
-      activeNow,
-      active7d,
-      active30d,
-      sessions,
-      todaySessions,
-      events: eventTypes.map((type) => ({ type, count: eventTotals[type] })),
-      recent: recent.slice(0, 8),
-    };
-  }
-
   async function initializeFirebase() {
     if (firebaseState.initialized) return;
 
@@ -308,11 +225,13 @@
     const imageUrl = /^https?:\/\//i.test(imageValue)
       ? String(product.imageUrl || product.image)
       : '';
-    const driveFileId = String(product.driveFileId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120);
+    const storageKey = String(product.storageKey || '').replace(/[^a-zA-Z0-9/_.-]/g, '').slice(0, 240);
     const requestedProvider = product.imageProvider || '';
-    const provider = ['google_drive', 'external', 'local_legacy'].includes(requestedProvider)
+    // Vendor-neutral: every hosted image (imgbb or any future host) is 'external'
+    // with an https imageUrl, so swapping image hosts never changes the DB rules.
+    const provider = ['external', 'local_legacy'].includes(requestedProvider)
       ? requestedProvider
-      : driveFileId ? 'google_drive' : imageUrl ? 'external' : 'local_legacy';
+      : (storageKey || imageUrl) ? 'external' : 'local_legacy';
     const imageMeta = safeImageMeta(product.imageMeta);
     return {
       id,
@@ -331,7 +250,7 @@
       imageId,
       imageUrl,
       imageProvider: provider,
-      driveFileId,
+      storageKey,
       imageVersion: product.imageVersion || '',
       imageMeta,
       gallery: CORE.normalizeGallery
@@ -367,7 +286,7 @@
       targetBytes: Math.max(0, Number(source.targetBytes) || 0),
       contentHash: String(source.contentHash || '').replace(/[^a-f0-9]/gi, '').slice(0, 80),
       imageVersion: String(source.imageVersion || '').slice(0, 40),
-      driveFileId: String(source.driveFileId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120),
+      storageKey: String(source.storageKey || '').replace(/[^a-zA-Z0-9/_.-]/g, '').slice(0, 240),
       publicUrl: /^https:\/\//i.test(String(source.publicUrl || '')) ? String(source.publicUrl).slice(0, 600) : '',
       updatedAt: String(source.updatedAt || '').slice(0, 40),
     };
@@ -457,7 +376,7 @@
     return record;
   }
 
-  // Shape a Drive file record for the saved media-library index. Coerces every
+  // Shape a hosted-image record for the saved media-library index. Coerces every
   // field (Firebase rejects undefined) and never carries a token/secret.
   function normalizeMediaRecord(item) {
     const id = String(item?.id || '').trim();
@@ -925,90 +844,9 @@
       },
     },
 
-    analytics: {
-      // A storefront visitor (anonymous Firebase session) records one session
-      // visit per cookie window, plus a live lastSeenAt heartbeat.
-      async recordSessionVisit() {
-        if (activeProvider === 'local') return localBackend.analytics.recordSessionVisit();
-        const user = firebaseState.auth?.currentUser;
-        if (!user?.uid || !user.isAnonymous) return;
-        const api = firebaseState.databaseApi;
-        const base = `users/${user.uid}`;
-        const createdAt = Date.parse(user.metadata?.creationTime) || Date.now();
-        const updates = {
-          [`${base}/profile/createdAt`]: createdAt,
-          [`${base}/activity/lastSeenAt`]: api.serverTimestamp(),
-        };
-        if (getVisitSessionId()) {
-          await api.update(databaseReference('/'), updates).catch(() => {});
-          return;
-        }
-        const sessionId = createEventId();
-        updates[`${base}/visits/count`] = api.increment(1);
-        updates[`${base}/visits/lastAt`] = api.serverTimestamp();
-        updates[`${base}/sessionHistory/${sessionId}/startedAt`] = api.serverTimestamp();
-        try {
-          await api.update(databaseReference('/'), updates);
-        } catch {
-          await api.update(databaseReference('/'), {
-            [`${base}/visits/count`]: api.increment(1),
-            [`${base}/visits/lastAt`]: api.serverTimestamp(),
-          }).catch(() => {});
-        }
-        setVisitSessionId(sessionId);
-      },
-      // Storefront engagement events (product views, add-to-cart, checkout, order).
-      async recordEvent(name) {
-        if (activeProvider === 'local') return localBackend.analytics.recordEvent(name);
-        if (!VISIT_EVENTS.has(name)) return;
-        const user = firebaseState.auth?.currentUser;
-        if (!user?.uid || !user.isAnonymous) return;
-        // Drop repeats fired faster than a human ever could (see EVENT_MIN_INTERVAL_MS).
-        const nowMs = Date.now();
-        if (nowMs - (lastEventAt.get(name) || 0) < EVENT_MIN_INTERVAL_MS) return;
-        lastEventAt.set(name, nowMs);
-        const api = firebaseState.databaseApi;
-        const base = `users/${user.uid}`;
-        const createdAt = Date.parse(user.metadata?.creationTime) || Date.now();
-        const eventId = createEventId();
-        try {
-          await api.update(databaseReference('/'), {
-            [`${base}/profile/createdAt`]: createdAt,
-            [`${base}/activity/lastSeenAt`]: api.serverTimestamp(),
-            [`${base}/events/${name}/count`]: api.increment(1),
-            [`${base}/events/${name}/lastAt`]: api.serverTimestamp(),
-            [`${base}/eventHistory/${eventId}/type`]: name,
-            [`${base}/eventHistory/${eventId}/at`]: api.serverTimestamp(),
-          });
-        } catch {
-          await api.update(databaseReference('/'), {
-            [`${base}/events/${name}/count`]: api.increment(1),
-            [`${base}/events/${name}/lastAt`]: api.serverTimestamp(),
-          }).catch(() => {});
-        }
-      },
-      // Admin-only: read and summarize the visitor analytics for the dashboard.
-      async readStatistics() {
-        if (activeProvider !== 'firebase') return summarizeVisitors({});
-        try {
-          const users = await readPath('users');
-          return summarizeVisitors(users || {});
-        } catch (error) {
-          console.warn('Pavia visitor analytics read failed.', error);
-          return summarizeVisitors({});
-        }
-      },
-      // Admin-only: live updates as visitors arrive. Notifies with no args; the
-      // dashboard re-reads via readStatistics().
-      subscribeStatistics(listener) {
-        if (activeProvider !== 'firebase') return () => {};
-        return subscribePath('users', listener);
-      },
-    },
-
-    // Saved image-library index. The studio reads this to browse/pick images with
-    // no Google Drive connection (admin-only node). Upload/delete still need Drive;
-    // a connected session reconciles this index against the live Drive listing.
+    // Saved image-library index. The studio reads this to browse/pick images
+    // without connecting storage (admin-only node). Upload/delete go through the
+    // image host; the saved index is authoritative for browsing (imgbb has no browser listing).
     mediaLibrary: {
       async list() {
         if (activeProvider === 'local') return localBackend.mediaLibrary.list();
