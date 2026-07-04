@@ -28,11 +28,13 @@
       maxInputBytes: 15 * 1024 * 1024,
     }),
     imgbb: Object.freeze({
-      // imgbb image hosting (see IMAGES.md). The API key is public-ish — it is not
-      // an account login; the worst it allows is uploading images to your imgbb
-      // library, so it is acceptable in a static frontend. Get it from
-      // https://api.imgbb.com/ and paste it here.
-      apiKey: 'REDACTED-IMGBB-KEY',
+      // imgbb image hosting (see IMAGES.md). Only the (admin-only) image pipeline
+      // uploads; shoppers just load finished images from imgbb's CDN and never
+      // need the key. So the API key is NOT shipped here in the public storefront
+      // config — the encrypted admin dashboard supplies it at runtime via
+      // PaviaImageStore.setApiKey() (see admin/dashboard.js), which means the key
+      // only ever exists in memory inside an unlocked admin tab. The sizing
+      // params below are not secret and stay here for the optimizer.
       longEdge: 1600,
       targetBytes: 300 * 1024,
       maxDetailBytes: 500 * 1024,

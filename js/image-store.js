@@ -29,8 +29,16 @@
   const DEFAULT_LONG_EDGE = 1600;
   const UPLOAD_ENDPOINT = 'https://api.imgbb.com/1/upload';
 
+  // The imgbb API key is deliberately NOT in the public storefront config. The
+  // encrypted admin dashboard hands it to us at runtime (after the password
+  // decrypts the payload) via setApiKey(), so the key only ever lives in memory
+  // in an unlocked admin tab and never in a committed/served file.
+  let apiKeyOverride = '';
+  function setApiKey(key) { apiKeyOverride = String(key || '').trim(); }
+
   function config() {
-    return root.PAVIA_BACKEND_CONFIG?.imgbb || {};
+    const base = root.PAVIA_BACKEND_CONFIG?.imgbb || {};
+    return apiKeyOverride ? { ...base, apiKey: apiKeyOverride } : base;
   }
 
   function configured() {
@@ -260,6 +268,7 @@
   return Object.freeze({
     configured,
     config,
+    setApiKey,
     needsConnect,
     connected,
     connect,
