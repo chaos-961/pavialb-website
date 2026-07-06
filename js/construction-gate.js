@@ -1,18 +1,17 @@
-/* Pavia gate — an ERROR-FALLBACK screen, NOT a launch gate.
+/* Pavia gate — an UNDER-CONSTRUCTION launch gate.
  *
- * The storefront is public by default: this script shows nothing on load. It
- * only exposes window.PaviaGate.show()/.hide(); js/app.js calls show() when
- * Firebase has a major error and there is no catalog to display, so shoppers see
- * a calm "back soon" screen instead of a broken page.
+ * The site is NOT public yet: this covers the whole storefront on load and holds
+ * until the preview password is entered. The password is plain in source on
+ * purpose — this is a soft "not public yet" screen, not real security.
  *
- * The unlock is NEVER remembered (no localStorage): every time the gate appears
- * the password must be entered again, by design. The password is plain in source
- * on purpose — this is a soft screen, not real security. Only the owner needs it,
- * to look past the gate and check the site while the backend is misbehaving.
+ * The unlock IS remembered (localStorage), so once a previewer/the owner enters
+ * the password the gate stays open for them across reloads and return visits.
+ * Clearing site data (or the `pavia:preview-unlocked` key) re-locks it.
  */
 (function () {
   'use strict';
   var PASS = 'tab2026';
+  var STORAGE_KEY = 'pavia:preview-unlocked';
   var gate = document.getElementById('ucGate');
   if (!gate) return;
 
@@ -21,20 +20,19 @@
   var error = document.getElementById('ucError');
   var wired = false;
   var visible = false;
-  // In-memory only (reset on every page load). Once the owner enters the password
-  // this stays true so a still-failing retry can't slam the gate back over them —
-  // but a reload clears it, so a fresh visit during an outage asks again.
+
+  // Remembered across reloads: once the password is entered the gate stays open.
   var unlocked = false;
+  try { unlocked = window.localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) { /* ignore */ }
 
   function hide() {
-    if (!visible) return;
     visible = false;
     gate.classList.remove('is-active');
     document.documentElement.classList.remove('uc-locked');
   }
 
   function show() {
-    if (visible || unlocked) return;
+    if (unlocked) return;
     visible = true;
     wire();
     gate.classList.add('is-active');
@@ -50,10 +48,9 @@
       event.preventDefault();
       if (input && input.value === PASS) {
         unlocked = true;
+        try { window.localStorage.setItem(STORAGE_KEY, '1'); } catch (e) { /* ignore */ }
         hide();
-        // Owner is in — ask the app to retry the load that failed. The gate is
-        // not remembered, so it returns on the next reload if Firebase is still
-        // down (that is the requested behaviour).
+        // Previewer is in — let the app react (e.g. retry a load it deferred).
         try { window.dispatchEvent(new Event('pavia:gate-unlocked')); } catch (e) { /* ignore */ }
         return;
       }
@@ -66,7 +63,13 @@
 
   window.PaviaGate = Object.freeze({
     show: show,
-    hide: hide,
+    // hide() is only honoured once the previewer has unlocked. app.js calls
+    // hide() on a healthy render; the launch gate must NOT be dropped by that —
+    // only the correct password opens it.
+    hide: function () { if (unlocked) hide(); },
     isVisible: function () { return visible; },
   });
+
+  // Launch gate: cover the site on load until the preview password is entered.
+  if (!unlocked) show();
 })();
