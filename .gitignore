@@ -11,6 +11,11 @@ $RECYCLE.BIN/
 *.swo
 *~
 
+# Local preview launcher (dev-only; never shipped — the GitHub Pages workflow's
+# cp allowlist wouldn't copy it anyway, but keep it out of the repo entirely).
+serve-local.mjs
+serve-local.cmd
+
 # Local agents / AI / internal notes (never publish)
 .claude/
 .Codex/
