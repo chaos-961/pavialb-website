@@ -162,6 +162,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   box-shadow: 0 2px 24px rgba(0, 0, 0, 0.05);
 }
 .nav-wrap {
+  position: relative;
   height: var(--header-h);
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px;
@@ -2107,6 +2108,11 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     width: 88px;
   }
   .desktop-nav {
+    /* Truly center Shop/Visit in the header, independent of the differing
+       widths of the brand (left) and the action icons (right). */
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     align-items: center;
     gap: 30px;
