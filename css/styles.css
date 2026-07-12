@@ -235,7 +235,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: #d8d5d0;
+  background: #cdbfb0;
 }
 .hero-backdrop picture,
 .hero-backdrop img {
@@ -246,12 +246,14 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .hero-backdrop img {
   object-fit: cover;
-  /* Mobile-first crop position. On phones the portrait shot is cropped
-     horizontally, so a LOW X slides the visible window left — pushing the model
-     toward the right edge of the frame, with her head beside (not behind) the
-     CTA buttons and the left wall clear for the copy. The desktop landscape
-     frame is cropped vertically instead and overrides this at >=960px. */
-  object-position: 18% 24%;
+  /* Mobile-first crop position. The portrait crop carries the model at ~68% of
+     its width and fakes ~21% of extra wall above the frame, dropping her head
+     to ~36% of the crop. A high X slides the window right so she sits around
+     the 60% line of a phone screen — whole silhouette in frame, face clear —
+     and a low Y crops dead floor at the bottom rather than wall at the top,
+     which is exactly where the copy lives (headline finishes ABOVE her face).
+     The desktop landscape frame overrides both at >=960px. */
+  object-position: 76% 10%;
   transform-origin: 50% 30%;
   will-change: transform;
 }
@@ -263,23 +265,24 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(238, 237, 234, 0.78) 0%, rgba(238, 237, 234, 0.30) 22%, rgba(238, 237, 234, 0) 48%),
-    linear-gradient(90deg, rgba(238, 237, 234, 0.55) 0%, rgba(238, 237, 234, 0.28) 34%, rgba(238, 237, 234, 0) 62%),
-    linear-gradient(0deg, rgba(230, 230, 230, 0.85) 0%, rgba(230, 230, 230, 0.30) 14%, rgba(230, 230, 230, 0) 34%);
+    linear-gradient(180deg, rgba(242, 238, 231, 0.72) 0%, rgba(242, 238, 231, 0.30) 22%, rgba(242, 238, 231, 0) 46%),
+    linear-gradient(90deg, rgba(242, 238, 231, 0.66) 0%, rgba(242, 238, 231, 0.34) 38%, rgba(242, 238, 231, 0) 68%),
+    linear-gradient(0deg, rgba(230, 230, 230, 0.88) 0%, rgba(230, 230, 230, 0.32) 14%, rgba(230, 230, 230, 0) 34%);
 }
 .hero-grid {
   position: relative;
   z-index: 1;
   flex: 1;
   display: grid;
+  /* Phone composition: copy top-left on the empty wall, the model owning the
+     right side of the frame — the photo itself carries the rest of the fold. */
   grid-template-columns: 1fr;
-  /* Phone composition: copy at the top, card fan pinned to the bottom, the
-     model visible in the open middle band between them. */
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 18px;
   align-items: start;
 }
-.hero-copy { position: relative; z-index: 2; }
+/* Copy hugs the clear wall left of the model; her raised hands reach ~62% of a
+   phone screen, so the column stays narrower than that (left veil in the wash
+   backs it up where a long headline word grazes her sleeve). */
+.hero-copy { position: relative; z-index: 2; max-width: min(560px, 58vw); }
 /* Ghost CTA gets a faint paper fill here so its label never fights the photo. */
 .hero .btn-ghost { background: rgba(250, 250, 250, 0.55); }
 .hero .btn-ghost:hover { background: var(--ink); }
@@ -300,127 +303,6 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .hero-actions {
   display: flex; gap: 10px; flex-wrap: wrap;
-}
-/* The three featured looks fan out like dealt lookbook cards — bottom-center on
-   phones (under the model), right column on desktop (on the empty wall). */
-.hero-visual {
-  position: relative;
-  aspect-ratio: 10 / 8;
-  width: 100%;
-  max-width: 330px;
-  margin-inline: auto;
-  align-self: end;
-}
-.hero-card {
-  position: absolute;
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  background: var(--cream);
-  /* Paper frame so each look reads as a printed card lying on the photo. */
-  border: 4px solid rgba(252, 251, 249, 0.96);
-  box-shadow: var(--shadow-md);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  /* `transform` is reserved for the JS pointer-tilt; the idle float (translate),
-     each card's base rotation (rotate), and the hover lift (scale) are set as
-     INDEPENDENT longhands so they compose instead of overwriting one another. */
-  transform: perspective(900px);
-  transition: box-shadow 0.45s var(--ease-out), scale 0.5s var(--ease-spring),
-              transform 0.4s var(--ease-out);
-  will-change: transform, scale;
-}
-.hero-card img {
-  width: 100%; height: 100%; object-fit: cover;
-  /* Round the image itself (not just the card's overflow clip): Chrome drops a
-     border-radius + overflow:hidden clip on children while the card is under a 3D
-     transform (the perspective + pointer-tilt), which flashed square corners on
-     hover. An inherited radius on the image keeps the corners rounded regardless. */
-  border-radius: inherit;
-  transition: filter 0.5s var(--ease-out);
-}
-/* Fallback state: before the storefront swaps in real product photos (and if JS
-   is disabled or the catalog is empty), the cards hold the brand mark. The logo
-   is a WIDE wordmark, so cover-cropping it into a portrait card left an
-   unreadable sliver. Contain + pad it instead so it reads as an intentional
-   little logo card. Targets the asset by filename, so the moment JS sets a real
-   image (or the generated data-URI placeholder) this no longer applies. */
-.hero-card img[src$="logo.svg"],
-.hero-card img[src$="icon.svg"] {
-  object-fit: contain;
-  box-sizing: border-box;
-  padding: 22%;
-  background: linear-gradient(160deg, var(--cream), #fff);
-}
-/* A slot with no product to show (empty catalog / fewer than three looks) gets
-   the elegant portrait placeholder and is purely decorative — no hover sheen,
-   no "View" cue, no pointer, since there is nothing to quick-view. */
-.hero-card.is-empty { cursor: default; }
-.hero-card.is-empty::after { display: none; }
-.hero-card.is-empty .hero-card__cue { display: none; }
-.hero-card { width: 44%; aspect-ratio: 3 / 4; }
-.hero-card.main    { left: 28%; bottom: 12%; z-index: 2; }
-.hero-card.float-1 { left: 0;   bottom: 4%;  z-index: 1; rotate: -7deg; }
-.hero-card.float-2 { right: 0;  bottom: 2%;  z-index: 1; rotate: 7.5deg; }
-/* Gentle, continuous drift so the hero collage feels alive (GPU `translate`/`rotate`
-   longhands only, so hover `scale` + JS tilt never fight it; auto-disabled for
-   reduced motion via the global animation-duration override). Kept slow and
-   small-amplitude so the collage reads as calm, not busy. */
-.hero-card.main    { animation: heroFloatMain 9s var(--ease-in-out) infinite; }
-.hero-card.float-1 { animation: heroFloat1 11s var(--ease-in-out) infinite; }
-.hero-card.float-2 { animation: heroFloat2 13s var(--ease-in-out) infinite; }
-@keyframes heroFloatMain { 0%, 100% { translate: 0 0; }                50% { translate: 0 -6px; } }
-@keyframes heroFloat1    { 0%, 100% { translate: 0 0; rotate: -7deg; }  50% { translate: 0 -7px; rotate: -6.2deg; } }
-@keyframes heroFloat2    { 0%, 100% { translate: 0 0; rotate: 7.5deg; } 50% { translate: 0 -6px; rotate: 8.3deg; } }
-
-/* ---- Selectable affordance: the floating looks are quick-view buttons ---- */
-.hero-card:hover, .hero-card:focus-visible { animation-play-state: paused; }
-.hero-card:hover,
-.hero-card:focus-visible,
-.hero-card.is-active {
-  scale: 1.035;
-  box-shadow: var(--shadow-lg);
-  z-index: 6;
-}
-/* No inner image zoom on hover: scaling the image past the frame pushed its
-   rounded corners out of view and the card's overflow clip is unreliable under
-   the 3D tilt, so the corners flattened. The card still scales/lifts as a whole. */
-.hero-card:hover img,
-.hero-card:focus-visible img { filter: saturate(1.03); }
-.hero-card:active { scale: 0.99; transition-duration: 0.1s; }
-.hero-card:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
-
-/* Light sheen sweeping across on hover. */
-.hero-card::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
-  border-radius: inherit; /* keep the sheen corners rounded under the 3D transform too */
-  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.4) 48%, transparent 64%);
-  background-size: 250% 100%; background-position: 150% 0;
-  opacity: 0; transition: opacity 0.4s ease;
-}
-.hero-card:hover::after,
-.hero-card:focus-visible::after { opacity: 1; animation: heroSheen 0.9s var(--ease-out) forwards; }
-@keyframes heroSheen { from { background-position: 150% 0; } to { background-position: -120% 0; } }
-
-/* "View" cue — slides up on hover; a compact, always-on "+" on touch devices. */
-.hero-card__cue {
-  position: absolute; left: 50%; bottom: 12px; z-index: 3;
-  transform: translate(-50%, 10px);
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 13px 7px 9px; border-radius: var(--r-pill);
-  background: rgba(26, 26, 26, 0.86); color: #fafafa;
-  font-family: var(--body); font-size: 11.5px; font-weight: 600;
-  letter-spacing: 0.1em; text-transform: uppercase; line-height: 1;
-  opacity: 0; pointer-events: none;
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-  transition: opacity 0.35s var(--ease-out), transform 0.45s var(--ease-spring);
-}
-.hero-card__cue svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 2.2; fill: none; }
-.hero-card__cue em { font-style: normal; }
-.hero-card:hover .hero-card__cue,
-.hero-card:focus-visible .hero-card__cue { opacity: 1; transform: translate(-50%, 0); }
-@media (hover: none) {
-  .hero-card__cue { opacity: 0.92; transform: translate(-50%, 0); padding: 6px; gap: 0; }
-  .hero-card__cue em { display: none; }
 }
 /* =========================================================
    Buttons
@@ -1981,14 +1863,15 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     gap: 16px;
   }
 
-  /* Phones: the model stands at ~66% of the portrait crop, so the copy hugs a
-     narrow left column on the empty wall and never touches her face. Buttons
-     hug their labels (full-width bars would cross her chin). */
+  /* Phones: the model bleeds off the right edge with her face around the 70%
+     line, so the copy hugs a narrow left column on the empty wall and never
+     touches her face. Buttons hug their labels (full-width bars would cross
+     her waistline). */
   .hero-copy {
-    max-width: 68vw;
+    max-width: 58vw;
   }
   .hero-copy h1 {
-    font-size: clamp(29px, 9vw, 38px);
+    font-size: clamp(27px, 8.6vw, 36px);
   }
   .hero-text {
     font-size: 14px;
@@ -1998,15 +1881,16 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     align-items: flex-start;
   }
 
-  .hero-visual {
-    max-width: 290px;
-    margin-bottom: 4px;
+  /* Buttons stay narrower than ~50vw so their rows never reach her face
+     (she stands right of the 50% line on phones). Where a button edge can
+     still meet her wrist/lens on some aspect ratios, the ghost turns solid
+     paper — a clean chip over the photo instead of a translucent smudge. */
+  .hero-actions .btn-lg {
+    min-height: 50px;
+    padding: 0 24px;
+    font-size: 14px;
   }
-
-  .hero-card {
-    border-radius: var(--r-md);
-    border-width: 3px;
-  }
+  .hero .btn-ghost { background: rgba(250, 250, 250, 0.92); }
 
   .product-grid {
     gap: 14px 10px;
@@ -2050,13 +1934,30 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   }
 }
 
-/* Landscape phones (short viewport): tighten the hero and let CTAs sit inline so
-   the shop is reachable without excessive scrolling. */
-@media (max-width: 639px) and (max-height: 520px) {
+/* Small/short portrait phones (SE-class, 320-414 x <=700): the viewport-sized
+   hero can't fit the full-scale copy, and anything past the fold hides under
+   the sheet forever (the hero is pinned). Compact the type and buttons so the
+   whole composition lands inside the first screen. */
+@media (max-width: 639px) and (orientation: portrait) and (max-height: 700px) {
+  .hero-copy h1 { font-size: clamp(25px, 7.6vw, 31px); }
+  .hero-text { font-size: 13px; margin-bottom: 18px; }
+  .hero-actions { gap: 8px; }
+  .hero-actions .btn-lg { min-height: 48px; padding: 0 22px; font-size: 14px; }
+}
+
+/* Landscape phones (<960px, rotated): the <picture> swaps to the landscape
+   frame (model at ~83%, wall left) — a mini desktop composition. Copy sits
+   left, CTAs inline. */
+@media (max-width: 959px) and (orientation: landscape) {
   .hero { padding: 12px 0 26px; }
-  .hero-grid { grid-template-columns: 1.1fr 0.9fr; grid-template-rows: none; gap: 16px; align-items: center; }
-  .hero-visual { max-width: 210px; align-self: center; margin-bottom: 0; }
+  .hero-backdrop img { object-position: 85% 24%; }
+  .hero-copy { max-width: min(560px, 56vw); }
+  .hero-copy h1 { font-size: clamp(26px, 4.6vw, 40px); }
+  .hero-text { font-size: 13.5px; margin-bottom: 16px; }
+  .hero-actions { flex-direction: row; }
   .hero-actions .btn { width: auto; }
+}
+@media (max-width: 959px) and (orientation: landscape) and (max-height: 420px) {
   .modal-card { max-height: 96vh; }
   .modal-desc { -webkit-line-clamp: 2; }
 }
@@ -2074,7 +1975,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
      ~62%, fan bottom) — a two-column split here would push the copy onto her
      face. Two columns start at 960px. */
   .hero { padding: 24px 0 44px; }
-  .hero-visual { max-width: 340px; }
   .filter-row { grid-template-columns: repeat(3, 1fr); }
   .modal-product { flex-direction: row; min-height: 520px; align-items: stretch; }
   .modal-product .image-wrap { width: 50%; aspect-ratio: auto; }
@@ -2093,6 +1993,12 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     transition: transform 0.4s var(--ease-out), opacity 0.4s var(--ease-out);
   }
   .modal.is-open .modal-card { transform: none; opacity: 1; }
+}
+
+/* Portrait tablets: the model is larger in the frame than on phones, so pull
+   the paragraph in a touch — its longest line was grazing her raised hand. */
+@media (min-width: 640px) and (max-width: 959px) and (orientation: portrait) {
+  .hero-copy { max-width: min(500px, 53vw); }
 }
 
 /* =========================================================
@@ -2163,22 +2069,27 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 
   .product-grid { grid-template-columns: repeat(4, 1fr); gap: 18px; }
   .section { padding: 56px 0; }
-  /* Desktop: two columns over the full landscape frame. The model stands at
-     the exact center of the viewport, so the composition is a diagonal —
-     copy top-left (above her face line), model center, card fan bottom-right. */
+  /* Desktop: the model owns the RIGHT of the landscape frame (~83%), standing
+     on the empty wall's curtain light. The copy lives in the LEFT column so
+     the whole right half of the fold is hers; the grid's right column is
+     intentionally empty — the photo carries it. */
   .hero { padding: 28px 0 52px; }
-  .hero-grid { grid-template-columns: 1.05fr 0.95fr; grid-template-rows: none; gap: 48px; align-items: center; }
-  .hero-copy { align-self: start; padding-top: clamp(8px, 7vh, 84px); }
-  .hero-visual { max-width: 430px; align-self: end; margin-bottom: clamp(8px, 4vh, 44px); }
-  /* Landscape frame is cropped top/bottom here — raise the Y so the model sits
-     ~8% higher in the fold (more of her, less empty floor). */
-  .hero-backdrop img { object-position: 50% 40%; }
+  .hero-grid {
+    grid-template-columns: minmax(0, 620px) 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+  .hero-copy { grid-column: 1; max-width: none; align-self: start; padding-top: clamp(8px, 7vh, 84px); }
+  /* Landscape frame is cropped top/bottom here — a high Y keeps her face in the
+     upper third; the 88% X only matters on narrow-but-tall desktop windows
+     (960-1300px), where it slides the crop window right so she stays in frame. */
+  .hero-backdrop img { object-position: 88% 28%; }
   /* Two-column wash: lighter header band + a left veil under the copy column
      (the phone top-band would fog the model's face here). */
   .hero-backdrop__wash {
     background:
-      linear-gradient(180deg, rgba(238, 237, 234, 0.60) 0%, rgba(238, 237, 234, 0.20) 20%, rgba(238, 237, 234, 0) 44%),
-      linear-gradient(90deg, rgba(238, 237, 234, 0.62) 0%, rgba(238, 237, 234, 0.30) 28%, rgba(238, 237, 234, 0) 52%),
+      linear-gradient(180deg, rgba(242, 238, 231, 0.55) 0%, rgba(242, 238, 231, 0.18) 20%, rgba(242, 238, 231, 0) 44%),
+      linear-gradient(90deg, rgba(242, 238, 231, 0.55) 0%, rgba(242, 238, 231, 0.26) 28%, rgba(242, 238, 231, 0) 54%),
       linear-gradient(0deg, rgba(230, 230, 230, 0.85) 0%, rgba(230, 230, 230, 0.30) 12%, rgba(230, 230, 230, 0) 30%);
   }
 
@@ -2207,12 +2118,15 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero h1 { font-size: 64px; }
 }
 
-/* Large monitors (and Chrome zoomed out, which inflates the CSS viewport the
-   same way): scale the card fan up so the three looks keep their presence
-   against the full-bleed photo instead of shrinking into it. The 520px cap
-   still fits the right grid column at the 1240px container maximum. */
-@media (min-width: 1440px) {
-  .hero-visual { max-width: 520px; }
+/* Short desktop windows (1366x768-class, small laptops, zoomed-in browsers):
+   compress the copy's air so headline + CTAs land inside the fold — anything
+   past it hides under the sheet forever (the hero is pinned). Placed after
+   the 1200px+ headline bump so it wins the cascade. */
+@media (min-width: 960px) and (max-height: 780px) {
+  .hero { padding-bottom: 40px; }
+  .hero-copy { padding-top: clamp(4px, 3vh, 24px); }
+  .hero-copy h1 { font-size: clamp(38px, 6.4vh, 52px); }
+  .hero-text { margin-bottom: 18px; }
 }
 
 /* =========================================================

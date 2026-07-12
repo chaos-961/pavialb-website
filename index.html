@@ -53,7 +53,7 @@
        + true italics for the serif accents, Jakarta 400-700). Bodoni Moda was
        only referenced by the construction gate and now falls back to Fraunces. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=35" />
+  <link rel="stylesheet" href="css/styles.css?v=36" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -224,22 +224,27 @@
 
     <!-- ========== Hero ========== -->
     <section class="hero" data-hero>
-      <!-- Full-bleed campaign photo. The hero is position:sticky, so the shop
-           "sheet" below slides up and over it on scroll (curtain reveal); app.js
-           adds a gentle camera-push zoom + copy fade driven by the same scroll.
-           Mobile gets a tighter portrait crop of the same shot; AVIF first,
-           WebP fallback (~60-80 KB either way). Decorative -> empty alt. -->
+      <!-- Full-bleed campaign photo — the photo IS the hero (no card collage);
+           the copy sits on the empty wall left of the model. The hero is
+           position:sticky, so the shop "sheet" below slides up and over it on
+           scroll (curtain reveal); app.js adds a gentle camera-push zoom + copy
+           fade driven by the same scroll. Portrait devices get a tighter crop
+           of the same shot; AVIF first, WebP fallback (~25-55 KB each).
+           Regenerate all sizes from the master photo with
+           scripts/gen-hero-images.mjs (local-only). Decorative -> empty alt. -->
       <div class="hero-backdrop" aria-hidden="true">
         <picture>
-          <!-- 959px matches the CSS breakpoint where the hero goes two-column.
-               Below it (single-column composition) the portrait crop places the
-               model at ~62% so the copy flows on the empty wall beside her; the
-               two-column desktop gets the full landscape frame (model centered
-               between the copy and the card fan). -->
-          <source type="image/avif" media="(max-width: 959px)" srcset="assets/hero-bg-mobile.avif" />
-          <source type="image/webp" media="(max-width: 959px)" srcset="assets/hero-bg-mobile.webp" />
-          <source type="image/avif" srcset="assets/hero-bg-1920.avif" />
-          <img src="assets/hero-bg-1920.webp" alt="" fetchpriority="high" decoding="async" data-hero-bg />
+          <!-- The campaign shot places the model on the RIGHT against an empty
+               cream wall — copy lives on the wall to her left at every size.
+               Portrait phones/tablets get a tighter 4:5 crop (model at ~68% of
+               the frame); everything landscape — desktops AND rotated phones —
+               gets the full landscape frame (model at ~83%, wall left). 959px
+               matches the CSS breakpoint where the hero goes two-column. -->
+          <source type="image/avif" media="(max-width: 959px) and (orientation: portrait)" srcset="assets/hero-bg2-mobile-v2.avif" />
+          <source type="image/webp" media="(max-width: 959px) and (orientation: portrait)" srcset="assets/hero-bg2-mobile-v2.webp" />
+          <source type="image/avif" srcset="assets/hero-bg2-1920.avif 1920w, assets/hero-bg2-2560.avif 2560w" sizes="100vw" />
+          <source type="image/webp" srcset="assets/hero-bg2-1920.webp 1920w, assets/hero-bg2-2560.webp 2560w" sizes="100vw" />
+          <img src="assets/hero-bg2-1920.webp" alt="" fetchpriority="high" decoding="async" data-hero-bg />
         </picture>
         <div class="hero-backdrop__wash"></div>
       </div>
@@ -257,29 +262,6 @@
           </div>
         </div>
 
-        <div class="hero-visual reveal reveal-delay-150" data-hero-visual>
-          <div class="hero-card main" data-hero-card>
-            <img src="assets/logo.svg" alt="Pavia featured look" data-hero-image="0" />
-            <span class="hero-card__cue" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              <em>View</em>
-            </span>
-          </div>
-          <div class="hero-card float-1" data-hero-card>
-            <img src="assets/logo.svg" alt="Pavia featured look" data-hero-image="1" />
-            <span class="hero-card__cue" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              <em>View</em>
-            </span>
-          </div>
-          <div class="hero-card float-2" data-hero-card>
-            <img src="assets/logo.svg" alt="Pavia featured look" data-hero-image="2" />
-            <span class="hero-card__cue" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              <em>View</em>
-            </span>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -433,7 +415,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.4.9</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.5.0</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -563,7 +545,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=47"></script>
+  <script defer src="js/config.js?v=48"></script>
   <script defer src="js/firebase-config.js?v=12"></script>
   <script defer src="js/backend-config.js?v=18"></script>
   <script defer src="js/image-catalog.js?v=12"></script>
