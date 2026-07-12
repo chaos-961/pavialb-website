@@ -10,7 +10,7 @@
   <!-- img-src allows the imgbb image CDN (i.ibb.co) where product images are hosted. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; script-src 'self' https://www.gstatic.com https://*.firebasedatabase.app https://*.firebaseio.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://i.ibb.co; connect-src 'self' https://www.gstatic.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://cloudflareinsights.com" />
   <meta name="theme-color" content="#e6e6e6" />
-  <meta name="description" content="Pavia is modern, elegant fashion from Lebanon. Soft, easy-to-wear pieces for women, with delivery across Lebanon from Beirut." data-site-description />
+  <meta name="description" content="Pavia is modern, elegant fashion from Beirut — soft, easy-to-wear pieces for women, delivered to your door anywhere in Lebanon." data-site-description />
   <meta name="keywords" content="Pavia, Pavia Lebanon, Pavia Leb, Pavia Beirut, Pavia fashion, Pavia boutique, Pavia clothing, pavialeb, modern elegant fashion Lebanon, women's fashion Beirut, online clothing store Lebanon, fashion delivery Lebanon" />
   <meta name="author" content="Pavia" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -19,7 +19,7 @@
   <meta name="apple-mobile-web-app-title" content="Pavia" />
   <link rel="canonical" href="https://pavialeb.com/" />
   <meta property="og:title" content="Pavia · Modern Elegant Fashion" />
-  <meta property="og:description" content="Pavia is modern, elegant fashion from Lebanon. Soft, easy-to-wear pieces for women, with delivery across Lebanon from Beirut." data-site-description />
+  <meta property="og:description" content="Pavia is modern, elegant fashion from Beirut — soft, easy-to-wear pieces for women, delivered to your door anywhere in Lebanon." data-site-description />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://pavialeb.com/" />
   <meta property="og:site_name" content="Pavia" />
@@ -31,7 +31,7 @@
   <meta property="og:image:alt" content="Pavia logo" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Pavia · Modern Elegant Fashion" />
-  <meta name="twitter:description" content="Pavia is modern, elegant fashion from Lebanon. Soft, easy-to-wear pieces for women, with delivery across Lebanon from Beirut." data-site-description />
+  <meta name="twitter:description" content="Pavia is modern, elegant fashion from Beirut — soft, easy-to-wear pieces for women, delivered to your door anywhere in Lebanon." data-site-description />
   <meta name="twitter:image" content="https://pavialeb.com/assets/icon-512.png" />
   <meta name="format-detection" content="telephone=no" />
   <title>Pavia</title>
@@ -53,7 +53,7 @@
        + true italics for the serif accents, Jakarta 400-700). Bodoni Moda was
        only referenced by the construction gate and now falls back to Fraunces. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=37" />
+  <link rel="stylesheet" href="css/styles.css?v=38" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -250,9 +250,9 @@
       </div>
       <div class="container hero-grid">
         <div class="hero-copy reveal">
-          <p class="eyebrow"><span data-site-location>Beirut</span> · <span data-delivery-area>Lebanon</span> delivery</p>
-          <h1 data-hero-headline>Modern <em>elegance,</em> curated for every day.</h1>
-          <p class="hero-text" data-site-description>Pavia is modern, elegant fashion from Lebanon. Soft, easy-to-wear pieces for women, with delivery across Lebanon from Beirut.</p>
+          <p class="eyebrow">Womenswear · <span data-site-location>Beirut</span> · Delivery across <span data-delivery-area>Lebanon</span></p>
+          <h1 data-hero-headline>Effortless <em>elegance,</em> every single day.</h1>
+          <p class="hero-text" data-site-description>Pavia is modern, elegant fashion from Beirut — soft, easy-to-wear pieces for women, delivered to your door anywhere in Lebanon.</p>
           <div class="hero-actions">
             <a class="btn btn-primary btn-lg" href="#shop">Shop the collection</a>
             <a class="btn btn-ghost" href="https://wa.me/9613017725" target="_blank" rel="noreferrer" data-whatsapp-link>
@@ -274,7 +274,9 @@
     <!-- ========== SHOP — the centerpiece (directly under the hero) ========== -->
     <section id="shop" class="shop-section">
       <div class="container">
-        <div class="shop-header reveal">
+        <!-- No .reveal here: the title is scroll-SCRUBBED instead (CSS view
+             timeline) — it rises with the scroll position itself, reversibly. -->
+        <div class="shop-header">
           <h2 class="shop-title">Our Collection</h2>
         </div>
 
@@ -415,7 +417,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.5.1</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.5.2</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -545,7 +547,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=49"></script>
+  <script defer src="js/config.js?v=50"></script>
   <script defer src="js/firebase-config.js?v=12"></script>
   <script defer src="js/backend-config.js?v=18"></script>
   <script defer src="js/image-catalog.js?v=12"></script>
@@ -554,6 +556,6 @@
   <script defer src="js/backend.js?v=21"></script>
   <script defer src="js/backend-firebase.js?v=37"></script>
   <script defer src="js/products.js?v=12"></script>
-  <script defer src="js/app.js?v=39"></script>
+  <script defer src="js/app.js?v=40"></script>
 </body>
 </html>

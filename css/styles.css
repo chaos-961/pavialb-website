@@ -289,7 +289,21 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .hero-copy h1 {
   margin: 8px 0 18px;
   font-style: normal;
+  text-wrap: balance; /* even two-line breaks at every size (progressive) */
 }
+/* Entrance: the copy cascades up once on first paint — pure CSS, so it never
+   waits on scripts. `backwards` fill (not `both`) matters: once each line has
+   landed, the animation releases the transform so the scroll parallax that
+   app.js writes inline can take over seamlessly. */
+@keyframes heroRise {
+  from { opacity: 0; transform: translateY(24px); }
+}
+/* Delays sit just past the splash's minimum visible window (500ms + fade), so
+   the cascade's landing is what greets the visitor as the splash lifts. */
+.hero-copy .eyebrow      { animation: heroRise 0.7s  var(--ease-out) 0.35s backwards; }
+.hero-copy h1            { animation: heroRise 0.85s var(--ease-out) 0.45s backwards; }
+.hero-copy .hero-text    { animation: heroRise 0.85s var(--ease-out) 0.56s backwards; }
+.hero-copy .hero-actions { animation: heroRise 0.85s var(--ease-out) 0.67s backwards; }
 .hero-copy h1 em {
   font-style: italic;
   font-weight: 300;
@@ -388,14 +402,38 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .reveal-delay-100 { transition-delay: 0.1s; }
 .reveal-delay-120 { transition-delay: 0.12s; }
 .reveal-delay-150 { transition-delay: 0.15s; }
+
+/* Scroll-SCRUBBED section intros (CSS view timeline): unlike .reveal, these
+   track the scroll position itself — the title rises/settles as it crosses the
+   lower viewport, and reverses when you scroll back. Native and compositor-
+   friendly (transform/opacity only, no JS). Browsers without view() support
+   simply skip it (elements stay visible), and reduced-motion never enters. */
+@keyframes scrollRise {
+  from { opacity: 0; transform: translateY(36px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .shop-title,
+    .section-header .eyebrow,
+    .section-title-compact {
+      animation: scrollRise linear both;
+      animation-timeline: view();
+      animation-range: entry 20% entry 75%;
+    }
+  }
+}
 /* Hero is above the fold — paint it immediately so first paint is fast and never
    waits for scripts. Below-the-fold .reveal items still animate in on scroll. */
 .hero .reveal { opacity: 1; transform: none; transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none; }
-  /* Suppress decorative motion across the storefront for reduced-motion users. */
+  /* Suppress decorative motion across the storefront for reduced-motion users.
+     animation-delay too — a delayed entrance keyframe with `backwards` fill
+     would otherwise hold elements invisible for the delay's length. */
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;

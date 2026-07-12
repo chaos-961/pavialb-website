@@ -971,6 +971,14 @@
     // rAF-batched, direction-agnostic (derived from scrollY), disabled for
     // reduced motion — the sticky reveal itself still works without it.
     const heroCopy = $('.hero-copy');
+    // Depth: each copy layer drifts up at its own rate while the sheet rises,
+    // so the block separates like planes in a camera move instead of sliding
+    // as one flat card. Rates fall with visual weight (eyebrow fastest).
+    const heroLayers = heroCopy
+      ? [['.eyebrow', -0.26], ['h1', -0.2], ['.hero-text', -0.15], ['.hero-actions', -0.1]]
+          .map(([sel, rate]) => [$(sel, heroCopy), rate])
+          .filter(([el]) => el)
+      : [];
     const heroVisual = $('[data-hero-visual]');
     const heroEl = $('[data-hero]');
     const heroBg = $('[data-hero-bg]');
@@ -1001,8 +1009,10 @@
       const p = Math.min(1, y / (heroH * 0.85)); // 0 at top -> 1 when ~covered
       if (heroBg) heroBg.style.transform = `scale(${(1 + p * 0.08).toFixed(4)})`;
       if (heroCopy) {
-        heroCopy.style.transform = `translate3d(0, ${(y * -0.18).toFixed(1)}px, 0)`;
         heroCopy.style.opacity = Math.max(0, 1 - p * 1.35).toFixed(3);
+        for (const [el, rate] of heroLayers) {
+          el.style.transform = `translate3d(0, ${(y * rate).toFixed(1)}px, 0)`;
+        }
       }
       if (heroVisual) {
         heroVisual.style.transform = `translate3d(0, ${(y * -0.08).toFixed(1)}px, 0)`;
