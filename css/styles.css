@@ -2075,11 +2075,20 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
      intentionally empty — the photo carries it. */
   .hero { padding: 28px 0 52px; }
   .hero-grid {
-    grid-template-columns: minmax(0, 620px) 1fr;
+    grid-template-columns: minmax(0, 700px) 1fr;
     gap: 48px;
     align-items: start;
   }
   .hero-copy { grid-column: 1; max-width: none; align-self: start; padding-top: clamp(8px, 7vh, 84px); }
+  /* With the fold to itself, the copy scales up into a statement — the empty
+     wall left of the model is the headline's canvas. vw-driven with caps so
+     it grows with the screen but never crowds her (column caps at 700px). */
+  .hero .eyebrow { font-size: 13px; letter-spacing: 0.24em; margin-bottom: 16px; }
+  .hero-copy h1 { font-size: clamp(50px, 4.4vw, 78px); margin: 10px 0 24px; }
+  .hero-text { font-size: clamp(17px, 1.3vw, 20px); max-width: 580px; margin-bottom: 32px; }
+  .hero-actions { gap: 12px; }
+  .hero-actions .btn { min-height: 58px; padding: 0 30px; font-size: 15.5px; }
+  .hero-actions .btn-lg { min-height: 62px; padding: 0 34px; font-size: 16px; }
   /* Landscape frame is cropped top/bottom here — a high Y keeps her face in the
      upper third; the 88% X only matters on narrow-but-tall desktop windows
      (960-1300px), where it slides the crop window right so she stays in frame. */
@@ -2114,19 +2123,15 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .modal-meta { gap: 4px; padding-top: 8px; font-size: 11px; }
 }
 
-@media (min-width: 1200px) {
-  .hero h1 { font-size: 64px; }
-}
-
 /* Short desktop windows (1366x768-class, small laptops, zoomed-in browsers):
    compress the copy's air so headline + CTAs land inside the fold — anything
-   past it hides under the sheet forever (the hero is pinned). Placed after
-   the 1200px+ headline bump so it wins the cascade. */
+   past it hides under the sheet forever (the hero is pinned). Height-driven
+   headline so it stays as large as the fold allows. */
 @media (min-width: 960px) and (max-height: 780px) {
   .hero { padding-bottom: 40px; }
   .hero-copy { padding-top: clamp(4px, 3vh, 24px); }
-  .hero-copy h1 { font-size: clamp(38px, 6.4vh, 52px); }
-  .hero-text { margin-bottom: 18px; }
+  .hero-copy h1 { font-size: clamp(42px, 9.4vh, 62px); }
+  .hero-text { margin-bottom: 22px; }
 }
 
 /* =========================================================
