@@ -1,5 +1,5 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v82';
+const CACHE = 'pavia-v83';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const IMAGE_CACHE_MAX = 120;
 
@@ -18,7 +18,7 @@ const ASSETS = [
   './favicon.ico',
   './js/splash.js?v=1',
   './js/construction-gate.js?v=3',
-  './js/config.js?v=51',
+  './js/config.js?v=52',
   './js/firebase-config.js?v=12',
   './js/backend-config.js?v=18',
   './js/image-catalog.js?v=12',
