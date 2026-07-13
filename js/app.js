@@ -271,15 +271,46 @@
     return html.raw(`class="lazy-img" data-src="${esc(safeImg(realSrc))}"`);
   }
 
-  // Resolve the modal gallery (main + extra images) through the imageVersion-keyed
-  // cache. Called on modal OPEN so gallery images are only fetched then.
-  async function resolveGalleryUrls(product) {
-    const urls = [product.image];
-    const extra = Array.isArray(product.gallery) ? product.gallery : [];
+  // Normalize a product's stored gallery into ordered {imageUrl, storageKey,
+  // imageVersion} entries (drops blanks/dupes). Shared by the sync and async paths.
+  function galleryEntries(product) {
+    const extra = Array.isArray(product?.gallery) ? product.gallery : [];
+    const out = [];
+    const seen = new Set();
     for (const raw of extra) {
       const entry = CORE.normalizeGalleryEntry ? CORE.normalizeGalleryEntry(raw)
         : (raw && typeof raw === 'object' ? raw : { imageUrl: String(raw || '') });
-      if (!entry || !entry.imageUrl) continue;
+      if (!entry || !entry.imageUrl || seen.has(entry.imageUrl)) continue;
+      seen.add(entry.imageUrl);
+      out.push(entry);
+    }
+    return out;
+  }
+
+  // Build the modal gallery URLs SYNCHRONOUSLY, with no network/IndexedDB wait.
+  // Extra images are hosted https URLs already, so the strip can render the
+  // instant the modal opens — it must never depend on an async resolve that can
+  // be slow (CDN) or fail (this was why extra images sometimes didn't appear).
+  // Hosted URLs get the same ?pv=<version> cache-buster the async path would add;
+  // legacy local-media: entries are left for resolveGalleryUrls to upgrade.
+  function galleryUrlsSync(product) {
+    const urls = [product.image];
+    for (const entry of galleryEntries(product)) {
+      let url = entry.imageUrl;
+      if (entry.imageVersion && !/^local-media:/i.test(url)) {
+        url += (url.includes('?') ? '&' : '?') + `pv=${encodeURIComponent(entry.imageVersion)}`;
+      }
+      urls.push(url);
+    }
+    return [...new Set(urls.filter(Boolean))];
+  }
+
+  // Resolve the modal gallery (main + extra images) through the imageVersion-keyed
+  // cache. Refines galleryUrlsSync() after open (warms the cache, upgrades any
+  // legacy local-media: entries to blob URLs). Never gates the strip's visibility.
+  async function resolveGalleryUrls(product) {
+    const urls = [product.image];
+    for (const entry of galleryEntries(product)) {
       const key = CORE.imageCacheKey
         ? CORE.imageCacheKey({ storageKey: entry.storageKey, image: entry.imageUrl, imageVersion: entry.imageVersion })
         : '';
@@ -1769,7 +1800,10 @@
     selectedColor = (p.colors[0] && p.colors[0].name) || '';
     selectedQty = 1;
     stopGalleryAutoplay();
-    modalGallery = [p.image];
+    // Build the strip SYNCHRONOUSLY so the extra images are visible the instant
+    // the modal opens — no dependency on the async resolve below (which can be
+    // slow on a cold CDN or fail on IndexedDB, the bug that hid the strip).
+    modalGallery = galleryUrlsSync(p);
     selectedImage = p.image;
     lastFocusedElement = document.activeElement;
     addToRecent(id);
@@ -1781,6 +1815,7 @@
       n.modal.setAttribute('aria-hidden', 'false');
       if (!modalWasOpen) lockBodyScroll();
       syncBackgroundInert();
+      startGalleryAutoplay();
       requestAnimationFrame(() => $('[data-modal-add]', n.modalContent)?.focus());
     };
 
@@ -1806,18 +1841,24 @@
       revealModal();
     }
 
-    // Resolve gallery images only now (modal open) — keeps Drive requests off the grid.
+    // Refine the already-visible strip: warm the resolved-URL cache and upgrade
+    // any legacy local-media: entries to blob URLs. The strip is already showing
+    // from galleryUrlsSync(), so this only re-renders if the resolved set truly
+    // differs — and it never hides the strip if it fails.
     try {
       const urls = await resolveGalleryUrls(p);
-      // Guard against a late resolve after the modal was closed (or a different
-      // product opened): only patch in the gallery if this product is still shown.
-      if (modalProduct === p && n.modal.classList.contains('is-open') && urls.length > 1) {
+      const changed = urls.length !== modalGallery.length
+        || urls.some((u, i) => u !== modalGallery[i]);
+      if (modalProduct === p && n.modal.classList.contains('is-open') && urls.length > 1 && changed) {
+        // Preserve which image the shopper is looking at across the swap.
+        const prevIndex = Math.max(0, modalGallery.indexOf(selectedImage));
         modalGallery = urls;
+        selectedImage = urls[Math.min(prevIndex, urls.length - 1)] || urls[0];
         renderProductModal();
         startGalleryAutoplay();
       }
     } catch (error) {
-      /* gallery is best-effort; main image already shows */
+      /* strip already shows from galleryUrlsSync(); refinement is best-effort */
     }
   }
 
