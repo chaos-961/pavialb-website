@@ -1057,7 +1057,7 @@
       const p = Math.min(1, y / (heroH * 0.85)); // 0 at top -> 1 when ~covered
       if (heroBg) heroBg.style.transform = `scale(${(1 + p * 0.08).toFixed(4)})`;
       if (heroCopy) {
-        heroCopy.style.opacity = Math.max(0, 1 - p * 1.35).toFixed(3);
+        heroCopy.style.opacity = Math.max(0, 1 - p * 0.8).toFixed(3);
         for (const [el, rate] of heroLayers) {
           el.style.transform = `translate3d(0, ${(y * rate).toFixed(1)}px, 0)`;
         }

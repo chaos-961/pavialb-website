@@ -255,7 +255,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
      the source fills the height exactly (no vertical crop) and Y is simply a
      no-op — she stays put, never worse. The desktop landscape frame overrides
      both at >=960px. */
-  object-position: 61% 62%;
+  object-position: 52% 72%;
   transform-origin: 50% 30%;
   will-change: transform;
   /* Slow "settle" zoom on first paint — the frame eases from a hair over-scaled
@@ -293,7 +293,7 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 /* Copy hugs the clear wall left of the model; her raised hands reach ~62% of a
    phone screen, so the column stays narrower than that (left veil in the wash
    backs it up where a long headline word grazes her sleeve). */
-.hero-copy { position: relative; z-index: 2; max-width: min(560px, 58vw); }
+.hero-copy { position: relative; z-index: 2; max-width: min(560px, 58vw); display: flex; flex-direction: column; align-self: stretch; }
 /* Ghost CTA gets a faint paper fill here so its label never fights the photo. */
 .hero .btn-ghost { background: rgba(250, 250, 250, 0.55); }
 .hero .btn-ghost:hover { background: var(--ink); }
@@ -354,6 +354,13 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .hero-actions {
   display: flex; gap: 10px; flex-wrap: wrap;
+  /* Pinned to the bottom of the copy column: with the column stretched to the
+     full hero height, `margin-top:auto` drops the CTAs to the lower-left of the
+     fold so they always sit inside the pinned first screen (never clipped under
+     the rising sheet). On desktop the column is `align-self:center`, so it hugs
+     its content height and this auto-margin collapses — CTAs sit under the copy
+     exactly as before. */
+  margin-top: auto;
 }
 /* =========================================================
    Buttons
