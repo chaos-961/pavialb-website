@@ -538,7 +538,15 @@
     if (scrollLockCount === 0) {
       document.body.classList.remove('scroll-locked');
       document.body.style.top = '';
+      // Restore INSTANTLY. html has scroll-behavior:smooth, so a plain scrollTo
+      // here animates 0 -> lockedScrollY on every overlay close (the page flashes
+      // at the top, then visibly glides back down). Suspend smooth scrolling for
+      // this one programmatic restore, then put it back.
+      const root = document.documentElement;
+      const previousBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
       window.scrollTo(0, lockedScrollY);
+      root.style.scrollBehavior = previousBehavior;
     }
   }
   // While any overlay is open, mark the page chrome `inert` so screen-reader and
@@ -2051,7 +2059,7 @@
     syncBackgroundInert();
     clearProductUrl();
     clearProductJsonLd();
-    lastFocusedElement?.focus?.();
+    lastFocusedElement?.focus?.({ preventScroll: true });
     // Release the open-product reference so a late gallery resolve can't re-render
     // a closed modal and fire Drive image requests for it.
     stopGalleryAutoplay();
@@ -2303,7 +2311,7 @@
     d.setAttribute('aria-hidden', 'true');
     if (wasOpen) unlockBodyScroll();
     syncBackgroundInert();
-    if (wasOpen) lastDrawerFocus?.focus?.();
+    if (wasOpen) lastDrawerFocus?.focus?.({ preventScroll: true });
   }
 
   // ---------- Checkout ----------
@@ -2339,7 +2347,7 @@
     n.checkoutModal.setAttribute('aria-hidden', 'true');
     unlockBodyScroll();
     syncBackgroundInert();
-    lastFocusedElement?.focus?.();
+    lastFocusedElement?.focus?.({ preventScroll: true });
   }
 
   function renderCheckoutSummary() {
