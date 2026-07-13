@@ -246,16 +246,23 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .hero-backdrop img {
   object-fit: cover;
-  /* Mobile-first crop position. The portrait crop carries the model at ~68% of
-     its width and fakes ~21% of extra wall above the frame, dropping her head
-     to ~36% of the crop. A high X slides the window right so she sits around
-     the 60% line of a phone screen — whole silhouette in frame, face clear —
-     and a low Y crops dead floor at the bottom rather than wall at the top,
-     which is exactly where the copy lives (headline finishes ABOVE her face).
-     The desktop landscape frame overrides both at >=960px. */
-  object-position: 76% 10%;
+  /* Mobile-first crop position. Nudged 15% toward the frame's LEFT wall and 10%
+     up from the previous 76%/10%: a lower X reveals more of the empty wall on the
+     left (more breathing room for the copy) and a higher Y lifts the crop so the
+     model's silhouette sits higher on the phone screen with dead floor cropped at
+     the bottom. The desktop landscape frame overrides both at >=960px. */
+  object-position: 61% 20%;
   transform-origin: 50% 30%;
   will-change: transform;
+  /* Slow "settle" zoom on first paint — the frame eases from a hair over-scaled
+     to rest, a quiet cinematic open. Transform-only (no opacity) so it never
+     delays LCP, and app.js's scroll zoom writes an inline transform that simply
+     takes over once the visitor starts scrolling. */
+  animation: heroImgSettle 2s var(--ease-out) both;
+}
+@keyframes heroImgSettle {
+  from { transform: scale(1.06); }
+  to   { transform: scale(1); }
 }
 /* Paper-tone washes over the photo: the top band keeps the header + headline
    legible, the bottom band melts the photo into the sheet seam. Overlay only —
@@ -286,28 +293,55 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 /* Ghost CTA gets a faint paper fill here so its label never fights the photo. */
 .hero .btn-ghost { background: rgba(250, 250, 250, 0.55); }
 .hero .btn-ghost:hover { background: var(--ink); }
+/* The primary CTA carries a soft shadow so it reads as a solid object lifted
+   off the campaign photo, and deepens on hover. */
+.hero .btn-primary { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16); }
+.hero .btn-primary:hover { box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22); }
 .hero-copy h1 {
   margin: 8px 0 18px;
   font-style: normal;
   text-wrap: balance; /* even two-line breaks at every size (progressive) */
 }
 /* Entrance: the copy cascades up once on first paint — pure CSS, so it never
-   waits on scripts. `backwards` fill (not `both`) matters: once each line has
-   landed, the animation releases the transform so the scroll parallax that
+   waits on scripts. Each line rises and lifts out of a soft blur (a gentle
+   editorial focus-pull). `backwards` fill (not `both`) matters: once each line
+   has landed, the animation releases the transform so the scroll parallax that
    app.js writes inline can take over seamlessly. */
 @keyframes heroRise {
-  from { opacity: 0; transform: translateY(24px); }
+  from { opacity: 0; transform: translateY(26px); filter: blur(6px); }
 }
 /* Delays sit just past the splash's minimum visible window (500ms + fade), so
-   the cascade's landing is what greets the visitor as the splash lifts. */
-.hero-copy .eyebrow      { animation: heroRise 0.7s  var(--ease-out) 0.35s backwards; }
-.hero-copy h1            { animation: heroRise 0.85s var(--ease-out) 0.45s backwards; }
-.hero-copy .hero-text    { animation: heroRise 0.85s var(--ease-out) 0.56s backwards; }
-.hero-copy .hero-actions { animation: heroRise 0.85s var(--ease-out) 0.67s backwards; }
+   the cascade's landing is what greets the visitor as the splash lifts. A hair
+   more spacing between lines than before makes the stagger read as deliberate. */
+.hero-copy .eyebrow      { animation: heroRise 0.75s var(--ease-out) 0.35s backwards; }
+.hero-copy h1            { animation: heroRise 0.9s  var(--ease-out) 0.48s backwards; }
+.hero-copy .hero-text    { animation: heroRise 0.9s  var(--ease-out) 0.62s backwards; }
+.hero-copy .hero-actions { animation: heroRise 0.9s  var(--ease-out) 0.76s backwards; }
 .hero-copy h1 em {
   font-style: italic;
   font-weight: 300;
   color: var(--cocoa);
+  /* The accent word "blooms" from a soft tone into its deep cocoa just after the
+     headline lands — a quiet emphasis, no transform (so it never fights the
+     headline's rise or the scroll parallax). */
+  animation: heroEmBloom 1.1s var(--ease-out) 1s both;
+}
+@keyframes heroEmBloom {
+  from { color: var(--muted-soft); }
+  to   { color: var(--cocoa); }
+}
+/* A short editorial rule leads the eyebrow — scoped to the hero so the shop and
+   visit eyebrows keep their plain form. Kept as an inline pseudo (not flex + gap,
+   which would scatter the eyebrow's own words) so the label text flows normally. */
+.hero .eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 26px;
+  height: 1px;
+  vertical-align: middle;
+  margin-right: 12px;
+  background: currentColor;
+  opacity: 0.55;
 }
 .hero-text {
   font-size: 16px;
@@ -1505,19 +1539,40 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 .modal-media { display: flex; flex-direction: column; min-width: 0; }
 /* Thumbnail strip under the quick-view hero. Tap a thumb to swap the main
    image; the strip also auto-rotates every 3s (paused 15s after any manual
-   pick — see gallery auto-rotation in app.js). */
+   pick — see gallery auto-rotation in app.js). The wrap positions the scroll
+   arrows over the strip's edges; the strip itself sits on a transparent
+   background so the thumbnails read as cards floating on the modal paper. */
+.modal-gallery-wrap { position: relative; }
 .modal-gallery {
   display: flex;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 16px 16px 18px;
   overflow-x: auto;
-  background: var(--paper);
-  border-top: 1px solid var(--line);
-  scrollbar-width: thin;
+  overflow-y: hidden;            /* keep thumbnail shadows from spawning a v-scrollbar */
+  background: transparent;
+  scroll-behavior: smooth;
+  scroll-padding-inline: 36px;   /* keep the active thumb clear of the edge fade */
+  scrollbar-width: none;         /* arrows + edge fade replace the raw scrollbar */
+}
+.modal-gallery::-webkit-scrollbar { display: none; }
+/* Soft-fade whichever edge still has thumbnails hidden past it, so the strip
+   "wraps" gracefully instead of hard-cutting a thumbnail in half. Classes are
+   toggled by setupGalleryNav() in app.js from the live scroll position. */
+.modal-gallery-wrap.can-left.can-right .modal-gallery {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+}
+.modal-gallery-wrap.can-right:not(.can-left) .modal-gallery {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent 100%);
+          mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent 100%);
+}
+.modal-gallery-wrap.can-left:not(.can-right) .modal-gallery {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 40px);
+          mask-image: linear-gradient(90deg, transparent 0, #000 40px);
 }
 .modal-gallery button {
-  width: 58px;
-  height: 72px;
+  width: 60px;
+  height: 76px;
   border-radius: var(--r-sm);
   overflow: hidden;
   border: 1px solid var(--line);
@@ -1525,13 +1580,18 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   background: var(--cream);
   flex: 0 0 auto;
   cursor: pointer;
-  opacity: 0.72;
+  opacity: 0.8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   transition: opacity 0.25s var(--ease-out), border-color 0.25s var(--ease-out), transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
 }
-.modal-gallery button:hover { opacity: 1; transform: translateY(-1px); }
+.modal-gallery button:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
 .modal-gallery button.is-selected {
   border-color: var(--ink);
-  box-shadow: 0 0 0 1px var(--ink);
+  box-shadow: 0 0 0 2px var(--ink), 0 4px 12px rgba(0, 0, 0, 0.16);
   opacity: 1;
 }
 .modal-gallery img {
@@ -1539,6 +1599,37 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   height: 100%;
   object-fit: cover;
   display: block;
+}
+/* Scroll arrows — hidden by default, revealed on the side that can still scroll. */
+.gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 0;
+  background: rgba(250, 250, 250, 0.94);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition: background 0.2s var(--ease-out), border-color 0.2s var(--ease-out), transform 0.15s var(--ease-out);
+}
+.gallery-nav svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.gallery-nav-prev { left: 6px; }
+.gallery-nav-next { right: 6px; }
+.gallery-nav:hover { background: var(--paper); border-color: var(--ink-soft); }
+.gallery-nav:active { transform: translateY(-50%) scale(0.9); }
+.gallery-nav:focus-visible { outline: 2px solid var(--cocoa); outline-offset: 2px; }
+.modal-gallery-wrap.can-left .gallery-nav-prev { display: inline-flex; }
+.modal-gallery-wrap.can-right .gallery-nav-next { display: inline-flex; }
+@media (prefers-reduced-motion: reduce) {
+  .modal-gallery { scroll-behavior: auto; }
 }
 /* Soft crossfade when the hero swaps (thumbnail tap, swipe, or auto-rotate). */
 .modal-product .image-wrap img[data-modal-zoom].is-swapping { animation: hero-swap 0.45s var(--ease-out); }

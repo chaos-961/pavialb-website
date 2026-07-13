@@ -53,7 +53,7 @@
        + true italics for the serif accents, Jakarta 400-700). Bodoni Moda was
        only referenced by the construction gate and now falls back to Fraunces. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=39" />
+  <link rel="stylesheet" href="css/styles.css?v=40" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -250,9 +250,13 @@
       </div>
       <div class="container hero-grid">
         <div class="hero-copy reveal">
-          <p class="eyebrow">Womenswear · <span data-site-location>Beirut</span> · Delivery across <span data-delivery-area>Lebanon</span></p>
-          <h1 data-hero-headline>Effortless <em>elegance,</em> every single day.</h1>
-          <p class="hero-text" data-site-description>Pavia is modern, elegant fashion from Beirut — soft, easy-to-wear pieces for women, delivered to your door anywhere in Lebanon.</p>
+          <p class="eyebrow">Womenswear · <span data-site-location>Beirut</span> · Delivered across <span data-delivery-area>Lebanon</span></p>
+          <h1 data-hero-headline>Elegance, made <em>effortless.</em></h1>
+          <!-- Hero paragraph is intentionally NOT bound to data-site-description:
+               that binding lets config.description (the SEO copy) overwrite it at
+               runtime. This is the designed hero line; the SEO description still
+               lives untouched in the <meta> tags. Location/delivery still bind. -->
+          <p class="hero-text">Modern, easy-to-wear pieces in soft tailoring, ruffles and quiet neutrals — from <span data-site-location>Beirut</span>, delivered to your door across <span data-delivery-area>Lebanon</span>.</p>
           <div class="hero-actions">
             <a class="btn btn-primary btn-lg" href="#shop">Shop the collection</a>
             <a class="btn btn-ghost" href="https://wa.me/9613017725" target="_blank" rel="noreferrer" data-whatsapp-link>
@@ -417,7 +421,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.5.6</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.5.7</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -547,7 +551,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=52"></script>
+  <script defer src="js/config.js?v=53"></script>
   <script defer src="js/firebase-config.js?v=12"></script>
   <script defer src="js/backend-config.js?v=18"></script>
   <script defer src="js/image-catalog.js?v=12"></script>
@@ -556,6 +560,6 @@
   <script defer src="js/backend.js?v=21"></script>
   <script defer src="js/backend-firebase.js?v=37"></script>
   <script defer src="js/products.js?v=12"></script>
-  <script defer src="js/app.js?v=43"></script>
+  <script defer src="js/app.js?v=44"></script>
 </body>
 </html>

@@ -1898,7 +1898,7 @@
       const selected = b.dataset.gallerySrc === url;
       b.classList.toggle('is-selected', selected);
       // Keep the active thumbnail in view while the gallery rotates.
-      if (selected) b.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+      if (selected) b.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     });
     const counter = $('[data-gallery-counter]', n.modalContent);
     if (counter) {
@@ -1923,6 +1923,7 @@
   const GALLERY_RESUME_MS = 15000;
   let galleryTimer = null;
   let galleryResumeTimer = null;
+  let galleryNavObserver = null;  // watches the strip's size to re-evaluate arrows
   function stopGalleryAutoplay() {
     if (galleryTimer) { clearInterval(galleryTimer); galleryTimer = null; }
     if (galleryResumeTimer) { clearTimeout(galleryResumeTimer); galleryResumeTimer = null; }
@@ -1944,6 +1945,53 @@
     galleryResumeTimer = setTimeout(startGalleryAutoplay, GALLERY_RESUME_MS);
   }
 
+  // ---------- Gallery scroll affordances (edge fade + arrows) ----------
+  // When the thumbnail strip overflows, fade its edges and reveal a chevron on
+  // whichever side has more to show. Purely presentational — the strip is always
+  // scrollable by touch/trackpad; the arrows are an added affordance for mouse.
+  function teardownGalleryNav() {
+    if (galleryNavObserver) { galleryNavObserver.disconnect(); galleryNavObserver = null; }
+  }
+  function setupGalleryNav() {
+    teardownGalleryNav();
+    const wrap = $('[data-gallery-wrap]', n.modalContent);
+    const strip = wrap && $('[data-gallery-strip]', wrap);
+    if (!wrap || !strip) return;
+
+    let rafId = 0;
+    const refresh = () => {
+      rafId = 0;
+      // 2px slack so sub-pixel widths don't leave an arrow stuck on at an end.
+      const max = strip.scrollWidth - strip.clientWidth;
+      const atStart = strip.scrollLeft <= 2;
+      const atEnd = strip.scrollLeft >= max - 2;
+      const overflowing = max > 2;
+      wrap.classList.toggle('can-left', overflowing && !atStart);
+      wrap.classList.toggle('can-right', overflowing && !atEnd);
+    };
+    const schedule = () => { if (!rafId) rafId = requestAnimationFrame(refresh); };
+
+    strip.addEventListener('scroll', schedule, { passive: true });
+    $$('[data-gallery-nav]', wrap).forEach((btn) => {
+      btn.addEventListener('click', () => {
+        // Page by ~80% of the visible width, clamped so a nudge always moves.
+        const amount = Math.max(120, Math.round(strip.clientWidth * 0.8));
+        const dir = btn.dataset.galleryNav === 'prev' ? -1 : 1;
+        strip.scrollBy({ left: dir * amount, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+        pauseGalleryAutoplay(); // a manual scroll counts as interaction
+      });
+    });
+
+    if ('ResizeObserver' in window) {
+      galleryNavObserver = new ResizeObserver(schedule);
+      galleryNavObserver.observe(strip);
+    }
+    // Set the initial arrow/fade state synchronously. Thumbnails are fixed-width
+    // (CSS), so scrollWidth is already correct here — no need to wait on images
+    // or a rAF (which is paused entirely in a backgrounded tab).
+    refresh();
+  }
+
   function renderProductModal() {
     const p = modalProduct;
     const colors = (p.colors || []).map(colorObj);
@@ -1960,12 +2008,20 @@
             ${gallery.length > 1 ? html`<div class="modal-counter" data-gallery-counter>${gallery.indexOf(selectedImage) + 1} / ${gallery.length}</div>` : ''}
           </div>
           ${gallery.length > 1 ? html`
-            <div class="modal-gallery" aria-label="Product images">
-              ${gallery.map((src, index) => html`
-                <button type="button" class="${src === selectedImage ? 'is-selected' : ''}" data-gallery-src="${safeImg(src)}" aria-label="View image ${index + 1}">
-                  <img ${lazyImgAttrs(src, `${p.id}-${index}`)} alt="" width="64" height="80" decoding="async" />
-                </button>
-              `)}
+            <div class="modal-gallery-wrap" data-gallery-wrap>
+              <button type="button" class="gallery-nav gallery-nav-prev" data-gallery-nav="prev" aria-label="Scroll to previous images" tabindex="-1">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+              </button>
+              <div class="modal-gallery" role="group" aria-label="Product images" data-gallery-strip>
+                ${gallery.map((src, index) => html`
+                  <button type="button" class="${src === selectedImage ? 'is-selected' : ''}" data-gallery-src="${safeImg(src)}" aria-label="View image ${index + 1}">
+                    <img ${lazyImgAttrs(src, `${p.id}-${index}`)} alt="" width="64" height="80" decoding="async" />
+                  </button>
+                `)}
+              </div>
+              <button type="button" class="gallery-nav gallery-nav-next" data-gallery-nav="next" aria-label="Scroll to more images" tabindex="-1">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+              </button>
             </div>
           ` : ''}
         </div>
@@ -2059,6 +2115,7 @@
       selectGalleryImage(b.dataset.gallerySrc);
       pauseGalleryAutoplay();
     }));
+    setupGalleryNav();
     // Swipe the hero image left/right to page through the gallery (touch).
     const imageWrap = $('.image-wrap', n.modalContent);
     if (imageWrap && modalGallery.length > 1) {
@@ -2104,6 +2161,7 @@
     // Release the open-product reference so a late gallery resolve can't re-render
     // a closed modal and fire Drive image requests for it.
     stopGalleryAutoplay();
+    teardownGalleryNav();
     modalProduct = null;
     modalGallery = [];
   }
