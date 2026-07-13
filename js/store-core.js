@@ -110,7 +110,8 @@
   // ordered gallery of additional images. Each gallery entry carries its own
   // storageKey (image host id) + imageVersion so it caches and busts
   // independently of the main. Legacy records may still say driveFileId.
-  const MAX_GALLERY = 12;
+  // Capped at 6 EXTRA images per product (the main image is separate).
+  const MAX_GALLERY = 6;
   function normalizeGalleryEntry(entry) {
     if (!entry) return null;
     if (typeof entry === 'string') {

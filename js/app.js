@@ -1103,8 +1103,8 @@
       }
       // Arrow keys page through the gallery while the quick-view is open.
       if (n.modal?.classList.contains('is-open') && modalGallery.length > 1) {
-        if (e.key === 'ArrowRight') { e.preventDefault(); stepGallery(1); }
-        else if (e.key === 'ArrowLeft') { e.preventDefault(); stepGallery(-1); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); stepGallery(1); pauseGalleryAutoplay(); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); stepGallery(-1); pauseGalleryAutoplay(); }
       }
       trapFocus(e, n.modal);
       trapFocus(e, n.checkoutModal);
@@ -1760,6 +1760,7 @@
     selectedSize = p.sizes[0] || '';
     selectedColor = (p.colors[0] && p.colors[0].name) || '';
     selectedQty = 1;
+    stopGalleryAutoplay();
     modalGallery = [p.image];
     selectedImage = p.image;
     lastFocusedElement = document.activeElement;
@@ -1805,6 +1806,7 @@
       if (modalProduct === p && n.modal.classList.contains('is-open') && urls.length > 1) {
         modalGallery = urls;
         renderProductModal();
+        startGalleryAutoplay();
       }
     } catch (error) {
       /* gallery is best-effort; main image already shows */
@@ -1833,11 +1835,21 @@
     if (heroImg) {
       heroImg.classList.remove('is-zoomed');
       heroImg.style.transformOrigin = '';
+      // Soft crossfade on every swap (thumbnail tap, swipe, or auto-rotate) so
+      // the hero never pops. Class removal + reflow restarts the animation.
+      if (!prefersReducedMotion()) {
+        heroImg.classList.remove('is-swapping');
+        void heroImg.offsetWidth;
+        heroImg.classList.add('is-swapping');
+      }
       heroImg.src = pickImage(url, modalProduct?.id);
       trackHeroLoading(heroImg);
     }
     $$('[data-gallery-src]', n.modalContent).forEach((b) => {
-      b.classList.toggle('is-selected', b.dataset.gallerySrc === url);
+      const selected = b.dataset.gallerySrc === url;
+      b.classList.toggle('is-selected', selected);
+      // Keep the active thumbnail in view while the gallery rotates.
+      if (selected) b.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     });
     const counter = $('[data-gallery-counter]', n.modalContent);
     if (counter) {
@@ -1853,6 +1865,36 @@
     selectGalleryImage(g[(cur + dir + g.length) % g.length]);
   }
 
+  // ---------- Gallery auto-rotation ----------
+  // While the quick-view is open the gallery slowly cycles (one image every 3s)
+  // so shoppers see every angle without touching anything. Any manual action
+  // (thumbnail tap, swipe, arrow key, zoom) pauses the rotation for 15s, then
+  // it resumes. Respects prefers-reduced-motion and never rotates under a zoom.
+  const GALLERY_AUTOPLAY_MS = 3000;
+  const GALLERY_RESUME_MS = 15000;
+  let galleryTimer = null;
+  let galleryResumeTimer = null;
+  function stopGalleryAutoplay() {
+    if (galleryTimer) { clearInterval(galleryTimer); galleryTimer = null; }
+    if (galleryResumeTimer) { clearTimeout(galleryResumeTimer); galleryResumeTimer = null; }
+  }
+  function startGalleryAutoplay() {
+    stopGalleryAutoplay();
+    if (modalGallery.length < 2 || prefersReducedMotion()) return;
+    galleryTimer = setInterval(() => {
+      if (!n.modal.classList.contains('is-open')) { stopGalleryAutoplay(); return; }
+      // Skip ticks while the tab is hidden or the shopper is inspecting a zoom.
+      if (document.hidden) return;
+      if ($('[data-modal-zoom]', n.modalContent)?.classList.contains('is-zoomed')) return;
+      stepGallery(1);
+    }, GALLERY_AUTOPLAY_MS);
+  }
+  function pauseGalleryAutoplay() {
+    if (modalGallery.length < 2) return;
+    stopGalleryAutoplay();
+    galleryResumeTimer = setTimeout(startGalleryAutoplay, GALLERY_RESUME_MS);
+  }
+
   function renderProductModal() {
     const p = modalProduct;
     const colors = (p.colors || []).map(colorObj);
@@ -1863,9 +1905,11 @@
 
     setHtml(n.modalContent, html`
       <div class="modal-product">
-        <div class="image-wrap">
-          <img src="${pickImage(selectedImage || p.image, p.id)}" alt="${p.name}" decoding="async" width="720" height="780" data-modal-zoom />
-          ${gallery.length > 1 ? html`<div class="modal-counter" data-gallery-counter>${gallery.indexOf(selectedImage) + 1} / ${gallery.length}</div>` : ''}
+        <div class="modal-media">
+          <div class="image-wrap">
+            <img src="${pickImage(selectedImage || p.image, p.id)}" alt="${p.name}" decoding="async" width="720" height="780" data-modal-zoom />
+            ${gallery.length > 1 ? html`<div class="modal-counter" data-gallery-counter>${gallery.indexOf(selectedImage) + 1} / ${gallery.length}</div>` : ''}
+          </div>
           ${gallery.length > 1 ? html`
             <div class="modal-gallery" aria-label="Product images">
               ${gallery.map((src, index) => html`
@@ -1951,6 +1995,7 @@
     const zoomImg = $('[data-modal-zoom]', n.modalContent);
     if (zoomImg) trackHeroLoading(zoomImg);
     zoomImg?.addEventListener('click', (event) => {
+      pauseGalleryAutoplay();
       const zoomed = zoomImg.classList.toggle('is-zoomed');
       if (zoomed) {
         const rect = zoomImg.getBoundingClientRect();
@@ -1961,7 +2006,10 @@
         zoomImg.style.transformOrigin = '';
       }
     });
-    $$('[data-gallery-src]', n.modalContent).forEach(b => b.addEventListener('click', () => selectGalleryImage(b.dataset.gallerySrc)));
+    $$('[data-gallery-src]', n.modalContent).forEach(b => b.addEventListener('click', () => {
+      selectGalleryImage(b.dataset.gallerySrc);
+      pauseGalleryAutoplay();
+    }));
     // Swipe the hero image left/right to page through the gallery (touch).
     const imageWrap = $('.image-wrap', n.modalContent);
     if (imageWrap && modalGallery.length > 1) {
@@ -1976,7 +2024,7 @@
         const touch = event.changedTouches[0];
         const dx = touch.clientX - swipeX;
         const dy = touch.clientY - swipeY;
-        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) stepGallery(dx < 0 ? 1 : -1);
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) { stepGallery(dx < 0 ? 1 : -1); pauseGalleryAutoplay(); }
       }, { passive: true });
     }
     $$('[data-size]', n.modalContent).forEach(b => b.addEventListener('click', () => { selectedSize = b.dataset.size; renderProductModal(); }));
@@ -2006,6 +2054,7 @@
     lastFocusedElement?.focus?.();
     // Release the open-product reference so a late gallery resolve can't re-render
     // a closed modal and fire Drive image requests for it.
+    stopGalleryAutoplay();
     modalProduct = null;
     modalGallery = [];
   }

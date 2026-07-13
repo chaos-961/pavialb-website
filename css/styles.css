@@ -1501,30 +1501,50 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
+/* Media column: hero image on top, thumbnail strip underneath. */
+.modal-media { display: flex; flex-direction: column; min-width: 0; }
+/* Thumbnail strip under the quick-view hero. Tap a thumb to swap the main
+   image; the strip also auto-rotates every 3s (paused 15s after any manual
+   pick — see gallery auto-rotation in app.js). */
 .modal-gallery {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  padding: 12px 14px;
   overflow-x: auto;
-  padding: 4px;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  scrollbar-width: thin;
 }
 .modal-gallery button {
-  width: 54px;
-  height: 68px;
+  width: 58px;
+  height: 72px;
   border-radius: var(--r-sm);
   overflow: hidden;
-  border: 2px solid rgba(250, 250, 250, 0.74);
-  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 0;
+  background: var(--cream);
   flex: 0 0 auto;
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 0.25s var(--ease-out), border-color 0.25s var(--ease-out), transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
 }
-.modal-gallery button.is-selected { border-color: var(--ink); }
+.modal-gallery button:hover { opacity: 1; transform: translateY(-1px); }
+.modal-gallery button.is-selected {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+  opacity: 1;
+}
 .modal-gallery img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+}
+/* Soft crossfade when the hero swaps (thumbnail tap, swipe, or auto-rotate). */
+.modal-product .image-wrap img[data-modal-zoom].is-swapping { animation: hero-swap 0.45s var(--ease-out); }
+@keyframes hero-swap { from { opacity: 0.3; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .modal-product .image-wrap img[data-modal-zoom].is-swapping { animation: none; }
 }
 .modal-details {
   padding: 22px 20px 28px;
@@ -2015,7 +2035,8 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero { padding: 24px 0 44px; }
   .filter-row { grid-template-columns: repeat(3, 1fr); }
   .modal-product { flex-direction: row; min-height: 520px; align-items: stretch; }
-  .modal-product .image-wrap { width: 50%; aspect-ratio: auto; }
+  .modal-product .modal-media { width: 50%; }
+  .modal-product .image-wrap { width: 100%; flex: 1; min-height: 0; aspect-ratio: auto; }
   .modal-details { width: 50%; padding: 28px 28px; overflow-y: auto; }
   /* Side-by-side: the image fills its column at any height. */
   .modal-product .image-wrap img { position: absolute; inset: 0; }
@@ -2143,7 +2164,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .modal { place-items: center; padding: 24px; }
   .modal-card { max-width: 1000px; max-height: 90vh; border-radius: var(--r-xl); transform: translateY(20px) scale(0.96); opacity: 0; transition: transform 0.4s var(--ease-out), opacity 0.4s var(--ease-out); }
   .modal.is-open .modal-card { transform: none; opacity: 1; }
-  .modal-product .image-wrap { aspect-ratio: 1/1.05; }
+  .modal-product .modal-media { aspect-ratio: 1/1.05; }
   .modal-details { padding: 30px 30px; gap: 13px; }
 
   .filter-row { grid-template-columns: repeat(4, 1fr); }
