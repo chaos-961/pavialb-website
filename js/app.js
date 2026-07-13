@@ -952,7 +952,6 @@
       renderCategories();
       renderProducts();
       renderRecent();
-      applyHeroImages();
       signalReady(); // cached content is already on screen — drop the splash
     } else {
       showSkeletons();
@@ -976,13 +975,11 @@
       // Cache already painted; patch in the revalidated catalog immediately.
       renderProducts();
       renderRecent();
-      applyHeroImages();
     } else {
       // Stagger the first render so the skeletons get a moment to breathe.
       setTimeout(() => {
         renderProducts();
         renderRecent();
-        applyHeroImages();
         signalReady();
       }, 250);
     }
@@ -1031,32 +1028,15 @@
           .map(([sel, rate]) => [$(sel, heroCopy), rate])
           .filter(([el]) => el)
       : [];
-    const heroVisual = $('[data-hero-visual]');
     const heroEl = $('[data-hero]');
     const heroBg = $('[data-hero-bg]');
     const allowParallax = heroEl && !prefersReducedMotion();
     let heroH = 0;
     let toolbarStickAt = 280;
-    // Scroll distance available before the rising sheet edge reaches the featured
-    // strip. The strip's fade+lift runs over exactly this window so it tucks away
-    // cleanly instead of being sliced by the sheet's opaque top edge.
-    let heroVisualRunway = 200;
     // Measured (not hardcoded) because the hero is now viewport-sized: the
     // toolbar "stuck" threshold and the choreography span both track it.
     const measureScrollScene = () => {
       heroH = heroEl ? heroEl.offsetHeight : 0;
-      if (heroVisual && heroEl) {
-        // Measure the untransformed rest layout: the gap from the strip's bottom to
-        // the hero's bottom border IS the runway (= where the sheet begins).
-        const prev = heroVisual.style.transform;
-        heroVisual.style.transform = 'none';
-        const gap = heroEl.getBoundingClientRect().bottom - heroVisual.getBoundingClientRect().bottom;
-        heroVisual.style.transform = prev;
-        // Use the TRUE gap (never clamp above it, or the fade would finish after the
-        // sheet edge already arrived — a slice). Small floor only guards a degenerate
-        // near-zero measurement; CSS keeps the real gap comfortable (~48px+).
-        heroVisualRunway = Math.max(24, gap);
-      }
       if (n.toolbar) {
         toolbarStickAt = Math.max(0,
           n.toolbar.getBoundingClientRect().top + window.scrollY - n.header.offsetHeight - 4);
@@ -1081,14 +1061,6 @@
         for (const [el, rate] of heroLayers) {
           el.style.transform = `translate3d(0, ${(y * rate).toFixed(1)}px, 0)`;
         }
-      }
-      if (heroVisual) {
-        // Fade + lift the strip out over its runway so it's fully gone a hair
-        // before the rising sheet edge reaches it (the -12 buffer) — a clean tuck,
-        // never a hard slice. Geometry-driven, so it holds at every screen size.
-        const t = Math.min(1, y / Math.max(1, heroVisualRunway - 12));
-        heroVisual.style.transform = `translate3d(0, ${(t * -36).toFixed(1)}px, 0)`;
-        heroVisual.style.opacity = Math.max(0, 1 - t).toFixed(3);
       }
     };
     window.addEventListener('scroll', () => {
@@ -1129,9 +1101,6 @@
         cards[Math.max(0, visibleCount - PAGE_SIZE)]?.querySelector('[data-quick-view]')?.focus?.();
       });
     });
-
-    // Hero collage → quick view (selectable floating looks)
-    setupHeroCollage();
 
     // Filter toggle
     n.filterToggle?.addEventListener('click', () => {
@@ -1219,103 +1188,6 @@
   }
 
   // ---------- Categories ----------
-  // Populate the hero collage with real featured product imagery (falling back to
-  // the elegant placeholder). These three are above the fold, so they load eagerly.
-  function applyHeroImages() {
-    const slots = $$('[data-hero-image]');
-    if (!slots.length) return;
-    const featured = products.filter(p => p.featured);
-    const pool = (featured.length >= slots.length ? featured : featured.concat(products));
-    const seen = new Set();
-    const picks = [];
-    for (const p of pool) {
-      if (seen.has(p.id)) continue;
-      seen.add(p.id);
-      picks.push(p);
-      if (picks.length >= slots.length) break;
-    }
-    slots.forEach((img, i) => {
-      const card = img.closest('[data-hero-card]');
-      const p = picks[i];
-      if (p) {
-        // Real product: fill the card and make it a quick-view trigger.
-        img.src = pickImage(p.image, p.id);
-        img.alt = `${p.name}, Pavia`;
-        if (card) {
-          card.dataset.heroProduct = p.id;
-          card.setAttribute('role', 'button');
-          card.setAttribute('tabindex', '0');
-          card.setAttribute('aria-label', `Quick view ${p.name}`);
-          card.classList.remove('is-empty');
-        }
-        return;
-      }
-      // No product for this slot (empty catalog, or fewer than three looks).
-      // Never leave the raw wide logo cover-cropped into a sliver: show the
-      // elegant portrait placeholder instead, varied per slot so the three
-      // cards don't repeat one image, and drop the quick-view affordance since
-      // there's nothing to open.
-      img.src = placeholderImage(`hero-${i}`);
-      img.alt = 'Pavia — new looks coming soon';
-      if (card) {
-        delete card.dataset.heroProduct;
-        card.removeAttribute('role');
-        card.removeAttribute('tabindex');
-        card.removeAttribute('aria-label');
-        card.classList.add('is-empty');
-      }
-    });
-  }
-
-  // Wire the hero collage: each floating look opens its quick-view (add-to-cart)
-  // modal, with the tapped image morphing into the modal hero. Bound once.
-  function setupHeroCollage() {
-    const heroVisual = $('[data-hero-visual]');
-    if (!heroVisual || heroVisual.dataset.heroWired) return;
-    heroVisual.dataset.heroWired = '1';
-
-    const openFromCard = (card) => {
-      const id = card?.dataset.heroProduct;
-      if (!id) return;
-      openProductModal(id, $('img', card));
-    };
-    heroVisual.addEventListener('click', (e) => {
-      const card = e.target.closest('[data-hero-card]');
-      if (card) openFromCard(card);
-    });
-    heroVisual.addEventListener('keydown', (e) => {
-      const card = e.target.closest('[data-hero-card]');
-      if (!card) return;
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFromCard(card); }
-    });
-
-    // Subtle 3D pointer-tilt — desktop mouse only, never for touch or reduced motion.
-    // Uses the `transform` longhand, which composes with the float (translate/rotate)
-    // and the hover (scale) without overwriting them.
-    const finePointer = window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
-    if (!finePointer || prefersReducedMotion()) return;
-    $$('[data-hero-card]', heroVisual).forEach((card) => {
-      let raf = 0, rx = 0, ry = 0;
-      const apply = () => {
-        raf = 0;
-        card.style.transform = `perspective(900px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
-      };
-      card.addEventListener('pointermove', (e) => {
-        if (e.pointerType && e.pointerType !== 'mouse') return;
-        const r = card.getBoundingClientRect();
-        const px = (e.clientX - r.left) / r.width - 0.5;   // -0.5 .. 0.5
-        const py = (e.clientY - r.top) / r.height - 0.5;
-        ry = px * 14;    // turn toward the cursor (max ~7deg)
-        rx = -py * 14;
-        if (!raf) raf = requestAnimationFrame(apply);
-      });
-      card.addEventListener('pointerleave', () => {
-        if (raf) { cancelAnimationFrame(raf); raf = 0; }
-        card.style.transform = '';   // springs back to the CSS base
-      });
-    });
-  }
-
   // Keep the selected category pill centered in its horizontal scroller so the
   // active filter is never stuck off-screen after a tap.
   function scrollActivePillIntoView() {
@@ -1548,10 +1420,6 @@
           <button class="wish-btn ${wishlist.includes(p.id) ? 'is-active' : ''}" data-wish="${p.id}" aria-label="Save ${p.name}">
             <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>
           </button>
-          <button class="quick-add" data-fast-add="${p.id}" aria-label="Quick add ${p.name}">
-            <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            Quick add
-          </button>
         </div>
         <div class="product-info">
           <span class="product-category">${p.category}</span>
@@ -1582,18 +1450,17 @@
     cards.forEach((card) => {
       const id = card.dataset.productId;
       // The WHOLE card opens quick view (previously the category/price/swatch
-      // area was a dead zone) — except taps on the wish / quick-add controls,
-      // which keep their own actions. The card image is handed in as the morph
-      // source so the open animation flies it into the modal hero.
+      // area was a dead zone) — except taps on the wish control, which keeps
+      // its own action. The card image is handed in as the morph source so the
+      // open animation flies it into the modal hero.
       card.addEventListener('click', (e) => {
-        if (e.target.closest('[data-wish], [data-fast-add]')) return;
+        if (e.target.closest('[data-wish]')) return;
         openProductModal(id, $('.product-media img', card));
       });
       // Keyboard activation via the product name (exposed as role="button").
       $('[data-quick-view]', card)?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProductModal(id); }
       });
-      $('[data-fast-add]', card)?.addEventListener('click', (e) => { e.stopPropagation(); fastAdd(id); popButton(e.currentTarget); });
       const wish = $('[data-wish]', card);
       wish?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1849,6 +1716,7 @@
       if (!modalWasOpen) lockBodyScroll();
       syncBackgroundInert();
       startGalleryAutoplay();
+      scrollModalToName();
       requestAnimationFrame(() => $('[data-modal-add]', n.modalContent)?.focus());
     };
 
@@ -1893,6 +1761,23 @@
     } catch (error) {
       /* strip already shows from galleryUrlsSync(); refinement is best-effort */
     }
+  }
+
+  // On the stacked (phone) layout the image sits above the details, so a fresh
+  // open lands on a full-bleed photo with the name and buying options below the
+  // fold. Nudge the scroll so the name row lands near the top with roughly the
+  // bottom half of the image still showing — the shopper sees what it's called
+  // and can act without a scroll. The side-by-side layout (>=640px) scrolls the
+  // details column independently, so it's left at the top.
+  function scrollModalToName() {
+    if (!window.matchMedia('(max-width: 639px)').matches) return;
+    requestAnimationFrame(() => {
+      const media = $('.modal-media', n.modalContent);
+      if (!media || !n.modalContent) return;
+      // aspect-ratio reserves the image box even before the photo decodes, so
+      // this measures right on the first frame.
+      n.modalContent.scrollTop = media.offsetHeight * 0.5;
+    });
   }
 
   // Soft shimmer on the quick-view hero while its image is still arriving, so a

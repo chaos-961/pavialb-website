@@ -313,10 +313,11 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 /* Delays sit just past the splash's minimum visible window (500ms + fade), so
    the cascade's landing is what greets the visitor as the splash lifts. A hair
    more spacing between lines than before makes the stagger read as deliberate. */
-.hero-copy .eyebrow      { animation: heroRise 0.75s var(--ease-out) 0.35s backwards; }
-.hero-copy h1            { animation: heroRise 0.9s  var(--ease-out) 0.48s backwards; }
-.hero-copy .hero-text    { animation: heroRise 0.9s  var(--ease-out) 0.62s backwards; }
-.hero-copy .hero-actions { animation: heroRise 0.9s  var(--ease-out) 0.76s backwards; }
+.hero-copy .eyebrow       { animation: heroRise 0.75s var(--ease-out) 0.35s backwards; }
+.hero-copy h1             { animation: heroRise 0.9s  var(--ease-out) 0.48s backwards; }
+.hero-copy .hero-text     { animation: heroRise 0.9s  var(--ease-out) 0.62s backwards; }
+.hero-copy .hero-text--sub{ animation: heroRise 0.9s  var(--ease-out) 0.74s backwards; }
+.hero-copy .hero-actions  { animation: heroRise 0.9s  var(--ease-out) 0.86s backwards; }
 .hero-copy h1 em {
   font-style: italic;
   font-weight: 300;
@@ -337,74 +338,18 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   font-size: 16px;
   max-width: 540px;
   color: var(--ink-soft);
-  margin-bottom: 24px;
+  margin-bottom: 18px;
+}
+/* Second, quieter hero line — carries the extra copy that now fills the space the
+   featured-looks strip used to occupy, so the column reads full rather than empty.
+   A touch smaller and softer than the lede so the two lines read as a hierarchy. */
+.hero-text--sub {
+  font-size: 15px;
+  color: var(--muted);
+  margin-bottom: 26px;
 }
 .hero-actions {
   display: flex; gap: 10px; flex-wrap: wrap;
-}
-/* Featured looks strip — three tappable pieces under the CTAs. Stays inside the
-   copy column (never crosses the model), fed by app.js with real featured
-   products. The scroll handler already fades/parallaxes [data-hero-visual]. */
-.hero-looks {
-  display: flex;
-  gap: 12px;
-  margin-top: 28px;
-  max-width: 430px;
-}
-.hero-look {
-  position: relative;
-  flex: 1 1 0;
-  min-width: 0;
-  aspect-ratio: 3 / 4;
-  margin: 0; padding: 0; border: 0;
-  border-radius: 16px;
-  overflow: hidden;
-  background: rgba(250, 250, 250, 0.6);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
-}
-.hero-look img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.hero-look__cue {
-  position: absolute;
-  inset: auto 0 0 0;
-  display: flex; align-items: center; justify-content: center;
-  gap: 5px;
-  padding: 8px 6px 7px;
-  font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--paper);
-  background: linear-gradient(0deg, rgba(26, 26, 26, 0.62) 0%, rgba(26, 26, 26, 0) 100%);
-  opacity: 0; transform: translateY(6px);
-  transition: opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out);
-}
-.hero-look__cue svg { width: 13px; height: 13px; }
-.hero-look:hover,
-.hero-look:focus-visible { transform: translateY(-4px); box-shadow: var(--shadow-md); }
-.hero-look:hover .hero-look__cue,
-.hero-look:focus-visible .hero-look__cue { opacity: 1; transform: none; }
-.hero-look:active { transform: translateY(-1px) scale(0.98); transition-duration: 0.08s; }
-.hero-look:focus-visible { outline: 2px solid var(--cocoa); outline-offset: 2px; }
-/* Empty slot (catalog has no products yet): app.js drops the button affordance,
-   so it reads as a still placeholder, not a dead press target. */
-.hero-look.is-empty { cursor: default; box-shadow: var(--shadow-sm); }
-.hero-look.is-empty:hover { transform: none; box-shadow: var(--shadow-sm); }
-.hero-look.is-empty .hero-look__cue { display: none; }
-/* Touch devices never fire :hover — keep the cue gently visible so the pieces
-   read as tappable. */
-@media (hover: none) {
-  .hero-look:not(.is-empty) .hero-look__cue {
-    opacity: 1; transform: none;
-    background: linear-gradient(0deg, rgba(26, 26, 26, 0.5) 0%, rgba(26, 26, 26, 0) 100%);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero-look { transition: none; }
-  .hero-look:hover, .hero-look:active, .hero-look:focus-visible { transform: none; }
 }
 /* =========================================================
    Buttons
@@ -2086,12 +2031,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   }
   .hero .btn-ghost { background: rgba(250, 250, 250, 0.92); }
 
-  /* Featured strip stays inside the narrow copy column (58vw) so it never reaches
-     the model; tighter gap + smaller radius keep the three thumbs balanced. */
-  .hero-looks { gap: 8px; margin-top: 20px; max-width: none; }
-  .hero-look { border-radius: 12px; }
-  .hero-look__cue { padding: 6px 4px 5px; font-size: 9.5px; letter-spacing: 0.06em; }
-
   .product-grid {
     gap: 14px 10px;
   }
@@ -2141,12 +2080,11 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 @media (max-width: 639px) and (orientation: portrait) and (max-height: 700px) {
   .hero-copy h1 { font-size: clamp(25px, 7.6vw, 31px); }
   .hero-text { font-size: 13px; margin-bottom: 18px; }
+  /* Fold is too tight here for the second line — drop it so the headline, lede
+     and CTAs still land inside the pinned first screen. */
+  .hero-text--sub { display: none; }
   .hero-actions { gap: 8px; }
   .hero-actions .btn-lg { min-height: 48px; padding: 0 22px; font-size: 14px; }
-  /* Reclaim fold height on short phones: shorter, squarer thumbs sit tighter under
-     the CTAs so the whole composition still lands inside the pinned first screen. */
-  .hero-looks { margin-top: 14px; }
-  .hero-look { aspect-ratio: 1 / 1; }
 }
 
 /* Landscape phones (<960px, rotated): the <picture> swaps to the landscape
@@ -2158,6 +2096,8 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero-copy { max-width: min(560px, 56vw); }
   .hero-copy h1 { font-size: clamp(26px, 4.6vw, 40px); }
   .hero-text { font-size: 13.5px; margin-bottom: 16px; }
+  /* Rotated phones are very short — the second line would spill under the sheet. */
+  .hero-text--sub { display: none; }
   .hero-actions { flex-direction: row; }
   .hero-actions .btn { width: auto; }
 }
@@ -2284,13 +2224,17 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     gap: 44px;
     align-items: start;
   }
-  .hero-copy { grid-column: 1; max-width: none; align-self: start; padding-top: clamp(8px, 6vh, 76px); }
+  /* Center the copy on the empty wall so the fuller two-line statement owns the
+     vertical space the featured-looks strip used to fill — the column reads as a
+     balanced block, not a top-anchored line with a void beneath it. */
+  .hero-copy { grid-column: 1; max-width: none; align-self: center; padding-top: clamp(8px, 3vh, 40px); }
   /* With the fold to itself, the copy scales up into a full statement — the empty
      wall left of the model is the headline's canvas. vw-driven with caps so it
      grows with the screen but never crowds her (column caps at 760px). */
   .hero .eyebrow { font-size: 15px; letter-spacing: 0.24em; margin-bottom: 20px; }
   .hero-copy h1 { font-size: clamp(62px, 6.2vw, 104px); margin: 12px 0 28px; }
-  .hero-text { font-size: clamp(19px, 1.55vw, 24px); max-width: 600px; margin-bottom: 36px; }
+  .hero-text { font-size: clamp(19px, 1.55vw, 24px); max-width: 600px; margin-bottom: 18px; }
+  .hero-text--sub { font-size: clamp(16px, 1.2vw, 19px); max-width: 600px; margin-bottom: 40px; }
   .hero-actions { gap: 14px; }
   .hero-actions .btn { min-height: 62px; padding: 0 34px; font-size: 16.5px; }
   .hero-actions .btn-lg { min-height: 66px; padding: 0 40px; font-size: 17.5px; }
@@ -2336,7 +2280,10 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero { padding-bottom: 40px; }
   .hero-copy { padding-top: clamp(4px, 3vh, 24px); }
   .hero-copy h1 { font-size: clamp(48px, 10.6vh, 80px); }
-  .hero-text { font-size: clamp(17px, 1.4vw, 21px); margin-bottom: 22px; }
+  .hero-text { font-size: clamp(17px, 1.4vw, 21px); margin-bottom: 14px; }
+  /* Tight fold: keep the second line but trim its air so headline + both lines
+     + CTAs still clear the pinned first screen. */
+  .hero-text--sub { font-size: clamp(15px, 1.15vw, 17px); margin-bottom: 22px; }
 }
 
 /* =========================================================

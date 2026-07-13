@@ -53,7 +53,7 @@
        + true italics for the serif accents, Jakarta 400-700). Bodoni Moda was
        only referenced by the construction gate and now falls back to Fraunces. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=44" />
+  <link rel="stylesheet" href="css/styles.css?v=45" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -250,41 +250,13 @@
                runtime. This is the designed hero line; the SEO description still
                lives untouched in the <meta> tags. Location/delivery still bind. -->
           <p class="hero-text">Modern, easy-to-wear pieces in soft tailoring, ruffles and quiet neutrals — from <span data-site-location>Beirut</span>, delivered to your door across <span data-delivery-area>Lebanon</span>.</p>
+          <p class="hero-text hero-text--sub">New arrivals land often, each piece chosen to layer easily into what you already wear. Browse the full collection, save the looks you love, and place your order in a tap over WhatsApp.</p>
           <div class="hero-actions">
             <a class="btn btn-primary btn-lg" href="#shop">Shop the collection</a>
             <a class="btn btn-ghost" href="https://wa.me/9613017725" target="_blank" rel="noreferrer" data-whatsapp-link>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.2-5.6A8.4 8.4 0 1 1 21 11.5Z"/></svg>
               Order on WhatsApp
             </a>
-          </div>
-
-          <!-- Featured looks — three tappable pieces under the CTAs. The images,
-               alt text and quick-view wiring are filled in by app.js
-               (applyHeroImages + setupHeroCollage): each card opens that product's
-               quick-view modal, and falls back to an elegant placeholder when the
-               catalog has fewer than three featured looks. -->
-          <div class="hero-looks" data-hero-visual aria-label="Featured pieces">
-            <div class="hero-look" data-hero-card>
-              <img data-hero-image alt="" decoding="async" />
-              <span class="hero-look__cue" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                View
-              </span>
-            </div>
-            <div class="hero-look" data-hero-card>
-              <img data-hero-image alt="" decoding="async" />
-              <span class="hero-look__cue" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                View
-              </span>
-            </div>
-            <div class="hero-look" data-hero-card>
-              <img data-hero-image alt="" decoding="async" />
-              <span class="hero-look__cue" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                View
-              </span>
-            </div>
           </div>
         </div>
 
@@ -446,7 +418,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.6.1</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.6.2</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -576,7 +548,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=55"></script>
+  <script defer src="js/config.js?v=56"></script>
   <script defer src="js/firebase-config.js?v=12"></script>
   <script defer src="js/backend-config.js?v=18"></script>
   <script defer src="js/image-catalog.js?v=12"></script>
@@ -585,6 +557,6 @@
   <script defer src="js/backend.js?v=21"></script>
   <script defer src="js/backend-firebase.js?v=37"></script>
   <script defer src="js/products.js?v=12"></script>
-  <script defer src="js/app.js?v=46"></script>
+  <script defer src="js/app.js?v=47"></script>
 </body>
 </html>

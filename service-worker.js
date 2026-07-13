@@ -1,5 +1,5 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v88';
+const CACHE = 'pavia-v89';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const IMAGE_CACHE_MAX = 120;
 
@@ -18,7 +18,7 @@ const ASSETS = [
   './favicon.ico',
   './js/splash.js?v=1',
   './js/construction-gate.js?v=3',
-  './js/config.js?v=55',
+  './js/config.js?v=56',
   './js/firebase-config.js?v=12',
   './js/backend-config.js?v=18',
   './js/image-catalog.js?v=12',
@@ -26,35 +26,50 @@ const ASSETS = [
   './js/catalog-cache.js?v=4',
   './js/backend.js?v=21',
   './js/backend-firebase.js?v=37',
-  './css/styles.css?v=44',
+  './css/styles.css?v=45',
   './js/products.js?v=12',
-  './js/app.js?v=46',
+  './js/app.js?v=47',
   './manifest.webmanifest',
   './assets/logo.svg',
   './assets/icon.svg',
 ];
 
 self.addEventListener('install', (event) => {
+  // Precache the fresh app shell, THEN take over immediately (skipWaiting), so a
+  // newer version swaps its cache in during the current session instead of
+  // lingering in "waiting" until every tab is closed. This is a background cache
+  // refresh only: the new worker claims the page (clients.claim below) but the
+  // page is NEVER reloaded and there is deliberately no "new version, reload"
+  // prompt — the running page keeps its already-loaded code, and the next
+  // navigation simply serves the new shell. App code is network-first anyway, so
+  // an online session is already on fresh bytes; this just makes the *offline*
+  // shell current in the background too. Cached product images are untouched —
+  // IMAGE_CACHE is preserved across activations (see below) and never re-fetched.
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).catch(() => null),
+    caches.open(CACHE)
+      .then((cache) => cache.addAll(ASSETS))
+      .then(() => self.skipWaiting())
+      .catch(() => self.skipWaiting()),
   );
-  // Do NOT skipWaiting() — a freshly installed SW waits and activates on its own
-  // the next time the app is opened without an older tab holding the previous
-  // worker. Updates apply silently that way; there is deliberately no in-page
-  // "new version, reload" prompt and the page is never force-reloaded.
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key.startsWith('pavia-') && key !== CACHE && key !== IMAGE_CACHE)
-          .map((key) => caches.delete(key)),
-      ),
-    ),
+    caches.keys()
+      .then((keys) =>
+        Promise.all(
+          // Drop superseded app-shell caches, but keep IMAGE_CACHE: product images
+          // are immutable per URL (a re-upload carries a fresh ?pv=), so they must
+          // survive the update and never reload — that's the "not the images" part.
+          keys
+            .filter((key) => key.startsWith('pavia-') && key !== CACHE && key !== IMAGE_CACHE)
+            .map((key) => caches.delete(key)),
+        ),
+      )
+      // Control existing clients right away so the new shell serves this session's
+      // next request — a smooth, silent handoff with no controllerchange reload.
+      .then(() => self.clients.claim()),
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
