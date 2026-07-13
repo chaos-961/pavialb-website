@@ -1,5 +1,5 @@
 /* Pavia Elegant Store — service worker */
-const CACHE = 'pavia-v85';
+const CACHE = 'pavia-v86';
 const IMAGE_CACHE = 'pavia-product-images-v1';
 const IMAGE_CACHE_MAX = 120;
 
@@ -18,7 +18,7 @@ const ASSETS = [
   './favicon.ico',
   './js/splash.js?v=1',
   './js/construction-gate.js?v=3',
-  './js/config.js?v=54',
+  './js/config.js?v=55',
   './js/firebase-config.js?v=12',
   './js/backend-config.js?v=18',
   './js/image-catalog.js?v=12',
@@ -26,9 +26,9 @@ const ASSETS = [
   './js/catalog-cache.js?v=4',
   './js/backend.js?v=21',
   './js/backend-firebase.js?v=37',
-  './css/styles.css?v=41',
+  './css/styles.css?v=42',
   './js/products.js?v=12',
-  './js/app.js?v=44',
+  './js/app.js?v=45',
   './manifest.webmanifest',
   './assets/logo.svg',
   './assets/icon.svg',
@@ -38,13 +38,10 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).catch(() => null),
   );
-  // Do NOT skipWaiting() automatically — a freshly installed SW waits so the app
-  // can surface an "update available -> reload" prompt. The page asks this SW to
-  // activate via postMessage('SKIP_WAITING') only when the user accepts.
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data === 'SKIP_WAITING') self.skipWaiting();
+  // Do NOT skipWaiting() — a freshly installed SW waits and activates on its own
+  // the next time the app is opened without an older tab holding the previous
+  // worker. Updates apply silently that way; there is deliberately no in-page
+  // "new version, reload" prompt and the page is never force-reloaded.
 });
 
 self.addEventListener('activate', (event) => {
@@ -81,20 +78,22 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (req.destination === 'image') {
-    // Stale-while-revalidate: serve the cached image instantly for speed/offline,
-    // but ALWAYS re-fetch in the background and overwrite the cache with fresh
-    // bytes. This means an updated image can never stay pinned — the next view
-    // shows the new image with no manual cache reset. Product images additionally
-    // carry a ?pv=<imageVersion> buster, so a re-uploaded image is a fresh URL
-    // (cache miss) and shows immediately on the very first view.
+    // Cache-first: once an image is cached, serve it straight from the cache and
+    // do NOT re-fetch it in the background. A given image URL is immutable — a
+    // re-uploaded product image carries a fresh ?pv=<imageVersion> (so it's a new
+    // URL / cache miss and shows on the first view), and versioned site assets
+    // bust via ?v=. Skipping the background revalidate is the whole point: an
+    // image that already loaded once never loads a second time, which keeps
+    // scrolling smooth and spares mobile data.
     event.respondWith(
       caches.open(IMAGE_CACHE).then(async (cache) => {
         const cached = await cache.match(req);
-        const networked = fetch(req)
+        if (cached) return cached;
+        // First view of this URL: fetch, cache same-origin/CORS-OK bytes, serve.
+        // Cross-origin R2 images can come back opaque (ok === false); those are
+        // left to the browser HTTP cache and simply passed through here.
+        return fetch(req)
           .then((response) => {
-            // Only same-origin / CORS responses are cacheable. Cross-origin imgbb
-            // images may come back opaque (ok === false); those are left to the
-            // browser HTTP cache, which busts on the ?pv= image version.
             if (response && response.ok) {
               cache.put(req, response.clone())
                 .then(() => trimImageCache(cache))
@@ -102,12 +101,7 @@ self.addEventListener('fetch', (event) => {
             }
             return response;
           })
-          .catch(() => null);
-        // Serve cache instantly; otherwise wait for the network. If both miss
-        // (offline, uncached image) return a network-error response rather than
-        // firing a second doomed fetch — the page's <img> error handler then
-        // shows the branded placeholder.
-        return cached || (await networked) || Response.error();
+          .catch(() => Response.error());
       }),
     );
     return;

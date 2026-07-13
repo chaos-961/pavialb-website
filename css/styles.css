@@ -507,63 +507,21 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 
 .noscript-links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 
-/* "Update available -> reload" prompt (P1 caching foundation). */
-.update-banner {
-  position: fixed;
-  left: 50%;
-  bottom: calc(var(--bottom-nav-h, 0px) + 16px + env(safe-area-inset-bottom, 0px));
-  transform: translate(-50%, 16px);
-  z-index: 120;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  max-width: calc(100vw - 32px);
-  padding: 10px 12px 10px 16px;
-  border-radius: 999px;
-  background: var(--ink, #1a1612);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
-  opacity: 0;
-  transition: opacity 0.32s ease, transform 0.32s ease;
-}
-.update-banner.is-visible { opacity: 1; transform: translate(-50%, 0); }
-.update-banner[hidden] { display: none; }
-.update-banner-actions { display: inline-flex; gap: 6px; }
-.update-banner .update-reload,
-.update-banner .update-dismiss {
-  border: 0;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-  border-radius: 999px;
-  padding: 6px 14px;
-}
-.update-banner .update-reload { background: #fff; color: var(--ink, #1a1612); }
-.update-banner .update-reload:disabled { opacity: 0.6; cursor: default; }
-.update-banner .update-dismiss { background: transparent; color: rgba(255, 255, 255, 0.7); }
-/* Phones: the single-row pill is narrower than its content, so the message text
-   wrapped awkwardly inside the rounded ends. Lay it out as a tidy card instead --
-   message on its own line, actions below-right -- with a softer radius and a touch
-   more tap room. Desktop keeps the clean one-line pill. */
-@media (max-width: 560px) {
-  .update-banner {
-    flex-wrap: wrap;
-    width: calc(100vw - 24px);
-    max-width: none;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: 18px;
-  }
-  .update-banner > span:first-child { flex: 1 1 100%; }
-  .update-banner-actions { width: 100%; justify-content: flex-end; }
-  .update-banner .update-reload,
-  .update-banner .update-dismiss { padding: 8px 16px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .update-banner { transition: opacity 0.2s ease; transform: translate(-50%, 0); }
-}
+/* Scroll containment — a big part of the "smoother, not laggy" mobile feel.
+   overscroll-behavior:none on the page stops the browser's pull-to-refresh /
+   rubber-band bounce at the top and bottom of the document. `contain` on every
+   inner scroller (drawers, modal bodies, the horizontal pill / recently-viewed /
+   gallery strips) keeps a swipe that reaches an edge from chaining into the page
+   behind it — so those areas scroll only themselves and the page underneath
+   stays put instead of j-u-d-d-e-r-i-n-g along with them. */
+html { overscroll-behavior-y: none; }
+.drawer-body,
+.modal-body,
+.modal-details,
+.category-pills,
+.recent-scroll,
+.modal-gallery { overscroll-behavior: contain; }
+
 
 /* =========================================================
    Sections
@@ -1536,13 +1494,17 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   backdrop-filter: blur(6px);
 }
 /* Media column: hero image on top, thumbnail strip underneath. */
-.modal-media { display: flex; flex-direction: column; min-width: 0; }
+.modal-media { display: flex; flex-direction: column; min-width: 0; position: relative; }
 /* Thumbnail strip under the quick-view hero. Tap a thumb to swap the main
    image; the strip also auto-rotates every 3s (paused 15s after any manual
    pick — see gallery auto-rotation in app.js). The wrap positions the scroll
    arrows over the strip's edges; the strip itself sits on a transparent
-   background so the thumbnails read as cards floating on the modal paper. */
-.modal-gallery-wrap { position: relative; }
+   background so the thumbnails read as cards floating over the hero photo.
+   The wrap is pinned to the bottom of the media column (over the hero image)
+   rather than sitting in flow, so its background stays fully transparent — the
+   photo shows through the gaps between the floating thumb cards instead of a
+   white paper band. */
+.modal-gallery-wrap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; }
 .modal-gallery {
   display: flex;
   gap: 12px;
@@ -2005,11 +1967,20 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   }
 
   .hero {
+    /* Trim ~130px off the full-viewport hero so it stops leaving a tall empty
+       band under the CTAs. That reclaimed headroom becomes a peek of the shop
+       sheet below — which reads as intentional and invites the scroll instead
+       of sitting there as dead wall. */
+    min-height: calc(100vh - var(--header-h) - 132px);
+    min-height: calc(100svh - var(--header-h) - 132px);
     padding: 12px 0 30px;
   }
 
   .hero-grid {
     gap: 16px;
+    /* Center the copy in what's left so the remaining wall frames it above and
+       below, rather than dumping all the empty space beneath the buttons. */
+    align-items: center;
   }
 
   /* Phones: the model bleeds off the right edge with her face around the 70%

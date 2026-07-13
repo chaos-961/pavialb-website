@@ -185,6 +185,12 @@
   const IMG_RETRY_DELAY = 800;
   let imgInFlight = 0;
   const imgQueue = [];
+  // URLs that have already fully decoded once this session. On any later re-render
+  // of the grid (filter/sort toggles, a silent live refresh, "load more" re-append)
+  // a known URL is emitted pre-loaded with a direct src — so it paints instantly
+  // from cache with no second lazy-fetch and no fade-in replay. That "loads again
+  // after it already loaded" flicker is exactly what this removes.
+  const loadedImgUrls = new Set();
   function pumpImgQueue() {
     while (imgInFlight < IMG_MAX_CONCURRENCY && imgQueue.length) {
       imgInFlight += 1;
@@ -209,6 +215,7 @@
       };
       const onLoad = () => {
         img.classList.add('is-loaded');
+        loadedImgUrls.add(url);
         delete img.dataset.managedRetry;
         settle();
       };
@@ -268,7 +275,13 @@
   // real images defer to the lazy/throttled loader via data-src.
   function lazyImgAttrs(realSrc, seed) {
     if (isMissingImage(realSrc)) return html.raw(`class="lazy-img is-loaded" src="${esc(placeholderImage(seed))}"`);
-    return html.raw(`class="lazy-img" data-src="${esc(safeImg(realSrc))}"`);
+    const safe = safeImg(realSrc);
+    // Seen this URL already this session → emit it pre-loaded with a direct src.
+    // It paints straight from cache (no re-observe, no throttle queue, no fade
+    // replay), so re-rendering the grid never "reloads" an image the user has
+    // already seen.
+    if (loadedImgUrls.has(safe)) return html.raw(`class="lazy-img is-loaded" src="${esc(safe)}"`);
+    return html.raw(`class="lazy-img" data-src="${esc(safe)}"`);
   }
 
   // Normalize a product's stored gallery into ordered {imageUrl, storageKey,
@@ -2638,28 +2651,12 @@
   }
 
   // ---------- Service worker ----------
-  // Surface a non-intrusive "update available -> reload" prompt so app-code
-  // updates apply without a manual hard refresh. A new SW installs but waits;
-  // accepting the prompt tells it to activate, then controllerchange reloads.
-  function showUpdateReady(worker) {
-    const banner = $('[data-update-banner]');
-    if (!banner || !worker) return;
-    banner.hidden = false;
-    requestAnimationFrame(() => banner.classList.add('is-visible'));
-    const reloadBtn = $('[data-update-reload]', banner);
-    if (reloadBtn && !reloadBtn.dataset.bound) {
-      reloadBtn.dataset.bound = '1';
-      reloadBtn.addEventListener('click', () => {
-        reloadBtn.disabled = true;
-        worker.postMessage('SKIP_WAITING');
-      });
-    }
-    $('[data-update-dismiss]', banner)?.addEventListener('click', () => {
-      banner.hidden = true;
-      banner.classList.remove('is-visible');
-    }, { once: true });
-  }
-
+  // Registers the offline/PWA service worker. Updates apply SILENTLY: a new SW
+  // installs in the background and takes over on the next natural launch (once
+  // older tabs are gone) — there is no "a new version is ready, reload" prompt,
+  // and we never force-reload the page out from under the shopper. App code is
+  // served network-first (see service-worker.js), so a normal online reload
+  // already pulls the latest HTML/JS/CSS regardless of the SW swap.
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
 
@@ -2676,33 +2673,14 @@
       return;
     }
 
-    let reloading = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloading) return;
-      reloading = true;
-      window.location.reload();
-    });
-
     // updateViaCache: 'none' stops the browser from serving service-worker.js
-    // itself from the HTTP cache, so a new SW (and its fresh caches) is detected
-    // promptly instead of lingering for up to 24h. update() forces an immediate
-    // check on every load.
-    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).then((registration) => {
-      registration.update().catch(() => null);
-      if (registration.waiting && navigator.serviceWorker.controller) {
-        showUpdateReady(registration.waiting);
-      }
-      registration.addEventListener('updatefound', () => {
-        const installing = registration.installing;
-        if (!installing) return;
-        installing.addEventListener('statechange', () => {
-          // "installed" with an existing controller == a pending update.
-          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-            showUpdateReady(registration.waiting || installing);
-          }
-        });
-      });
-    }).catch(() => null);
+    // itself from the HTTP cache, so a new SW is detected promptly instead of
+    // lingering for up to 24h. update() forces an immediate check on every load;
+    // the freshly installed worker then waits and activates on its own the next
+    // time the app is opened without an older tab holding the old one.
+    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' })
+      .then((registration) => registration.update().catch(() => null))
+      .catch(() => null);
   }
 
   init().catch((error) => {
