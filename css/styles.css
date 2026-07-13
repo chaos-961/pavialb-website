@@ -246,16 +246,12 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .hero-backdrop img {
   object-fit: cover;
-  /* Mobile-first crop position. X keeps the model right-of-centre against the
-     empty left wall (breathing room for the copy). The high Y crops the empty
-     faked wall ABOVE her head (head starts ~36% down the source) so her FACE
-     rides up into the clear upper-right of the phone screen instead of sitting
-     low behind the copy. Any dead floor this reveals at the very bottom is hidden
-     under the rising page-sheet, so the lift costs nothing. On very tall phones
-     the source fills the height exactly (no vertical crop) and Y is simply a
-     no-op — she stays put, never worse. The desktop landscape frame overrides
-     both at >=960px. */
-  object-position: 52% 72%;
+  /* Mobile-first crop position. The portrait <source> (hero-bg2-mobile-v3.webp)
+     is already framed to the phone's ~0.56 aspect — model on the right, empty
+     left wall for the copy — so this just centres it; object-position only
+     nudges the small overflow on phones whose fold isn't exactly that aspect.
+     The desktop landscape frame (full 1920/2560 source) overrides both at >=960px. */
+  object-position: 50% 50%;
   transform-origin: 50% 30%;
   will-change: transform;
   /* Slow "settle" zoom on first paint — the frame eases from a hair over-scaled
