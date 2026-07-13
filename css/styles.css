@@ -333,16 +333,6 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 /* A short editorial rule leads the eyebrow — scoped to the hero so the shop and
    visit eyebrows keep their plain form. Kept as an inline pseudo (not flex + gap,
    which would scatter the eyebrow's own words) so the label text flows normally. */
-.hero .eyebrow::before {
-  content: '';
-  display: inline-block;
-  width: 26px;
-  height: 1px;
-  vertical-align: middle;
-  margin-right: 12px;
-  background: currentColor;
-  opacity: 0.55;
-}
 .hero-text {
   font-size: 16px;
   max-width: 540px;
@@ -351,6 +341,70 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .hero-actions {
   display: flex; gap: 10px; flex-wrap: wrap;
+}
+/* Featured looks strip — three tappable pieces under the CTAs. Stays inside the
+   copy column (never crosses the model), fed by app.js with real featured
+   products. The scroll handler already fades/parallaxes [data-hero-visual]. */
+.hero-looks {
+  display: flex;
+  gap: 12px;
+  margin-top: 28px;
+  max-width: 430px;
+}
+.hero-look {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  aspect-ratio: 3 / 4;
+  margin: 0; padding: 0; border: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(250, 250, 250, 0.6);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
+}
+.hero-look img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hero-look__cue {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex; align-items: center; justify-content: center;
+  gap: 5px;
+  padding: 8px 6px 7px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--paper);
+  background: linear-gradient(0deg, rgba(26, 26, 26, 0.62) 0%, rgba(26, 26, 26, 0) 100%);
+  opacity: 0; transform: translateY(6px);
+  transition: opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+}
+.hero-look__cue svg { width: 13px; height: 13px; }
+.hero-look:hover,
+.hero-look:focus-visible { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+.hero-look:hover .hero-look__cue,
+.hero-look:focus-visible .hero-look__cue { opacity: 1; transform: none; }
+.hero-look:active { transform: translateY(-1px) scale(0.98); transition-duration: 0.08s; }
+.hero-look:focus-visible { outline: 2px solid var(--cocoa); outline-offset: 2px; }
+/* Empty slot (catalog has no products yet): app.js drops the button affordance,
+   so it reads as a still placeholder, not a dead press target. */
+.hero-look.is-empty { cursor: default; box-shadow: var(--shadow-sm); }
+.hero-look.is-empty:hover { transform: none; box-shadow: var(--shadow-sm); }
+.hero-look.is-empty .hero-look__cue { display: none; }
+/* Touch devices never fire :hover — keep the cue gently visible so the pieces
+   read as tappable. */
+@media (hover: none) {
+  .hero-look:not(.is-empty) .hero-look__cue {
+    opacity: 1; transform: none;
+    background: linear-gradient(0deg, rgba(26, 26, 26, 0.5) 0%, rgba(26, 26, 26, 0) 100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-look { transition: none; }
+  .hero-look:hover, .hero-look:active, .hero-look:focus-visible { transform: none; }
 }
 /* =========================================================
    Buttons
@@ -567,6 +621,84 @@ html { overscroll-behavior-y: none; }
   /* Anchor target: land #shop below the sticky header. */
   scroll-margin-top: calc(var(--header-h) + 8px);
 }
+/* Silk backdrop — a few large, soft "fabric" shapes drifting very slowly
+   behind the product grid. The blur is done by the radial-gradient falloff
+   itself (no filter: blur() — that would cost real GPU time on phones), and
+   the animation is transform-only so nothing ever re-rasterizes. The shapes
+   sit under .container (z 0 vs 1) and product cards are opaque paper, so the
+   silk only shows in the breathing room around the cards. */
+.silk-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit; /* respect the section's rounded top corners */
+  pointer-events: none;
+  z-index: 0;
+}
+.shop-section > .container { position: relative; z-index: 1; }
+.silk {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+/* Sand ribbon, top — parked behind the "Our Collection" header where the
+   background is fully exposed. */
+.silk-1 {
+  width: min(96vw, 1100px); height: min(56vw, 640px);
+  left: -24%; top: -6%;
+  background: radial-gradient(closest-side, rgba(150, 150, 150, 0.55), rgba(150, 150, 150, 0) 72%);
+  animation: silk-drift-a 56s ease-in-out infinite alternate;
+}
+/* Light sheen, upper right — the "light on silk" highlight */
+.silk-2 {
+  width: min(80vw, 940px); height: min(46vw, 540px);
+  right: -20%; top: 14%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 70%);
+  animation: silk-drift-b 68s ease-in-out infinite alternate;
+}
+/* Soft sand fold, mid section — shows through the grid gaps */
+.silk-3 {
+  width: min(100vw, 1200px); height: min(52vw, 600px);
+  left: -12%; top: 38%;
+  background: radial-gradient(closest-side, rgba(158, 158, 158, 0.48), rgba(158, 158, 158, 0) 72%);
+  animation: silk-drift-c 74s ease-in-out infinite alternate;
+}
+/* Deeper pool near the bottom */
+.silk-4 {
+  width: min(88vw, 1040px); height: min(48vw, 560px);
+  right: -18%; bottom: -8%;
+  background: radial-gradient(closest-side, rgba(146, 146, 146, 0.45), rgba(146, 146, 146, 0) 72%);
+  animation: silk-drift-a 62s ease-in-out infinite alternate-reverse;
+}
+/* Mid-left counterweight so the middle of a long grid never goes flat */
+.silk-5 {
+  width: min(76vw, 900px); height: min(42vw, 500px);
+  left: -16%; top: 64%;
+  background: radial-gradient(closest-side, rgba(168, 168, 168, 0.40), rgba(168, 168, 168, 0) 70%);
+  animation: silk-drift-b 58s ease-in-out infinite alternate-reverse;
+}
+/* Slow, meandering paths — a mid-waypoint keeps the motion organic instead
+   of a mechanical back-and-forth. Distances are small on purpose: silk
+   settling, not shapes flying around. */
+@keyframes silk-drift-a {
+  0%   { transform: translate3d(0, 0, 0) rotate(-10deg) scale(1); }
+  50%  { transform: translate3d(7vw, 4vh, 0) rotate(-2deg) scale(1.12); }
+  100% { transform: translate3d(2vw, 9vh, 0) rotate(6deg) scale(1.04); }
+}
+@keyframes silk-drift-b {
+  0%   { transform: translate3d(0, 0, 0) rotate(14deg) scale(1.05); }
+  50%  { transform: translate3d(-6vw, 6vh, 0) rotate(5deg) scale(0.94); }
+  100% { transform: translate3d(-2vw, -3vh, 0) rotate(11deg) scale(1.1); }
+}
+@keyframes silk-drift-c {
+  0%   { transform: translate3d(0, 0, 0) rotate(-4deg) scale(1); }
+  50%  { transform: translate3d(5vw, -5vh, 0) rotate(4deg) scale(1.1); }
+  100% { transform: translate3d(9vw, 2vh, 0) rotate(-1deg) scale(0.96); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .silk { animation: none; }
+}
+
 .shop-header {
   margin-bottom: 18px;
 }
@@ -1971,17 +2103,19 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
        band under the CTAs. That reclaimed headroom becomes a peek of the shop
        sheet below — which reads as intentional and invites the scroll instead
        of sitting there as dead wall. */
-    min-height: calc(100vh - var(--header-h) - 132px);
-    min-height: calc(100svh - var(--header-h) - 132px);
+    min-height: calc(100vh - var(--header-h) - 84px);
+    min-height: calc(100svh - var(--header-h) - 84px);
     padding: 12px 0 30px;
   }
 
   .hero-grid {
     gap: 16px;
-    /* Center the copy in what's left so the remaining wall frames it above and
-       below, rather than dumping all the empty space beneath the buttons. */
-    align-items: center;
+    /* Top-align so all the leftover wall sits BELOW the copy — that space is the
+       featured strip's fade runway: it lifts + fades away into it before the shop
+       sheet climbs up, so the three looks tuck away cleanly instead of being cut. */
+    align-items: start;
   }
+  .hero-copy { padding-top: clamp(6px, 3vh, 22px); }
 
   /* Phones: the model bleeds off the right edge with her face around the 70%
      line, so the copy hugs a narrow left column on the empty wall and never
@@ -2011,6 +2145,12 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     font-size: 14px;
   }
   .hero .btn-ghost { background: rgba(250, 250, 250, 0.92); }
+
+  /* Featured strip stays inside the narrow copy column (58vw) so it never reaches
+     the model; tighter gap + smaller radius keep the three thumbs balanced. */
+  .hero-looks { gap: 8px; margin-top: 20px; max-width: none; }
+  .hero-look { border-radius: 12px; }
+  .hero-look__cue { padding: 6px 4px 5px; font-size: 9.5px; letter-spacing: 0.06em; }
 
   .product-grid {
     gap: 14px 10px;
@@ -2063,6 +2203,10 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero-text { font-size: 13px; margin-bottom: 18px; }
   .hero-actions { gap: 8px; }
   .hero-actions .btn-lg { min-height: 48px; padding: 0 22px; font-size: 14px; }
+  /* Reclaim fold height on short phones: shorter, squarer thumbs sit tighter under
+     the CTAs so the whole composition still lands inside the pinned first screen. */
+  .hero-looks { margin-top: 14px; }
+  .hero-look { aspect-ratio: 1 / 1; }
 }
 
 /* Landscape phones (<960px, rotated): the <picture> swaps to the landscape

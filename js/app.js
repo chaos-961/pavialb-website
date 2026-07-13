@@ -1037,10 +1037,26 @@
     const allowParallax = heroEl && !prefersReducedMotion();
     let heroH = 0;
     let toolbarStickAt = 280;
+    // Scroll distance available before the rising sheet edge reaches the featured
+    // strip. The strip's fade+lift runs over exactly this window so it tucks away
+    // cleanly instead of being sliced by the sheet's opaque top edge.
+    let heroVisualRunway = 200;
     // Measured (not hardcoded) because the hero is now viewport-sized: the
     // toolbar "stuck" threshold and the choreography span both track it.
     const measureScrollScene = () => {
       heroH = heroEl ? heroEl.offsetHeight : 0;
+      if (heroVisual && heroEl) {
+        // Measure the untransformed rest layout: the gap from the strip's bottom to
+        // the hero's bottom border IS the runway (= where the sheet begins).
+        const prev = heroVisual.style.transform;
+        heroVisual.style.transform = 'none';
+        const gap = heroEl.getBoundingClientRect().bottom - heroVisual.getBoundingClientRect().bottom;
+        heroVisual.style.transform = prev;
+        // Use the TRUE gap (never clamp above it, or the fade would finish after the
+        // sheet edge already arrived — a slice). Small floor only guards a degenerate
+        // near-zero measurement; CSS keeps the real gap comfortable (~48px+).
+        heroVisualRunway = Math.max(24, gap);
+      }
       if (n.toolbar) {
         toolbarStickAt = Math.max(0,
           n.toolbar.getBoundingClientRect().top + window.scrollY - n.header.offsetHeight - 4);
@@ -1067,8 +1083,12 @@
         }
       }
       if (heroVisual) {
-        heroVisual.style.transform = `translate3d(0, ${(y * -0.08).toFixed(1)}px, 0)`;
-        heroVisual.style.opacity = Math.max(0, 1 - p * 0.95).toFixed(3);
+        // Fade + lift the strip out over its runway so it's fully gone a hair
+        // before the rising sheet edge reaches it (the -12 buffer) — a clean tuck,
+        // never a hard slice. Geometry-driven, so it holds at every screen size.
+        const t = Math.min(1, y / Math.max(1, heroVisualRunway - 12));
+        heroVisual.style.transform = `translate3d(0, ${(t * -36).toFixed(1)}px, 0)`;
+        heroVisual.style.opacity = Math.max(0, 1 - t).toFixed(3);
       }
     };
     window.addEventListener('scroll', () => {
