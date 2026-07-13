@@ -432,7 +432,6 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .close-btn:focus-visible,
 .modal-close:focus-visible,
 .wish-btn:focus-visible,
-.quick-add:focus-visible,
 .filter-toggle:focus-visible,
 .search-clear:focus-visible,
 .category-pills button:focus-visible,
@@ -621,82 +620,46 @@ html { overscroll-behavior-y: none; }
   /* Anchor target: land #shop below the sticky header. */
   scroll-margin-top: calc(var(--header-h) + 8px);
 }
-/* Silk backdrop — a few large, soft "fabric" shapes drifting very slowly
-   behind the product grid. The blur is done by the radial-gradient falloff
-   itself (no filter: blur() — that would cost real GPU time on phones), and
-   the animation is transform-only so nothing ever re-rasterizes. The shapes
-   sit under .container (z 0 vs 1) and product cards are opaque paper, so the
-   silk only shows in the breathing room around the cards. */
-.silk-bg {
+/* Architectural grid backdrop — a fine hairline grid drifting slowly on the
+   diagonal behind the product grid. It's drawn with two repeating
+   linear-gradients (no per-line DOM, no filter: blur()), the drift is
+   transform-only on ::before so nothing ever re-rasterizes, and a radial mask
+   fades the whole layer out through the middle where the cards sit — so the
+   lines only read in the breathing room at the edges, never behind a product
+   photo. The shape sits under .container (z 0 vs 1). */
+.shop-grid-bg {
   position: absolute;
   inset: 0;
   overflow: hidden;
   border-radius: inherit; /* respect the section's rounded top corners */
   pointer-events: none;
   z-index: 0;
+  /* Vignette the grid away from the centre so it never competes with the
+     products — strongest along the outer edges, gone through the middle. */
+  -webkit-mask: radial-gradient(78% 68% at 50% 40%, transparent 22%, #000 100%);
+          mask: radial-gradient(78% 68% at 50% 40%, transparent 22%, #000 100%);
+}
+.shop-grid-bg::before {
+  content: "";
+  position: absolute;
+  /* Oversized so the diagonal drift never exposes an untiled edge. */
+  inset: -60px;
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-size: 46px 46px;
+  will-change: transform;
+  animation: shop-grid-drift 34s linear infinite;
 }
 .shop-section > .container { position: relative; z-index: 1; }
-.silk {
-  position: absolute;
-  border-radius: 50%;
-  will-change: transform;
-}
-/* Sand ribbon, top — parked behind the "Our Collection" header where the
-   background is fully exposed. */
-.silk-1 {
-  width: min(96vw, 1100px); height: min(56vw, 640px);
-  left: -24%; top: -6%;
-  background: radial-gradient(closest-side, rgba(150, 150, 150, 0.55), rgba(150, 150, 150, 0) 72%);
-  animation: silk-drift-a 56s ease-in-out infinite alternate;
-}
-/* Light sheen, upper right — the "light on silk" highlight */
-.silk-2 {
-  width: min(80vw, 940px); height: min(46vw, 540px);
-  right: -20%; top: 14%;
-  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 70%);
-  animation: silk-drift-b 68s ease-in-out infinite alternate;
-}
-/* Soft sand fold, mid section — shows through the grid gaps */
-.silk-3 {
-  width: min(100vw, 1200px); height: min(52vw, 600px);
-  left: -12%; top: 38%;
-  background: radial-gradient(closest-side, rgba(158, 158, 158, 0.48), rgba(158, 158, 158, 0) 72%);
-  animation: silk-drift-c 74s ease-in-out infinite alternate;
-}
-/* Deeper pool near the bottom */
-.silk-4 {
-  width: min(88vw, 1040px); height: min(48vw, 560px);
-  right: -18%; bottom: -8%;
-  background: radial-gradient(closest-side, rgba(146, 146, 146, 0.45), rgba(146, 146, 146, 0) 72%);
-  animation: silk-drift-a 62s ease-in-out infinite alternate-reverse;
-}
-/* Mid-left counterweight so the middle of a long grid never goes flat */
-.silk-5 {
-  width: min(76vw, 900px); height: min(42vw, 500px);
-  left: -16%; top: 64%;
-  background: radial-gradient(closest-side, rgba(168, 168, 168, 0.40), rgba(168, 168, 168, 0) 70%);
-  animation: silk-drift-b 58s ease-in-out infinite alternate-reverse;
-}
-/* Slow, meandering paths — a mid-waypoint keeps the motion organic instead
-   of a mechanical back-and-forth. Distances are small on purpose: silk
-   settling, not shapes flying around. */
-@keyframes silk-drift-a {
-  0%   { transform: translate3d(0, 0, 0) rotate(-10deg) scale(1); }
-  50%  { transform: translate3d(7vw, 4vh, 0) rotate(-2deg) scale(1.12); }
-  100% { transform: translate3d(2vw, 9vh, 0) rotate(6deg) scale(1.04); }
-}
-@keyframes silk-drift-b {
-  0%   { transform: translate3d(0, 0, 0) rotate(14deg) scale(1.05); }
-  50%  { transform: translate3d(-6vw, 6vh, 0) rotate(5deg) scale(0.94); }
-  100% { transform: translate3d(-2vw, -3vh, 0) rotate(11deg) scale(1.1); }
-}
-@keyframes silk-drift-c {
-  0%   { transform: translate3d(0, 0, 0) rotate(-4deg) scale(1); }
-  50%  { transform: translate3d(5vw, -5vh, 0) rotate(4deg) scale(1.1); }
-  100% { transform: translate3d(9vw, 2vh, 0) rotate(-1deg) scale(0.96); }
+/* Exactly one cell of travel, so the pattern (which repeats every 46px) wraps
+   seamlessly at the loop point — no visible jump. */
+@keyframes shop-grid-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(46px, 46px, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .silk { animation: none; }
+  .shop-grid-bg::before { animation: none; }
 }
 
 .shop-header {
@@ -1007,35 +970,8 @@ html { overscroll-behavior-y: none; }
   50%      { transform: scale(1.4); }
 }
 
-/* Quick add (overlay) */
-.quick-add {
-  position: absolute;
-  left: 10px; right: 10px; bottom: 10px;
-  height: 38px;
-  border-radius: var(--r-pill);
-  background: var(--ink); color: var(--paper);
-  font-size: 12px; font-weight: 600;
-  letter-spacing: 0.04em;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  opacity: 0; transform: translateY(8px);
-  transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out), background 0.2s var(--ease-out);
-  z-index: 2;
-}
-.quick-add svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none; }
-.quick-add:hover { background: var(--cocoa); }
-.quick-add:disabled {
-  cursor: not-allowed;
-  background: rgba(0, 0, 0, 0.64);
-}
-.product-card:hover .quick-add,
-.product-card:focus-within .quick-add { opacity: 1; transform: translateY(0); }
-
-@media (hover: none) {
-  .quick-add { opacity: 1; transform: none; height: 44px; }
-}
 /* Add-to-bag success micro-confirmation (toggled via .is-added in app.js).
    Transform-only; auto-neutralized by the reduced-motion override above. */
-.quick-add.is-added,
 .qty-add-row .btn.is-added { animation: addPop 0.45s var(--ease-spring); }
 @keyframes addPop {
   0%, 100% { transform: none; }
@@ -1205,6 +1141,10 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   padding-inline: var(--gutter);
   padding-bottom: 6px;
   scroll-snap-type: x mandatory;
+  /* Only pan this strip horizontally; let vertical swipes fall through to the
+     page so a touch that lands here never traps the whole scroll. */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
 }
 .recent-scroll::-webkit-scrollbar { display: none; }
 .recent-card {
@@ -2420,8 +2360,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 }
 .product-card:hover .product-media img { filter: brightness(1.02); }
 .btn:active { transform: scale(0.97); }
-.quick-add { transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-spring), background 0.2s var(--ease-out); }
-.quick-add:active { transform: scale(0.96); }
 .wish-btn:active { transform: scale(0.92); }
 .icon-btn:active { transform: scale(0.9); }
 
