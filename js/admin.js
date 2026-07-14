@@ -137,6 +137,11 @@
 
   function lockDashboard(message = '') {
     state.unlocked = false;
+    // Release the dashboard's backend subscriptions and document/window
+    // listeners BEFORE tearing down its DOM, so nothing keeps firing into a
+    // removed tree (and re-unlocking can't stack duplicate listeners).
+    try { window.PAVIA_DASHBOARD_TEARDOWN?.(); } catch { /* best effort */ }
+    window.PAVIA_DASHBOARD_TEARDOWN = undefined;
     BACKEND?.setAdminUnlocked?.(false);
     // Drop the Firebase admin credential and fall back to an anonymous session.
     void BACKEND?.lockAdmin?.();
@@ -287,6 +292,11 @@
     updateAuthState();
   }
 
+  // { once: true } is load-bearing: injectDashboard() dispatches a SYNTHETIC
+  // DOMContentLoaded to boot the decrypted dashboard, and without `once` that
+  // dispatch re-ran this gate boot too — re-binding the login submit handler on
+  // every unlock, so each lock/unlock cycle fired handleUnlock multiple times
+  // (duplicate decrypts, sign-ins, and dashboard injections).
   document.addEventListener('DOMContentLoaded', () => {
     void initializeAuthGate().catch((error) => {
       console.error(error);
@@ -294,5 +304,5 @@
       updateAuthState();
       $('#adminGate').hidden = false;
     });
-  });
+  }, { once: true });
 })();
