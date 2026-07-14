@@ -264,16 +264,13 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   from { transform: scale(1.06); }
   to   { transform: scale(1); }
 }
-/* Paper-tone washes over the photo: the top band keeps the header + headline
-   legible, the bottom band melts the photo into the sheet seam. Overlay only —
-   no blur, so the photo stays crisp. Phone-first values (copy sits ON the
-   photo there); desktop lightens the top and adds a left veil under the copy. */
+/* The photo reads clean — no top band or side veil dimming it. The only overlay
+   is a single bottom fade that melts the photo into the sheet seam. Overlay only
+   (no blur), fades upward from the bottom edge and never touches the top. */
 .hero-backdrop__wash {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(242, 238, 231, 0.72) 0%, rgba(242, 238, 231, 0.30) 22%, rgba(242, 238, 231, 0) 46%),
-    linear-gradient(90deg, rgba(242, 238, 231, 0.66) 0%, rgba(242, 238, 231, 0.34) 38%, rgba(242, 238, 231, 0) 68%),
     linear-gradient(0deg, rgba(230, 230, 230, 0.88) 0%, rgba(230, 230, 230, 0.32) 14%, rgba(230, 230, 230, 0) 34%);
 }
 .hero-grid {
@@ -597,8 +594,8 @@ html { overscroll-behavior-y: none; }
   /* Oversized so the diagonal drift never exposes an untiled edge. */
   inset: -60px;
   background-image:
-    linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
   background-size: 46px 46px;
   will-change: transform;
   animation: shop-grid-drift 34s linear infinite;
@@ -2249,12 +2246,10 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
      upper third; the 88% X only matters on narrow-but-tall desktop windows
      (960-1300px), where it slides the crop window right so she stays in frame. */
   .hero-backdrop img { object-position: 88% 28%; }
-  /* Two-column wash: lighter header band + a left veil under the copy column
-     (the phone top-band would fog the model's face here). */
+  /* Same clean read on desktop — only the bottom seam fade, no header band or
+     left veil over the photo. */
   .hero-backdrop__wash {
     background:
-      linear-gradient(180deg, rgba(242, 238, 231, 0.55) 0%, rgba(242, 238, 231, 0.18) 20%, rgba(242, 238, 231, 0) 44%),
-      linear-gradient(90deg, rgba(242, 238, 231, 0.55) 0%, rgba(242, 238, 231, 0.26) 28%, rgba(242, 238, 231, 0) 54%),
       linear-gradient(0deg, rgba(230, 230, 230, 0.85) 0%, rgba(230, 230, 230, 0.30) 12%, rgba(230, 230, 230, 0) 30%);
   }
 
