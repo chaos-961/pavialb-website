@@ -9,7 +9,6 @@
     products: 'PAVIA_PRODUCTS',
     orders: 'PAVIA_ORDERS',
     settings: 'PAVIA_SETTINGS',
-    subscribers: 'PAVIA_SUBSCRIBERS',
     orderRequests: 'PAVIA_ORDER_REQUESTS',
     mediaLibrary: 'PAVIA_MEDIA_LIBRARY',
   };
@@ -260,9 +259,6 @@
       if (localStorage.getItem(keys.settings) === null) {
         write(keys.settings, clone(window.PAVIA_CONFIG || {}));
       }
-      if (localStorage.getItem(keys.subscribers) === null) {
-        write(keys.subscribers, []);
-      }
       if (localStorage.getItem(keys.orderRequests) === null) {
         write(keys.orderRequests, {});
       }
@@ -408,23 +404,6 @@
       },
       subscribe(listener) {
         return subscribe('settings', listener);
-      },
-    },
-
-    subscribers: {
-      async create(record) {
-        const subscribers = read(keys.subscribers, []);
-        const entry = {
-          id: record.id || `sub-${Date.now()}`,
-          email: String(record.email || '').trim().toLowerCase(),
-          consent: record.consent === true,
-          source: record.source || 'storefront',
-          createdAt: record.createdAt || new Date().toISOString(),
-        };
-        if (!entry.email || !entry.consent) throw new Error('Subscriber email and consent are required.');
-        subscribers.push(entry);
-        write(keys.subscribers, subscribers);
-        return clone(entry);
       },
     },
 

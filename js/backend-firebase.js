@@ -466,7 +466,6 @@
           orderManagement: adminUnlocked,
           realtimeProducts: true,
           publicSettings: true,
-          subscribers: true,
         });
       }
       return Object.freeze({
@@ -475,7 +474,6 @@
         orderManagement: true,
         realtimeProducts: false,
         publicSettings: false,
-        subscribers: true,
       });
     },
 
@@ -875,26 +873,6 @@
       subscribe(listener) {
         if (activeProvider === 'local') return localBackend.settings.subscribe(listener);
         return subscribePath('publicStoreSettings', listener);
-      },
-    },
-
-    subscribers: {
-      async create(record) {
-        if (activeProvider === 'local') return localBackend.subscribers.create(record);
-        const email = String(record.email || '').trim().toLowerCase();
-        const consent = record.consent === true;
-        if (!email || !consent) throw new Error('Subscriber email and consent are required.');
-        const ref = firebaseState.databaseApi.push(databaseReference('subscribers'));
-        const entry = {
-          id: ref.key,
-          email,
-          consent: true,
-          source: record.source || 'storefront',
-          createdAt: record.createdAt || new Date().toISOString(),
-          createdBy: firebaseState.auth?.currentUser?.uid || '',
-        };
-        await firebaseState.databaseApi.set(ref, entry);
-        return clone(entry);
       },
     },
 

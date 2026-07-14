@@ -117,12 +117,12 @@
     @keyframes paviaSplashCap{0%,82%{opacity:1;visibility:visible;}100%{opacity:0;visibility:hidden;}}
     @media (prefers-reduced-motion:reduce){#pavia-splash,.pavia-splash__bar{transition:none;}}
 
-    /* Under-construction gate (storefront only). Covers everything until the preview
-       password is entered. No real security, just a "not public yet" screen — the
-       check lives in js/construction-gate.js and is visible in source by design. */
-    /* Hidden by default — the storefront is public. js/app.js only reveals this
-       (via .is-active) as a fallback when Firebase has a major error and there is
-       no catalog to show. The unlock is never remembered. */
+    /* Under-construction LAUNCH gate (storefront only; restored in v0.4.8).
+       js/construction-gate.js shows this on load for every visitor who hasn't
+       entered the preview password, and REMEMBERS the unlock in localStorage.
+       No real security — the password is plain in source by design; it's a
+       "not public yet" screen. js/app.js additionally re-shows it as the calm
+       fallback when Firebase fails with no cached catalog to render. */
     .uc-gate{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:24px;background:#f4f4f4;color:#1a1a1a;font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;}
     .uc-gate.is-active{display:flex;}
     .uc-card{width:min(420px,100%);text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;}

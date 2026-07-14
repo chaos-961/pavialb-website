@@ -350,19 +350,12 @@
     return `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   };
 
-  // Color helpers — products may store strings or {name, hex}
-  const colorObj = (c) => typeof c === 'string'
-    ? { name: c, hex: stringToHex(c) }
-    : { name: c.name, hex: c.hex || stringToHex(c.name) };
-  function stringToHex(name) {
-    const lookup = {
-      'sky blue':'#9ec1de','white':'#fafafa','medium blue':'#5a7da3','azure':'#7fa8d6',
-      'cocoa':'#5c4034','mocha':'#7a5443','ivory':'#f3ead8','cream':'#ede2cf',
-      'chocolate':'#4b322a','beige':'#c9a779','black':'#1a1612','olive':'#7a7d56',
-      'taupe':'#a78970'
-    };
-    return lookup[norm(name)] || '#a78970';
-  }
+  // Color helpers — products may store strings or {name, hex}. Delegates to
+  // store-core (single source for the name->hex table); the inline fallback only
+  // runs if store-core somehow failed to load.
+  const colorObj = CORE.colorObject || ((c) => typeof c === 'string'
+    ? { name: c, hex: '#a78970' }
+    : { name: c.name, hex: c.hex || '#a78970' });
 
   // Stock was removed from the store. Treat every product as effectively unlimited
   // so nothing is ever gated, capped, or labelled "sold out"; the real value in the
@@ -2591,15 +2584,6 @@
       void el.offsetWidth;
       el.classList.add('is-bumping');
     });
-  }
-
-  // A quick press-pop on an add-to-bag button for tactile success feedback.
-  function popButton(btn) {
-    if (!btn) return;
-    btn.classList.remove('is-added');
-    void btn.offsetWidth; // force reflow so the animation replays on rapid re-adds
-    btn.classList.add('is-added');
-    setTimeout(() => btn.classList.remove('is-added'), 500);
   }
 
   // ---------- Toast ----------

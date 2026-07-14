@@ -313,7 +313,6 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .hero-copy .eyebrow       { animation: heroRise 0.75s var(--ease-out) 0.35s backwards; }
 .hero-copy h1             { animation: heroRise 0.9s  var(--ease-out) 0.48s backwards; }
 .hero-copy .hero-text     { animation: heroRise 0.9s  var(--ease-out) 0.62s backwards; }
-.hero-copy .hero-text--sub{ animation: heroRise 0.9s  var(--ease-out) 0.74s backwards; }
 .hero-copy .hero-actions  { animation: heroRise 0.9s  var(--ease-out) 0.86s backwards; }
 .hero-copy h1 em {
   font-style: italic;
@@ -336,14 +335,6 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   max-width: 540px;
   color: var(--ink-soft);
   margin-bottom: 18px;
-}
-/* Second, quieter hero line — carries the extra copy that now fills the space the
-   featured-looks strip used to occupy, so the column reads full rather than empty.
-   A touch smaller and softer than the lede so the two lines read as a hierarchy. */
-.hero-text--sub {
-  font-size: 15px;
-  color: var(--muted);
-  margin-bottom: 26px;
 }
 .hero-actions {
   display: flex; gap: 10px; flex-wrap: wrap;
@@ -1644,30 +1635,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   display: flex; align-items: baseline; gap: 8px;
   flex-wrap: wrap;
 }
-.product-extra-details {
-  display: grid;
-  gap: 6px;
-  margin: 8px 0 0;
-}
-.product-extra-details > div {
-  display: grid;
-  grid-template-columns: 64px 1fr;
-  gap: 10px;
-  padding-top: 6px;
-  border-top: 1px solid var(--line-soft);
-}
-.product-extra-details dt {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.product-extra-details dd {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 13px;
-}
 .modal-price-row .now { font-size: 22px; font-weight: 700; }
 
 .option-group {
@@ -1903,8 +1870,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 .checkout-card.is-confirmed .checkout-fields,
 .checkout-card.is-confirmed .order-preview > h3,
 .checkout-card.is-confirmed .order-preview > [data-checkout-summary],
-.checkout-card.is-confirmed .checkout-submit,
-.checkout-card.is-confirmed [data-copy-order] { display: none; }
+.checkout-card.is-confirmed .checkout-submit { display: none; }
 .checkout-card.is-confirmed .checkout-success {
   margin-top: 0;
   border: 0;
@@ -2089,9 +2055,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 @media (max-width: 639px) and (orientation: portrait) and (max-height: 700px) {
   .hero-copy h1 { font-size: clamp(25px, 7.6vw, 31px); }
   .hero-text { font-size: 13px; margin-bottom: 18px; }
-  /* Fold is too tight here for the second line — drop it so the headline, lede
-     and CTAs still land inside the pinned first screen. */
-  .hero-text--sub { display: none; }
   .hero-actions { gap: 8px; }
   .hero-actions .btn-lg { min-height: 48px; padding: 0 22px; font-size: 14px; }
 }
@@ -2105,8 +2068,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero-copy { max-width: min(560px, 56vw); }
   .hero-copy h1 { font-size: clamp(26px, 4.6vw, 40px); }
   .hero-text { font-size: 13.5px; margin-bottom: 16px; }
-  /* Rotated phones are very short — the second line would spill under the sheet. */
-  .hero-text--sub { display: none; }
   .hero-actions { flex-direction: row; }
   .hero-actions .btn { width: auto; }
 }
@@ -2243,7 +2204,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero .eyebrow { font-size: 15px; letter-spacing: 0.24em; margin-bottom: 20px; }
   .hero-copy h1 { font-size: clamp(62px, 6.2vw, 104px); margin: 12px 0 28px; }
   .hero-text { font-size: clamp(19px, 1.55vw, 24px); max-width: 600px; margin-bottom: 18px; }
-  .hero-text--sub { font-size: clamp(16px, 1.2vw, 19px); max-width: 600px; margin-bottom: 40px; }
   .hero-actions { gap: 14px; }
   .hero-actions .btn { min-height: 62px; padding: 0 34px; font-size: 16.5px; }
   .hero-actions .btn-lg { min-height: 66px; padding: 0 40px; font-size: 17.5px; }
@@ -2274,7 +2234,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .modal-details { gap: 10px; padding: 22px 24px; }
   .modal-desc { -webkit-line-clamp: 3; }
   .modal-details h2 { font-size: clamp(23px, 3.4vw, 29px); }
-  .product-extra-details { margin-top: 6px; }
   .qty-add-row .btn, .qty-add-row .qty-control { height: 44px; }
   .modal-meta { gap: 4px; padding-top: 8px; font-size: 11px; }
 }
@@ -2288,9 +2247,6 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .hero-copy { padding-top: clamp(4px, 3vh, 24px); }
   .hero-copy h1 { font-size: clamp(48px, 10.6vh, 80px); }
   .hero-text { font-size: clamp(17px, 1.4vw, 21px); margin-bottom: 14px; }
-  /* Tight fold: keep the second line but trim its air so headline + both lines
-     + CTAs still clear the pinned first screen. */
-  .hero-text--sub { font-size: clamp(15px, 1.15vw, 17px); margin-bottom: 22px; }
 }
 
 /* =========================================================
