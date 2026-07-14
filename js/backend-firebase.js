@@ -715,12 +715,15 @@
             paymentStatus: 'awaiting_confirmation',
             paymentMethod,
             items: pricingItems,
+            // The database rules reject '<' or '>' in name/city/address — strip
+            // them client-side so a shopper who typed one (e.g. "<3") still gets
+            // their order through instead of an opaque PERMISSION_DENIED.
             customer: {
-              name: String(customer.name || '').trim().slice(0, 120),
+              name: String(customer.name || '').replace(/[<>]/g, '').trim().slice(0, 120),
               phone: String(customer.phone || '').trim().slice(0, 40),
-              city: String(customer.city || '').trim().slice(0, 120),
+              city: String(customer.city || '').replace(/[<>]/g, '').trim().slice(0, 120),
               deliveryArea,
-              address: String(customer.address || '').trim().slice(0, 300),
+              address: String(customer.address || '').replace(/[<>]/g, '').trim().slice(0, 300),
               notes: String(customer.notes || '').trim().slice(0, 500),
               payment: customer.payment || (paymentMethod === 'whish_money' ? 'Whish Money' : 'Cash on delivery'),
             },

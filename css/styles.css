@@ -667,7 +667,8 @@ html { overscroll-behavior-y: none; }
   padding: 0 8px;
   min-width: 0;
 }
-.search-field input::placeholder { color: var(--muted-soft); }
+/* --muted (not --muted-soft): placeholder text needs ~4.5:1 contrast on paper. */
+.search-field input::placeholder { color: var(--muted); }
 /* Suppress the browser's native search "x" so only the custom .search-clear shows. */
 .search-field input[type="search"]::-webkit-search-cancel-button,
 .search-field input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
@@ -1835,12 +1836,16 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
 .payment-option .opt-icon svg { width: 18px; height: 18px; stroke: var(--cocoa); stroke-width: 1.6; fill: none; }
 .payment-option strong { display: block; font-size: 13px; }
 .payment-option p { margin-top: 2px; font-size: 11px; color: var(--muted); }
-.payment-option:has(input:checked) {
+/* .is-checked is mirrored from the radio state by app.js (syncPaymentSelected)
+   instead of :has(input:checked), which older Safari/Firefox lack — there the
+   selected card would have had NO visible indicator at all. */
+.payment-option.is-checked {
   border-color: var(--ink); background: var(--ink); color: var(--paper);
 }
-.payment-option:has(input:checked) p { color: var(--muted-soft); }
-.payment-option:has(input:checked) .opt-icon { background: rgba(255, 255, 255, 0.12); }
-.payment-option:has(input:checked) .opt-icon svg { stroke: var(--paper); }
+.payment-option.is-checked p { color: var(--muted-soft); }
+.payment-option.is-checked .opt-icon { background: rgba(255, 255, 255, 0.12); }
+.payment-option.is-checked .opt-icon svg { stroke: var(--paper); }
+.payment-option[hidden] { display: none; }
 
 /* Order preview */
 .order-preview {

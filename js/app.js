@@ -504,6 +504,7 @@
     if (/^\+961\d{7,8}$/.test(raw.replace(/\s/g, ''))) return raw.replace(/\s/g, '');
     if (/^961\d{7,8}$/.test(digits)) return `+${digits}`;
     if (/^0\d{7,8}$/.test(digits)) return `+961${digits.slice(1)}`;
+    if (/^\d{7,8}$/.test(digits)) return `+961${digits}`; // bare local number, parity with store-core
     return '';
   }
 
@@ -750,7 +751,10 @@
   // Differential sync: read the tiny manifest, fetch only changed/new product nodes,
   // reuse cached objects for unchanged ids, drop deleted ids. Falls back to a full
   // list when no manifest exists, and keeps the cached catalog when offline.
-  async function syncCatalog() {
+  // Callers go through syncCatalog() below, which serializes runs: overlapping
+  // calls (init + manifest subscription + reconnect) would otherwise interleave
+  // awaits while mutating the shared rawById/knownRevs/currentManifest state.
+  async function syncCatalogNow() {
     let manifest = null;
     let errored = false;
     try {
@@ -805,6 +809,16 @@
     if (!errored) setOfflineBanner(false);
     await rebuildProductsFromRaw();
     if (rawById.size) await persistCatalog();
+  }
+
+  // Serialize catalog syncs: each call runs after the previous one finishes, so
+  // concurrent triggers can't interleave and clobber each other's state. Each
+  // caller still awaits its own full run (and re-renders with its result).
+  let catalogSyncChain = Promise.resolve();
+  function syncCatalog() {
+    const run = catalogSyncChain.then(() => syncCatalogNow());
+    catalogSyncChain = run.then(() => undefined, () => undefined);
+    return run;
   }
 
   async function retryLoad() {
@@ -1131,6 +1145,10 @@
 
     $('[data-checkout]')?.addEventListener('click', openCheckout);
     n.checkoutForm?.addEventListener('submit', submitCheckout);
+    // Keep the .is-checked mirror in sync as the shopper switches payment method.
+    $$('input[name="payment"]', n.checkoutForm).forEach((input) => {
+      input.addEventListener('change', syncPaymentSelected);
+    });
     n.checkoutForm?.querySelector('[name="phone"]')?.addEventListener('blur', e => {
       const normalized = normalizeLebanonPhone(e.target.value);
       if (normalized) e.target.value = normalized;
@@ -1526,7 +1544,7 @@
       if (loadError) {
         // Friendly, non-technical wording: a shopper only needs to know the
         // boutique is briefly unavailable and how to reach us meanwhile.
-        n.productGrid.innerHTML = `
+        setHtml(n.productGrid, html`
           <div class="empty-state boutique-pause" role="status">
             <svg class="pavia-wordmark" viewBox="0 0 982 333" aria-hidden="true" focusable="false"><use href="#paviaWordmark"/></svg>
             <h3>The boutique is taking a short pause</h3>
@@ -1535,10 +1553,10 @@
               <button type="button" class="btn btn-primary" data-retry-load>Try again</button>
               <a class="btn btn-soft" href="${waLink}" target="_blank" rel="noreferrer">WhatsApp us</a>
             </div>
-          </div>`;
+          </div>`);
         $('[data-retry-load]', n.productGrid)?.addEventListener('click', () => void retryLoad());
       } else {
-        n.productGrid.innerHTML = `
+        setHtml(n.productGrid, html`
           <div class="empty-state boutique-pause">
             <svg class="pavia-wordmark" viewBox="0 0 982 333" aria-hidden="true" focusable="false"><use href="#paviaWordmark"/></svg>
             <h3>Collection coming soon</h3>
@@ -1547,7 +1565,7 @@
               <a class="btn btn-primary" href="${waLink}" target="_blank" rel="noreferrer">WhatsApp us</a>
               <a class="btn btn-soft" href="${igLink}" target="_blank" rel="noreferrer">Instagram</a>
             </div>
-          </div>`;
+          </div>`);
       }
       return;
     }
@@ -2141,10 +2159,45 @@
   function applyCheckoutState() {
     const enabled = SITE_CONFIG.checkoutEnabled !== false;
     const btn = $('[data-checkout]');
-    if (!btn) return;
-    btn.disabled = !enabled;
-    btn.textContent = enabled ? 'Checkout' : 'Ordering paused';
-    btn.title = enabled ? '' : 'Ordering is taking a short break.';
+    if (btn) {
+      btn.disabled = !enabled;
+      btn.textContent = enabled ? 'Checkout' : 'Ordering paused';
+      btn.title = enabled ? '' : 'Ordering is taking a short break.';
+    }
+    applyPaymentMethods();
+  }
+
+  // Mirror the radio state onto the labels (.is-checked) so the selected payment
+  // card is styled without relying on :has() (missing in older Safari/Firefox).
+  function syncPaymentSelected() {
+    $$('input[name="payment"]', n.checkoutForm).forEach((input) => {
+      input.closest('.payment-option')?.classList.toggle('is-checked', input.checked);
+    });
+  }
+
+  // Honor the store's payment-method toggles (publicStoreSettings.paymentMethods):
+  // a method the owner switched off is hidden at checkout. If BOTH are off the
+  // record is treated as misconfigured and everything stays available.
+  function applyPaymentMethods() {
+    const options = $$('input[name="payment"]', n.checkoutForm);
+    if (!options.length) return;
+    const methods = SITE_CONFIG.paymentMethods || {};
+    const enabledByValue = new Map([
+      ['Cash on delivery', methods.cash_on_delivery !== false],
+      ['Whish Money', methods.whish_money !== false],
+    ]);
+    const anyEnabled = [...enabledByValue.values()].some(Boolean);
+    options.forEach((input) => {
+      const on = !anyEnabled || enabledByValue.get(input.value) !== false;
+      input.disabled = !on;
+      const label = input.closest('.payment-option');
+      if (label) label.hidden = !on;
+    });
+    if (!options.some((input) => input.checked && !input.disabled)) {
+      const first = options.find((input) => !input.disabled);
+      if (first) first.checked = true;
+    }
+    syncPaymentSelected();
   }
 
   function renderCart() {
@@ -2162,6 +2215,10 @@
     n.subtotalEl.textContent = money(subtotal);
     n.totalEl.textContent = money(total);
     if (n.deliveryEl) n.deliveryEl.textContent = money(DELIVERY_FEE);
+    // An empty bag shows only the empty state — no $0 totals with a live
+    // Checkout button (and no "$3 delivery" line contradicting the $0 total).
+    const summary = $('[data-cart-summary]');
+    if (summary) summary.hidden = !cart.length;
 
     if (!cart.length) {
       n.cartItems.innerHTML = `
@@ -2216,7 +2273,10 @@
         toast('This style is no longer available.', 'error');
         return;
       }
-      if (num(item.qty) >= MAX_QTY_PER_ITEM) {
+      // Cap against the product's TOTAL across every size/color line (same rule
+      // addToCart applies), not just this line — otherwise two lines of the same
+      // product could climb past the per-product limit via the + button.
+      if (cartProductQty(item.id) >= MAX_QTY_PER_ITEM) {
         toast(`You can add up to ${MAX_QTY_PER_ITEM} of one item.`, 'error');
         return;
       }
