@@ -139,6 +139,9 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       })
-      .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html'))),
+      // Offline, not cached → fail cleanly. Falling back to index.html here
+      // (like the navigate branch does) would hand an HTML body to a JS/CSS
+      // request, turning a network error into a script parse error.
+      .catch(() => caches.match(req).then((cached) => cached || Response.error())),
   );
 });
