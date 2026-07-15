@@ -1076,6 +1076,11 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   display: flex;
   gap: 10px;
   overflow-x: auto;
+  /* Pin the vertical axis: with overflow-x set and overflow-y left at its
+     default, the spec computes overflow-y to auto, turning this strip into a
+     vertical scroll container too. The padding-bottom sliver then traps the
+     mouse wheel here instead of scrolling the page. */
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   margin-inline: calc(-1 * var(--gutter));
