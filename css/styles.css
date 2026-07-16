@@ -767,8 +767,18 @@ html { overscroll-behavior-y: none; }
   display: flex; gap: 6px;
   margin-top: 10px;
   overflow-x: auto;
+  /* Pin the vertical axis: with overflow-x set and overflow-y left at its
+     default, the spec computes overflow-y to auto, turning this pill strip into
+     a vertical scroll container too — the padding-block sliver then traps the
+     mouse wheel / vertical swipe here instead of scrolling the page. Same fix as
+     .recent-scroll below. */
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  /* Only pan this strip horizontally; let vertical gestures fall through to the
+     page so a touch that lands on the pills never traps the whole scroll. */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
   /* Bleed to the toolbar's inner edge (constant 12px padding), not past the
      rounded corner via the larger --gutter. */
   margin-inline: -12px;
@@ -807,8 +817,8 @@ html { overscroll-behavior-y: none; }
    ========================================================= */
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
 }
 .product-card {
   background: var(--paper);
@@ -921,9 +931,9 @@ html { overscroll-behavior-y: none; }
 
 /* Product info */
 .product-info {
-  padding: 14px 15px 16px;
+  padding: 11px 12px 13px;
   display: flex; flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   flex: 1;
 }
 .product-category {
@@ -936,7 +946,7 @@ html { overscroll-behavior-y: none; }
 .product-name {
   font-family: var(--display);
   font-weight: 500;
-  font-size: 15px;
+  font-size: 13.5px;
   line-height: 1.2;
   letter-spacing: -0.005em;
   color: var(--ink);
@@ -953,7 +963,7 @@ html { overscroll-behavior-y: none; }
 }
 .product-price .now {
   font-weight: 700;
-  font-size: 15px;
+  font-size: 13.5px;
   color: var(--ink);
 }
 /* Color swatches mini */
@@ -1529,6 +1539,10 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   padding: 16px 16px 18px;
   overflow-x: auto;
   overflow-y: hidden;            /* keep thumbnail shadows from spawning a v-scrollbar */
+  /* Horizontal-only panning so a vertical swipe over the thumbnails scrolls the
+     modal body instead of getting trapped on this strip. */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
   background: transparent;
   scroll-behavior: smooth;
   scroll-padding-inline: 36px;   /* keep the active thumb clear of the edge fade */
@@ -2089,7 +2103,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
     --gutter: 28px;
     --header-h: 72px;
   }
-  .product-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .product-grid { grid-template-columns: repeat(4, 1fr); gap: 14px; }
   /* Tablets keep the phone composition (copy top-left on the wall, model at
      ~62%, fan bottom) — a two-column split here would push the copy onto her
      face. Two columns start at 960px. */
@@ -2187,7 +2201,7 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   .whatsapp-fab { right: 24px; bottom: 24px; }
   .footer-version { left: 24px; bottom: 24px; }
 
-  .product-grid { grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .product-grid { grid-template-columns: repeat(5, 1fr); gap: 16px; }
   .section { padding: 56px 0; }
   /* Desktop: the model owns the RIGHT of the landscape frame (~83%), standing
      on the empty wall's curtain light. The copy lives in the LEFT column so
