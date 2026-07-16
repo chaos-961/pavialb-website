@@ -775,9 +775,11 @@ html { overscroll-behavior-y: none; }
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  /* Only pan this strip horizontally; let vertical gestures fall through to the
-     page so a touch that lands on the pills never traps the whole scroll. */
-  touch-action: pan-x;
+  /* Do NOT pin touch-action to pan-x here. On Windows precision touchpads the
+     browser honours touch-action for two-finger scroll, so pan-x would swallow
+     every vertical scroll while the pointer is over the pills. overflow-y:hidden
+     already stops the strip from ever scrolling vertically, so a vertical
+     gesture falls through to the page on its own. */
   overscroll-behavior-x: contain;
   /* Bleed to the toolbar's inner edge (constant 12px padding), not past the
      rounded corner via the larger --gutter. */
@@ -1129,9 +1131,11 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   padding-inline: var(--gutter);
   padding-bottom: 6px;
   scroll-snap-type: x mandatory;
-  /* Only pan this strip horizontally; let vertical swipes fall through to the
-     page so a touch that lands here never traps the whole scroll. */
-  touch-action: pan-x;
+  /* No touch-action: pan-x — on Windows precision touchpads that would swallow
+     vertical two-finger scroll whenever the pointer is over the strip (even when
+     only 5 cards fit and nothing scrolls sideways). overflow-y:hidden already
+     stops any vertical scroll of the strip, so vertical gestures fall through to
+     the page on their own. */
   overscroll-behavior-x: contain;
 }
 .recent-scroll::-webkit-scrollbar { display: none; }
@@ -1571,9 +1575,9 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   padding: 16px 16px 18px;
   overflow-x: auto;
   overflow-y: hidden;            /* keep thumbnail shadows from spawning a v-scrollbar */
-  /* Horizontal-only panning so a vertical swipe over the thumbnails scrolls the
-     modal body instead of getting trapped on this strip. */
-  touch-action: pan-x;
+  /* No touch-action: pan-x — it blocks vertical touchpad scroll over the strip
+     on Windows. overflow-y:hidden already keeps a vertical swipe from being
+     trapped here, so it falls through to the modal body. */
   overscroll-behavior-x: contain;
   background: transparent;
   scroll-behavior: smooth;
