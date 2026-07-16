@@ -1082,6 +1082,38 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
   font-style: italic;
   font-weight: 400;
 }
+/* Rail wraps the scroll strip so the prev/next arrows can float over its edges.
+   Arrows appear ONLY when the strip overflows (can-left / can-right toggled from
+   app.js) — a handful of items that already fit shows no arrows at all. */
+.recent-rail { position: relative; }
+.recent-nav {
+  position: absolute;
+  top: 44%;                      /* sit over the card image, not the label band */
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 0;
+  background: rgba(250, 250, 250, 0.94);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition: background 0.2s var(--ease-out), border-color 0.2s var(--ease-out), transform 0.15s var(--ease-out);
+}
+.recent-nav svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.recent-nav-prev { left: 2px; }
+.recent-nav-next { right: 2px; }
+.recent-nav:hover { background: var(--paper); border-color: var(--ink-soft); }
+.recent-nav:active { transform: translateY(-50%) scale(0.9); }
+.recent-nav:focus-visible { outline: 2px solid var(--cocoa); outline-offset: 2px; }
+.recent-rail.can-left .recent-nav-prev { display: inline-flex; }
+.recent-rail.can-right .recent-nav-next { display: inline-flex; }
+
 .recent-scroll {
   display: flex;
   gap: 10px;
@@ -2280,8 +2312,13 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
    GPU transform/opacity only; auto-neutralized by the global
    prefers-reduced-motion override above.
    ========================================================= */
-/* Tactile press on cards and key controls. */
-.product-card { will-change: transform; }
+/* Tactile press on cards and key controls.
+   NB: no persistent `will-change: transform` here. Leaving it on permanently
+   promotes every card to its own compositing layer, and on the fractional grid
+   tracks (repeat(N,1fr) rarely lands on whole pixels) the text then rasterizes
+   at a sub-pixel offset and reads blurry — which is exactly why the fixed-width
+   .recent-card labels looked crisper. The browser promotes on demand for the
+   brief :active transform, so the press still feels tactile. */
 .product-card:active { transform: translateY(-2px) scale(0.995); }
 /* Touch devices never get the hover lift, so give the press a clearer feel. */
 @media (hover: none) {

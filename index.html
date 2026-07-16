@@ -53,7 +53,7 @@
        + true italics for the serif accents, Jakarta 400-700). Bodoni Moda was
        only referenced by the construction gate and now falls back to Fraunces. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=52" />
+  <link rel="stylesheet" href="css/styles.css?v=53" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -371,7 +371,15 @@
           <p class="eyebrow">For you</p>
           <h2 class="section-title-compact">Recently viewed</h2>
         </div>
-        <div class="recent-scroll" data-recent-list></div>
+        <div class="recent-rail" data-recent-wrap>
+          <button type="button" class="recent-nav recent-nav-prev" data-recent-nav="prev" aria-label="Scroll to previous items" tabindex="-1">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+          </button>
+          <div class="recent-scroll" data-recent-list></div>
+          <button type="button" class="recent-nav recent-nav-next" data-recent-nav="next" aria-label="Scroll to more items" tabindex="-1">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -416,7 +424,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.7.1</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.7.2</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -546,7 +554,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=59"></script>
+  <script defer src="js/config.js?v=60"></script>
   <script defer src="js/firebase-config.js?v=12"></script>
   <script defer src="js/backend-config.js?v=18"></script>
   <script defer src="js/image-catalog.js?v=12"></script>
@@ -555,6 +563,6 @@
   <script defer src="js/backend.js?v=22"></script>
   <script defer src="js/backend-firebase.js?v=38"></script>
   <script defer src="js/products.js?v=12"></script>
-  <script defer src="js/app.js?v=49"></script>
+  <script defer src="js/app.js?v=50"></script>
 </body>
 </html>

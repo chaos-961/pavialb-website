@@ -471,6 +471,7 @@
 
     toastRegion:      $('[data-toast-region]'),
     recentSection:    $('[data-recent-section]'),
+    recentWrap:       $('[data-recent-wrap]'),
     recentList:       $('[data-recent-list]')
   };
 
@@ -2362,6 +2363,45 @@
       </div>
     `)}`);
     $$('[data-recent-view]').forEach(c => c.addEventListener('click', () => openProductModal(c.dataset.recentView)));
+    setupRecentNav();
+  }
+
+  // Left/right arrows for the "Recently viewed" strip. They surface ONLY when the
+  // cards actually overflow the rail — a few items that already fit show no
+  // arrows and the strip isn't scrollable (nothing to scroll). Mirrors the modal
+  // gallery nav. The strip element and arrows persist across renderRecent() calls
+  // (setHtml only swaps the strip's inner cards), so listeners bind once.
+  let recentNavBound = false;
+  function setupRecentNav() {
+    const wrap = n.recentWrap;
+    const strip = n.recentList;
+    if (!wrap || !strip) return;
+
+    let rafId = 0;
+    const refresh = () => {
+      rafId = 0;
+      const max = strip.scrollWidth - strip.clientWidth;
+      const overflowing = max > 2;              // 2px slack for sub-pixel widths
+      const atStart = strip.scrollLeft <= 2;
+      const atEnd = strip.scrollLeft >= max - 2;
+      wrap.classList.toggle('can-left', overflowing && !atStart);
+      wrap.classList.toggle('can-right', overflowing && !atEnd);
+    };
+    const schedule = () => { if (!rafId) rafId = requestAnimationFrame(refresh); };
+
+    if (!recentNavBound) {
+      strip.addEventListener('scroll', schedule, { passive: true });
+      $$('[data-recent-nav]', wrap).forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const amount = Math.max(160, Math.round(strip.clientWidth * 0.8));
+          const dir = btn.dataset.recentNav === 'prev' ? -1 : 1;
+          strip.scrollBy({ left: dir * amount, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+        });
+      });
+      if ('ResizeObserver' in window) new ResizeObserver(schedule).observe(strip);
+      recentNavBound = true;
+    }
+    refresh();
   }
 
   // ---------- Drawers ----------
