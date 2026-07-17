@@ -651,8 +651,19 @@
       });
     }
 
+    // Desktops rarely have a dialer, so a tel: link there does nothing. Detect a
+    // touch device (phones/tablets can actually call) and, on everything else,
+    // copy the number to the clipboard on click instead of following the link.
+    const canDial = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
     $$('[data-phone-link]').forEach((el) => {
       el.href = `tel:${String(telPhone).replace(/[^\d+]/g, '')}`;
+      el.onclick = (event) => {
+        if (canDial || !rawPhone || !navigator.clipboard) return; // let tel: dial
+        event.preventDefault();
+        navigator.clipboard.writeText(rawPhone)
+          .then(() => toast('Phone number copied'))
+          .catch(() => toast('Could not copy the number', 'error'));
+      };
     });
     $$('[data-whatsapp-link]').forEach((el) => {
       el.href = `https://wa.me/${whatsappDigits}`;
@@ -676,9 +687,7 @@
       document.body.classList.toggle('has-announcement', show);
     }
 
-    // Visit section — address line, business hours, and a "Get directions" link.
-    const addressLine = String(config.addressLine || '').trim();
-    $$('[data-address-line]').forEach((el) => { el.textContent = addressLine; el.hidden = !addressLine; });
+    // Visit section — business hours and a "Get directions" link.
     const hours = String(config.businessHours || '').trim();
     $$('[data-business-hours]').forEach((el) => { el.textContent = hours ? `Hours · ${hours}` : ''; el.hidden = !hours; });
     const mapsUrl = safeUrl(config.mapsUrl, '');
