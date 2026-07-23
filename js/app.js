@@ -28,7 +28,7 @@
   // WhatsApp number, derived from the single phone field (digits only). Used for
   // the optional "Questions? Message us" link — never an automatic redirect.
   let WHATSAPP_NUMBER = '9613017725';
-  const RECENT_LIMIT = 8;
+  const RECENT_LIMIT = 5;
   // Mirror the backend per-line clamp (normalizeOrderItems maxQty) so the qty a
   // shopper sees always matches the qty the stored order will actually hold.
   const MAX_QTY_PER_ITEM = 20;
@@ -409,7 +409,9 @@
 
   let cart        = asArray(readJSON(STORE_KEYS.cart, []));
   let wishlist    = asArray(readJSON(STORE_KEYS.wishlist, []));
-  let recent      = asArray(readJSON(STORE_KEYS.recent, []));
+  // Trim at load too: returning visitors may have a longer list stored from
+  // before RECENT_LIMIT was lowered.
+  let recent      = asArray(readJSON(STORE_KEYS.recent, [])).slice(0, RECENT_LIMIT);
   let activeCategory = 'All';
   // Product-grid pagination ("Load more"); reset whenever the filter set changes.
   const PAGE_SIZE = 8;

@@ -502,18 +502,19 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 
 /* Scroll containment — a big part of the "smoother, not laggy" mobile feel.
    overscroll-behavior:none on the page stops the browser's pull-to-refresh /
-   rubber-band bounce at the top and bottom of the document. `contain` on every
-   inner scroller (drawers, modal bodies, the horizontal pill / recently-viewed /
-   gallery strips) keeps a swipe that reaches an edge from chaining into the page
-   behind it — so those areas scroll only themselves and the page underneath
-   stays put instead of j-u-d-d-e-r-i-n-g along with them. */
+   rubber-band bounce at the top and bottom of the document. `contain` on the
+   VERTICAL scrollers (drawers, modal bodies) keeps a swipe that reaches their
+   edge from chaining into the page behind them.
+   The HORIZONTAL strips (.category-pills, .recent-scroll, .modal-gallery) must
+   NOT appear here: the shorthand sets overscroll-behavior-y too, and since the
+   strips are overflow-y:hidden they can never consume a vertical wheel/swipe —
+   y-containment then blocks that gesture from chaining to the page, so hovering
+   the strip dead-locks page scrolling. Each strip sets overscroll-behavior-x:
+   contain in its own rule, which is all the containment they need. */
 html { overscroll-behavior-y: none; }
 .drawer-body,
 .modal-body,
-.modal-details,
-.category-pills,
-.recent-scroll,
-.modal-gallery { overscroll-behavior: contain; }
+.modal-details { overscroll-behavior: contain; }
 
 
 /* =========================================================
