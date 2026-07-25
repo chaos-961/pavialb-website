@@ -78,6 +78,12 @@
                           //   overlap like stacked prints, which is the reference
                           //   collage look, and it's the only way past the
                           //   no-overlap size ceiling
+  var CROSS = 22;         // how deep two frames may cross at rest, px. Past this
+                          //   the solver pushes them apart: a box that's BURIED
+                          //   under a neighbour isn't a collage, it's a missing
+                          //   box (on phones it read as "only 3 of the 5")
+  var REPEL_PAD = 10;     // a dragged box starts shoving neighbours this far out
+  var REPEL_MAX = 96;     // and can displace them at most this far
   var OUTGROW = 26;       // a cell may overhang her outline by this much per side —
                           //   a pane that's mostly fabric still reads as her
                           //   outfit, and the slack is worth a visibly bigger box
@@ -513,7 +519,45 @@
       });
     });
     // Shuffle so the five outfits are not grouped strip by strip.
-    return shuffle(out);
+    shuffle(out);
+    separate(out);
+    return out;
+  }
+
+  /* Relax the collage until no pane crosses a neighbour deeper than CROSS on
+     both axes: frames still overlap (the look), but every box keeps enough of
+     its own body visible to read as a box. Push is along the axis of least
+     penetration, half each, clamped back into the roam box — a handful of
+     rounds settles it. */
+  function separate(rects) {
+    for (var it = 0; it < 60; it++) {
+      var moved = false;
+      for (var i = 0; i < rects.length; i++) {
+        for (var j = i + 1; j < rects.length; j++) {
+          var a = rects[i];
+          var b = rects[j];
+          var ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+          var oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+          if (ox <= CROSS || oy <= CROSS) continue;
+          if (ox < oy) {
+            var sx = (ox - CROSS) / 2 + 1;
+            if (a.x < b.x) { a.x -= sx; b.x += sx; } else { a.x += sx; b.x -= sx; }
+          } else {
+            var sy = (oy - CROSS) / 2 + 1;
+            if (a.y < b.y) { a.y -= sy; b.y += sy; } else { a.y += sy; b.y -= sy; }
+          }
+          moved = true;
+        }
+      }
+      if (roam) {
+        rects.forEach(function (r) {
+          r.x = Math.round(Math.min(Math.max(r.x, roam.l), Math.max(roam.l, roam.r - r.w)));
+          r.y = Math.round(Math.min(Math.max(r.y, roam.t), Math.max(roam.t, roam.b - r.h)));
+        });
+      }
+      if (!moved) break;
+    }
+    rects.forEach(function (r) { r.x = Math.round(r.x); r.y = Math.round(r.y); });
   }
 
   function layout(baseImg) {
@@ -587,6 +631,10 @@
     var step = dt / 16.6667;      // grab easing is per-60fps-step, not per-ms
     var busy = false;
 
+    // Positions as of last frame, for the repulsion pass: every pane the
+    // visitor is holding is an obstacle the idle ones scoot away from.
+    var held = panes.filter(function (g) { return g.rect && g.grab; });
+
     panes.forEach(function (p) {
       if (!p.rect) return;
       // Where this window would be sitting if nobody had touched it: a slow
@@ -613,8 +661,33 @@
         if (e >= 1) p.ret = null;
         busy = true;
       } else if (!reduced.matches) {
-        p.dx = driftX;
-        p.dy = driftY;
+        // Idle: home is the drift point — plus a shove for every held box that
+        // has been dragged into this one. The push is along the axis of least
+        // penetration (the shortest way out from under it), grows with how deep
+        // the held box is, and vanishes from the target the moment the drag
+        // moves away — so the box glides back by itself, no bookkeeping.
+        var tx = driftX;
+        var ty = driftY;
+        for (var hi = 0; hi < held.length; hi++) {
+          var g = held[hi];
+          if (g === p) continue;
+          var ax = p.rect.x + p.dx;
+          var ay = p.rect.y + p.dy;
+          var bx = g.rect.x + g.dx;
+          var by = g.rect.y + g.dy;
+          var ox = Math.min(ax + p.rect.w, bx + g.rect.w) - Math.max(ax, bx) + REPEL_PAD;
+          var oy = Math.min(ay + p.rect.h, by + g.rect.h) - Math.max(ay, by) + REPEL_PAD;
+          if (ox <= 0 || oy <= 0) continue;
+          if (ox < oy) {
+            tx += (ax + p.rect.w / 2 < bx + g.rect.w / 2 ? -1 : 1) * Math.min(ox, REPEL_MAX);
+          } else {
+            ty += (ay + p.rect.h / 2 < by + g.rect.h / 2 ? -1 : 1) * Math.min(oy, REPEL_MAX);
+          }
+        }
+        var k2 = 1 - Math.pow(1 - 0.16, step);
+        p.dx += (tx - p.dx) * k2;
+        p.dy += (ty - p.dy) * k2;
+        clampOffset(p);
         busy = true;
       }
       writeOffset(p);
