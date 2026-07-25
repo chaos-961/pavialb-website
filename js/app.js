@@ -1048,7 +1048,10 @@
           .filter(([el]) => el)
       : [];
     const heroEl = $('[data-hero]');
-    const heroBg = $('[data-hero-bg]');
+    // Zoom the whole photographic composite, not just the base <img>: the look
+    // panes and their borders live in this same frame, so scaling it keeps them
+    // welded to the photo they're cut into (js/hero-looks.js).
+    const heroBg = $('[data-hero-frame]') || $('[data-hero-bg]');
     const allowParallax = heroEl && !prefersReducedMotion();
     let heroH = 0;
     let toolbarStickAt = 280;

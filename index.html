@@ -53,7 +53,7 @@
        + true italics for the serif accents, Jakarta 400-700). Bodoni Moda was
        only referenced by the construction gate and now falls back to Fraunces. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=56" />
+  <link rel="stylesheet" href="css/styles.css?v=57" />
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -226,18 +226,29 @@
            Regenerate all sizes from the master photo with
            scripts/gen-hero-images.mjs (local-only). Decorative -> empty alt. -->
       <div class="hero-backdrop" aria-hidden="true">
-        <picture>
-          <!-- The campaign shot places the model on the RIGHT against an empty
-               cream wall — copy lives on the wall to her left at every size.
-               Portrait phones/tablets get a tighter 4:5 crop (model at ~68% of
-               the frame); everything landscape — desktops AND rotated phones —
-               gets the full landscape frame (model at ~83%, wall left). 959px
-               matches the CSS breakpoint where the hero goes two-column. -->
-          <source type="image/webp" media="(max-width: 959px) and (orientation: portrait)" srcset="assets/hero-bg2-mobile-v3.webp" />
-          <source type="image/avif" srcset="assets/hero-bg2-1920.avif 1920w, assets/hero-bg2-2560.avif 2560w" sizes="100vw" />
-          <source type="image/webp" srcset="assets/hero-bg2-1920.webp 1920w, assets/hero-bg2-2560.webp 2560w" sizes="100vw" />
-          <img src="assets/hero-bg2-1920.webp" alt="" fetchpriority="high" decoding="async" data-hero-bg />
-        </picture>
+        <!-- One transform group for the whole photograph: the base shot, the
+             five "look" panes js/hero-looks.js cuts into it, and their borders.
+             app.js scales THIS element for the scroll camera-push, so the panes
+             can never drift out of register with the photo underneath them. -->
+        <div class="hero-backdrop__frame" data-hero-frame>
+          <picture>
+            <!-- The campaign shot places the model on the RIGHT against an empty
+                 cream wall — copy lives on the wall to her left at every size.
+                 Portrait phones/tablets get a tighter 4:5 crop (model at ~68% of
+                 the frame); everything landscape — desktops AND rotated phones —
+                 gets the full landscape frame (model at ~83%, wall left). 959px
+                 matches the CSS breakpoint where the hero goes two-column.
+                 The hero-look* derivatives are cut to match BOTH crops exactly
+                 (scripts/gen-look-images.py) — retune one and you must retune
+                 the other or the windows will show a seam. -->
+            <source type="image/webp" media="(max-width: 959px) and (orientation: portrait)" srcset="assets/hero-bg2-mobile-v3.webp" />
+            <source type="image/avif" srcset="assets/hero-bg2-1920.avif 1920w, assets/hero-bg2-2560.avif 2560w" sizes="100vw" />
+            <source type="image/webp" srcset="assets/hero-bg2-1920.webp 1920w, assets/hero-bg2-2560.webp 2560w" sizes="100vw" />
+            <img src="assets/hero-bg2-1920.webp" alt="" fetchpriority="high" decoding="async" data-hero-bg />
+          </picture>
+          <!-- js/hero-looks.js injects .hero-looks (clipped panes, under the
+               wash) and .hero-look-edges (borders + drag handles) here. -->
+        </div>
         <div class="hero-backdrop__wash"></div>
       </div>
       <div class="container hero-grid">
@@ -423,7 +434,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.7.6</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.7.7</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -562,6 +573,7 @@
   <script defer src="js/backend.js?v=22"></script>
   <script defer src="js/backend-firebase.js?v=38"></script>
   <script defer src="js/products.js?v=12"></script>
-  <script defer src="js/app.js?v=52"></script>
+  <script defer src="js/app.js?v=53"></script>
+  <script defer src="js/hero-looks.js?v=1"></script>
 </body>
 </html>

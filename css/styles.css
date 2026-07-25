@@ -237,6 +237,21 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   z-index: 0;
   background: #cdbfb0;
 }
+/* One transform group for the whole photographic composite — the base shot, the
+   look panes and their borders. app.js writes the scroll camera-push scale HERE
+   (not on the <img>) so every layer zooms as one and the panes stay in register
+   with the photo they're cut into. */
+.hero-backdrop__frame {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 30%;
+  will-change: transform;
+  /* Slow "settle" zoom on first paint — the frame eases from a hair over-scaled
+     to rest, a quiet cinematic open. Transform-only (no opacity) so it never
+     delays LCP, and app.js's scroll zoom writes an inline transform that simply
+     takes over once the visitor starts scrolling. */
+  animation: heroImgSettle 2s var(--ease-out) both;
+}
 .hero-backdrop picture,
 .hero-backdrop img {
   position: absolute;
@@ -250,38 +265,37 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
      is already framed to the phone's ~0.56 aspect — model on the right, empty
      left wall for the copy — so this just centres it; object-position only
      nudges the small overflow on phones whose fold isn't exactly that aspect.
-     The desktop landscape frame (full 1920/2560 source) overrides both at >=960px. */
+     The desktop landscape frame (full 1920/2560 source) overrides both at >=960px.
+     This rule deliberately covers the look panes' images too — matching
+     object-fit/object-position at every breakpoint is exactly what keeps a
+     window's contents nailed to the base shot. */
   object-position: 50% 50%;
-  transform-origin: 50% 30%;
-  will-change: transform;
-  /* Slow "settle" zoom on first paint — the frame eases from a hair over-scaled
-     to rest, a quiet cinematic open. Transform-only (no opacity) so it never
-     delays LCP, and app.js's scroll zoom writes an inline transform that simply
-     takes over once the visitor starts scrolling. */
-  animation: heroImgSettle 2s var(--ease-out) both;
 }
 @keyframes heroImgSettle {
   from { transform: scale(1.06); }
   to   { transform: scale(1); }
 }
-/* Two overlays, both soft: a warm scrim over the empty wall the copy sits on, and
-   the bottom fade that melts the photo into the sheet seam. Overlay only (no blur).
-   The scrim exists because the copy is white and the wall behind it is a pale
-   cream (~#D6C7BC) — white needs the wall several stops darker to hold its edges.
-   It's warm-brown rather than black so it reads as the light falling off toward
-   the corner, angled slightly (100deg) for the same reason, and it's fully out by
-   ~74% of the frame so it never lands on the model. */
+/* One overlay now: the bottom fade that melts the photo into the sheet seam.
+   The warm left scrim that used to sit under the copy is GONE (v0.7.7) — it read
+   as a dark tint painted over the photograph, which is the opposite of what this
+   shot is. The white copy is carried by its own shadow instead (see below). */
 .hero-backdrop__wash {
   position: absolute;
   inset: 0;
+  /* The wash sits over the look windows and their borders — clicks and drags
+     have to reach them. */
+  pointer-events: none;
   background:
-    linear-gradient(100deg, rgba(58, 43, 31, 0.64) 0%, rgba(58, 43, 31, 0.60) 34%, rgba(58, 43, 31, 0.54) 54%, rgba(58, 43, 31, 0.38) 64%, rgba(58, 43, 31, 0.13) 72%, rgba(58, 43, 31, 0) 80%),
     linear-gradient(0deg, rgba(230, 230, 230, 0.88) 0%, rgba(230, 230, 230, 0.32) 14%, rgba(230, 230, 230, 0) 34%);
 }
 .hero-grid {
   position: relative;
   z-index: 1;
   flex: 1;
+  /* The grid spans the whole fold, including the half of it the model (and her
+     look windows) occupy — so it has to let pointers through, and the copy
+     column takes them back. */
+  pointer-events: none;
   display: grid;
   /* Phone composition: copy top-left on the empty wall, the model owning the
      right side of the frame — the photo itself carries the rest of the fold. */
@@ -292,21 +306,29 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
    phone screen, so the column stays narrower than that (left veil in the wash
    backs it up where a long headline word grazes her sleeve). */
 .hero-copy { position: relative; z-index: 2; max-width: min(560px, 58vw); display: flex; flex-direction: column; align-self: stretch; }
+/* The column is stretched to the full fold and the CTAs are pushed to its foot,
+   so most of it is empty space — and on a phone that empty space sits right on
+   top of the look windows. Give the pointer back block by block: the lines and
+   the buttons take their own boxes (selectable, clickable), the gap between them
+   passes through to the windows behind. */
+.hero-copy { pointer-events: none; }
+.hero-copy > * { pointer-events: auto; }
 /* The copy reads WHITE over the campaign photo. The wall behind it is a pale
-   cream, so white on its own would disappear — what carries it is a two-layer
-   shadow (a tight edge that defines the letterforms + a wide low-opacity halo
-   that darkens the wall around them), backed by the soft scrim the wash paints
-   on the left. Warm-black (not pure black) so the shadow stays in the photo's
-   temperature instead of reading as a grey outline. */
+   cream, so white on its own would disappear — and with the left scrim removed
+   this shadow is now the ONLY thing carrying it. Three layers: a tight edge that
+   cuts the letterforms, a mid halo, and a wide low-opacity bloom that shades the
+   wall just enough around the words without reading as a panel behind them.
+   Warm-black (not pure black) so it stays in the photo's temperature instead of
+   reading as a grey outline. */
 .hero-copy .eyebrow,
 .hero-copy h1,
 .hero-copy .hero-text {
   color: #ffffff;
-  text-shadow: 0 1px 2px rgba(46, 34, 24, 0.42), 0 5px 20px rgba(46, 34, 24, 0.34);
+  text-shadow: 0 1px 2px rgba(46, 34, 24, 0.55), 0 3px 10px rgba(46, 34, 24, 0.42), 0 8px 30px rgba(46, 34, 24, 0.34);
 }
 /* The headline is the biggest mass of white, so it carries a deeper halo. */
 .hero-copy h1 {
-  text-shadow: 0 2px 4px rgba(46, 34, 24, 0.44), 0 12px 38px rgba(46, 34, 24, 0.36);
+  text-shadow: 0 2px 4px rgba(46, 34, 24, 0.55), 0 6px 18px rgba(46, 34, 24, 0.44), 0 16px 46px rgba(46, 34, 24, 0.36);
 }
 /* Ghost CTA gets a faint paper fill here so its label never fights the photo. */
 .hero .btn-ghost { background: rgba(250, 250, 250, 0.55); }
@@ -367,6 +389,81 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
      its content height and this auto-margin collapses — CTAs sit under the copy
      exactly as before. */
   margin-top: auto;
+}
+
+/* ---------------------------------------------------------
+   Hero look windows — five other outfits, on the same model
+   ---------------------------------------------------------
+   assets/hero-look1..5 are the SAME frame as the hero shot with a different
+   garment on her. Each is stacked full-bleed at the base photo's exact geometry
+   (inherited from `.hero-backdrop img` above — that shared rule is the whole
+   trick) and then clipped down to one rectangle, so all that shows through is
+   the window: her, in another look. js/hero-looks.js sizes the rectangles from
+   the live cover-crop and drives the drag; without it, or without the images,
+   nothing here renders and the hero is exactly as it was.
+
+   The pane translates and its <img> counter-translates by the same amount, so
+   dragging slides the WINDOW across a photograph that never moves. */
+.hero-looks,
+.hero-look-edges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;   /* only the borders take input, see below */
+}
+.hero:not(.has-looks) .hero-looks,
+.hero:not(.has-looks) .hero-look-edges { display: none; }
+
+.hero-look {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.9s var(--ease-out);
+  transform: translate3d(var(--dx, 0px), var(--dy, 0px), 0);
+  clip-path: inset(
+    var(--wy, 0px)
+    calc(100% - var(--wx, 0px) - var(--ww, 0px))
+    calc(100% - var(--wy, 0px) - var(--wh, 0px))
+    var(--wx, 0px)
+  );
+}
+.hero-look.is-in { opacity: 1; }
+.hero-look img { transform: translate3d(calc(-1 * var(--dx, 0px)), calc(-1 * var(--dy, 0px)), 0); }
+
+/* The border is a separate, unclipped element so it can carry a soft outer
+   shadow (inside the pane it would be cut off at the window edge). It rides the
+   same --wx/--wy/--dx/--dy, so it traces its window exactly. */
+.hero-look-edge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--ww, 0px);
+  height: var(--wh, 0px);
+  transform: translate3d(calc(var(--wx, 0px) + var(--dx, 0px)), calc(var(--wy, 0px) + var(--dy, 0px)), 0);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  /* A hairline of the photo's own warm shadow under the white keeps the frame
+     legible where a window lands on the pale wall rather than on fabric. */
+  box-shadow: 0 0 0 1px rgba(58, 43, 31, 0.08), 0 18px 40px -26px rgba(46, 34, 24, 0.55);
+  pointer-events: auto;
+  cursor: grab;
+  /* Vertical swipes stay the page's — a window only becomes a drag once a
+     finger commits sideways (js/hero-looks.js). This hero has history here:
+     v0.7.3 and v0.7.5 were both scroll-dead-zone fixes. */
+  touch-action: pan-y;
+  opacity: 0;
+  transition: opacity 0.9s var(--ease-out), border-color 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
+}
+.hero-look-edge.is-in { opacity: 1; }
+.hero-look-edge:hover,
+.hero-look-edge.is-held {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 1px rgba(58, 43, 31, 0.12), 0 22px 50px -24px rgba(46, 34, 24, 0.6);
+}
+.hero-look-edge.is-held { cursor: grabbing; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Static collage: the looks still read, they just don't drift or drag. */
+  .hero-look { transition: none; }
+  .hero-look-edge { cursor: default; transition: none; }
 }
 /* =========================================================
    Buttons
