@@ -20,7 +20,7 @@
  * SILHOUETTE (measured off the pixels) says where her clothes are in the master
  * frame; that's mapped through the live cover transform, intersected with the
  * part of the hero on screen and clear of the copy, and the five panes are laid
- * into what's left — on her, never touching each other, and in a fresh
+ * into what's left — on her, overlapping like stacked prints, and in a fresh
  * arrangement every visit.
  *
  * Decorative: the whole thing sits inside the aria-hidden backdrop, adds no
@@ -65,7 +65,7 @@
   var MASTER = { w: 1920, h: 1280 };
 
   /* Windows are packed at runtime, not hand-placed: fresh positions every visit,
-     never touching each other, always on her at every viewport. Mostly tall
+     overlapping like stacked prints, always on her at every viewport. Mostly tall
      panes — a vertical cut follows the line of a dress — with two turned
      horizontal for the collage rhythm; the wide ones are dealt to the roomiest
      cells, where a squat rectangle still shows a real stretch of the outfit. */
@@ -73,7 +73,11 @@
   var WIDE = 0.68;        // the horizontal panes' height / width cap
   var TALL_MIN = 1.1;     // a vertical pane is at least this much taller than wide
   var N_WIDE = 2;         // how many go horizontal (1 when only three panes fit)
-  var GAP = 8;            // clear space kept between neighbours, px
+  var GAP = 8;            // clear space between the underlying grid cells, px
+  var GROW = 1.35;        // panes outgrow their cells by this much — neighbours
+                          //   overlap like stacked prints, which is the reference
+                          //   collage look, and it's the only way past the
+                          //   no-overlap size ceiling
   var OUTGROW = 26;       // a cell may overhang her outline by this much per side —
                           //   a pane that's mostly fabric still reads as her
                           //   outfit, and the slack is worth a visibly bigger box
@@ -411,7 +415,9 @@
 
   /* How to split n panes across the strips. Brute force — three strips and five
      panes is 21 combinations — scored on the SMALLEST pane it produces, so the
-     five come out as a set rather than one hero and four crumbs. */
+     five come out as a set rather than one hero and four crumbs. The grid only
+     spaces the centres — GROW then inflates each pane past its cell, so the
+     no-overlap invariant is deliberately traded away for size. */
   function allocate(ctx, regions, n, aspect) {
     var best = null;
     var counts = [];
@@ -478,22 +484,29 @@
       }).sort(function (a, b) { return b.w - a.w; }).slice(0, Math.max(0, wideLeft));
       wideLeft -= wide.length;
       chosen.forEach(function (cell) {
-        // The pane IS its cell — the gap between neighbours is already carved
-        // out of the grid, so every pixel of cell is pane. Only the shape is
-        // constrained: a horizontal pane is capped squat (WIDE), a vertical one
-        // must stay taller than wide (TALL_MIN), and the trim that enforces the
-        // shape is what leaves the sliver of jitter room.
+        // The pane is its cell grown past its edges: the grid spaces the
+        // CENTRES, and GROW inflates every pane beyond its cell so neighbours
+        // overlap like stacked prints. Shape is still constrained — horizontal
+        // capped squat (WIDE), vertical taller than wide (TALL_MIN).
         var pw, ph;
         if (wide.indexOf(cell) >= 0) {
-          pw = cell.w;
-          ph = Math.min(cell.h, pw * WIDE);
+          pw = cell.w * GROW;
+          ph = Math.min(cell.h * GROW, pw * WIDE);
         } else {
-          ph = cell.h;
-          pw = Math.min(cell.w, ph / TALL_MIN);
+          ph = cell.h * GROW;
+          pw = Math.min(cell.w * GROW, ph / TALL_MIN);
+        }
+        // Centred on the cell (plus jitter) and clamped to the roam box, so the
+        // overgrowth spreads onto both neighbours instead of piling up one side.
+        var px = cell.x + (cell.w - pw) / 2 + (centred() - 0.5) * GAP * 2;
+        var py = cell.y + (cell.h - ph) / 2 + (rnd() - 0.5) * GAP * 2;
+        if (roam) {
+          px = Math.min(Math.max(px, roam.l), Math.max(roam.l, roam.r - pw));
+          py = Math.min(Math.max(py, roam.t), Math.max(roam.t, roam.b - ph));
         }
         out.push({
-          x: Math.round(cell.x + centred() * Math.max(0, cell.w - pw)),
-          y: Math.round(cell.y + rnd() * Math.max(0, cell.h - ph)),
+          x: Math.round(px),
+          y: Math.round(py),
           w: Math.round(pw),
           h: Math.round(ph),
         });
