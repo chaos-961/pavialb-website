@@ -65,18 +65,22 @@
   var MASTER = { w: 1920, h: 1280 };
 
   /* Windows are packed at runtime, not hand-placed: fresh positions every visit,
-     never touching each other, always on her at every viewport. Tall panes, not
-     wide ones — a vertical cut follows the line of a dress, where a horizontal
-     band reads as a stripe laid across her. */
-  var ASPECT = { landscape: 1.80, portrait: 1.55 };  // pane height / width
+     never touching each other, always on her at every viewport. Mostly tall
+     panes — a vertical cut follows the line of a dress — with two turned
+     horizontal for the collage rhythm; the wide ones are dealt to the roomiest
+     cells, where a squat rectangle still shows a real stretch of the outfit. */
+  var ASPECT = { landscape: 1.60, portrait: 1.50 };  // tall pane height / width
+  var WIDE = 0.62;        // the horizontal panes' height / width
+  var N_WIDE = 2;         // how many go horizontal (1 when only three panes fit)
   var GAP = 10;           // clear space kept between neighbours, px
+  var OUTGROW = 14;       // a cell may overhang her outline by this much per side —
+                          //   a pane that's 90% fabric still reads as her outfit,
+                          //   and the slack is worth a visibly bigger box
   // Below MIN a pane shows a smear rather than an outfit and is not worth
   // placing. Everything above it is fair game — planFor packs as many panes as
   // fit and the grid search maximises their size within that.
   var MIN = { landscape: { w: 40, h: 64 }, portrait: { w: 34, h: 54 } };
   var LEAST = 3;          // never bother with fewer than this
-  var SLACK = 0.96;       // a grid within this much of the best pane size can win
-                          //   on having spare cells instead — that's the scatter
 
   /* Insets that keep the panes inside the part of the hero a visitor can see.
      Landscape only has to clear the sticky header and the seam where the page
@@ -87,8 +91,8 @@
     // breathing room — her shoulders (SILHOUETTE's first band) are what actually
     // sets the ceiling at almost every size. Keeping it small is what leaves a
     // rotated phone, whose hero is barely 320px tall, enough height to work with.
-    landscape: { top: 24, right: 16, bottom: 44 },
-    portrait: { top: 12, right: 10, bottom: 40 },
+    landscape: { top: 18, right: 10, bottom: 30 },
+    portrait: { top: 10, right: 8, bottom: 30 },
   };
 
   /* Feel. Ported from the bssaub perk-field bubbles, minus the physics engine:
@@ -356,17 +360,17 @@
     );
     if (!band) return null;
     var x = Math.max(reg.x + col * g.cw + GAP / 2,
-                     ctx.map.x(fromMasterX(band.l, ctx.portrait)));
+                     ctx.map.x(fromMasterX(band.l, ctx.portrait)) - OUTGROW);
     var right = Math.min(reg.x + (col + 1) * g.cw - GAP / 2,
-                         ctx.map.x(fromMasterX(band.r, ctx.portrait)));
+                         ctx.map.x(fromMasterX(band.r, ctx.portrait)) + OUTGROW);
     return right - x >= ctx.min.w ? { x: x, y: y, w: right - x, h: h } : null;
   }
 
   /* Best grid for k panes in one strip. Every (cols, rows) that holds k is tried;
      the pane size a grid affords is the k-th largest of its usable cells, since
-     that is the smallest pane it would actually place. Among grids within SLACK
-     of the best size, the one with the most spare cells wins — those empty cells
-     are what stop the result reading as a table. */
+     that is the smallest pane it would actually place; the biggest wins, with
+     spare cells only breaking ties. Scatter comes from the random cell draw and
+     the in-cell jitter, not from paying pane size for empties. */
   function gridFor(ctx, reg, k, aspect) {
     var all = [];
     var top = 0;
@@ -395,10 +399,11 @@
         top = Math.max(top, pw);
       }
     }
+    // Size wins outright; spare cells only break ties. (An earlier version let a
+    // near-size grid win on scatter, and it kept costing a fifth of the pane.)
     var best = null;
     all.forEach(function (g) {
-      if (g.pw < top * SLACK) return;
-      if (!best || g.spare > best.spare || (g.spare === best.spare && g.pw > best.pw)) best = g;
+      if (!best || g.pw > best.pw || (g.pw === best.pw && g.spare > best.spare)) best = g;
     });
     return best;
   }
@@ -455,6 +460,7 @@
 
     seed = SEED;
     var out = [];
+    var wideLeft = plan.n >= 4 ? N_WIDE : 1;
     regions.forEach(function (reg, j) {
       var k = plan.counts[j];
       var g = plan.grids[j];
@@ -462,12 +468,21 @@
       // Roomiest cells first, then shuffled among them: panes land where there is
       // most of her, but not in the same arrangement twice.
       var pool = g.cells.slice().sort(function (a, b) { return b.w - a.w; });
-      shuffle(pool.slice(0, k + g.spare)).slice(0, k).forEach(function (cell) {
+      var chosen = shuffle(pool.slice(0, k + g.spare)).slice(0, k);
+      // The horizontal panes go to the widest cells picked — with a floor on the
+      // height they'd come out at, because a squat rectangle in a small cell is
+      // a sliver, not a window.
+      var wide = chosen.filter(function (c) {
+        return Math.min(c.w, c.h / WIDE) * WIDE >= ctx.min.h * 0.8;
+      }).sort(function (a, b) { return b.w - a.w; }).slice(0, Math.max(0, wideLeft));
+      wideLeft -= wide.length;
+      chosen.forEach(function (cell) {
         // Nearly the full cell — the gap between neighbours is already carved out
         // of the grid — varied a touch so five identical rectangles don't read as
         // a chart.
-        var pw = Math.min(cell.w, cell.h / ctx.aspect) * (0.92 + rnd() * 0.08);
-        var ph = pw * ctx.aspect;
+        var aspect = wide.indexOf(cell) >= 0 ? WIDE : ctx.aspect;
+        var pw = Math.min(cell.w, cell.h / aspect) * (0.94 + rnd() * 0.06);
+        var ph = pw * aspect;
         out.push({
           x: Math.round(cell.x + centred() * Math.max(0, cell.w - pw)),
           y: Math.round(cell.y + rnd() * Math.max(0, cell.h - ph)),
