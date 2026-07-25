@@ -69,13 +69,14 @@
      panes — a vertical cut follows the line of a dress — with two turned
      horizontal for the collage rhythm; the wide ones are dealt to the roomiest
      cells, where a squat rectangle still shows a real stretch of the outfit. */
-  var ASPECT = { landscape: 1.60, portrait: 1.50 };  // tall pane height / width
-  var WIDE = 0.62;        // the horizontal panes' height / width
+  var ASPECT = { landscape: 1.60, portrait: 1.50 };  // tall shape used for grid scoring
+  var WIDE = 0.68;        // the horizontal panes' height / width cap
+  var TALL_MIN = 1.1;     // a vertical pane is at least this much taller than wide
   var N_WIDE = 2;         // how many go horizontal (1 when only three panes fit)
-  var GAP = 10;           // clear space kept between neighbours, px
-  var OUTGROW = 14;       // a cell may overhang her outline by this much per side —
-                          //   a pane that's 90% fabric still reads as her outfit,
-                          //   and the slack is worth a visibly bigger box
+  var GAP = 8;            // clear space kept between neighbours, px
+  var OUTGROW = 26;       // a cell may overhang her outline by this much per side —
+                          //   a pane that's mostly fabric still reads as her
+                          //   outfit, and the slack is worth a visibly bigger box
   // Below MIN a pane shows a smear rather than an outfit and is not worth
   // placing. Everything above it is fair game — planFor packs as many panes as
   // fit and the grid search maximises their size within that.
@@ -91,8 +92,8 @@
     // breathing room — her shoulders (SILHOUETTE's first band) are what actually
     // sets the ceiling at almost every size. Keeping it small is what leaves a
     // rotated phone, whose hero is barely 320px tall, enough height to work with.
-    landscape: { top: 18, right: 10, bottom: 30 },
-    portrait: { top: 10, right: 8, bottom: 30 },
+    landscape: { top: 12, right: 6, bottom: 22 },
+    portrait: { top: 8, right: 6, bottom: 22 },
   };
 
   /* Feel. Ported from the bssaub perk-field bubbles, minus the physics engine:
@@ -477,12 +478,19 @@
       }).sort(function (a, b) { return b.w - a.w; }).slice(0, Math.max(0, wideLeft));
       wideLeft -= wide.length;
       chosen.forEach(function (cell) {
-        // Nearly the full cell — the gap between neighbours is already carved out
-        // of the grid — varied a touch so five identical rectangles don't read as
-        // a chart.
-        var aspect = wide.indexOf(cell) >= 0 ? WIDE : ctx.aspect;
-        var pw = Math.min(cell.w, cell.h / aspect) * (0.94 + rnd() * 0.06);
-        var ph = pw * aspect;
+        // The pane IS its cell — the gap between neighbours is already carved
+        // out of the grid, so every pixel of cell is pane. Only the shape is
+        // constrained: a horizontal pane is capped squat (WIDE), a vertical one
+        // must stay taller than wide (TALL_MIN), and the trim that enforces the
+        // shape is what leaves the sliver of jitter room.
+        var pw, ph;
+        if (wide.indexOf(cell) >= 0) {
+          pw = cell.w;
+          ph = Math.min(cell.h, pw * WIDE);
+        } else {
+          ph = cell.h;
+          pw = Math.min(cell.w, ph / TALL_MIN);
+        }
         out.push({
           x: Math.round(cell.x + centred() * Math.max(0, cell.w - pw)),
           y: Math.round(cell.y + rnd() * Math.max(0, cell.h - ph)),
