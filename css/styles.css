@@ -412,6 +412,10 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 }
 .hero:not(.has-looks) .hero-looks,
 .hero:not(.has-looks) .hero-look-edges { display: none; }
+/* A pane the packer could not seat without touching a neighbour sits this one
+   out rather than overlapping. */
+.hero-look.is-out,
+.hero-look-edge.is-out { display: none; }
 
 .hero-look {
   position: absolute;

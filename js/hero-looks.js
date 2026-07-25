@@ -14,12 +14,14 @@
  * scroll camera-push — so the windows, their borders and the photo zoom as one
  * piece and can never drift apart.
  *
- * Window placement is computed, not hardcoded in CSS: the hero photo is
- * object-fit:cover with a per-breakpoint object-position, so the same CSS
- * percentage lands somewhere different on the model at every viewport. FABRIC
- * says where her clothes are inside each SOURCE frame; this maps that through
- * the cover transform, intersects it with the part of the hero that's actually
- * on screen, and lays the windows out inside what's left.
+ * Placement is packed at runtime, not hardcoded: the hero photo is
+ * object-fit:cover with a per-breakpoint object-position, so one fixed CSS
+ * percentage lands somewhere different on the model at every viewport. Instead,
+ * SILHOUETTE (measured off the pixels) says where her clothes are in the master
+ * frame; that's mapped through the live cover transform, intersected with the
+ * part of the hero on screen and clear of the copy, and the five panes are laid
+ * into what's left — on her, never touching each other, and in a fresh
+ * arrangement every visit.
  *
  * Decorative: the whole thing sits inside the aria-hidden backdrop, adds no
  * focusable nodes, and the hero is unchanged without it (no JS, reduced motion,
@@ -30,68 +32,76 @@
 
   var LOOKS = [1, 2, 3, 4, 5];
 
-  /* Where the garment sits inside each source frame, as fractions of that frame.
-     landscape = assets/hero-look*-1920 (1920x1280, model on the right);
-     portrait  = assets/hero-look*-mobile (the 956x1707 crop of the same frame,
-     where she fills most of the width). Measured from the pixels: the union of
-     |look(n) - base| over all five looks is exactly her clothes, since nothing
-     else in the frame changes. */
-  var FABRIC = {
-    landscape: { x: 0.725, y: 0.360, w: 0.205, h: 0.640 },
-    // Tighter than the full silhouette on purpose: on the portrait crop her
-    // widest points are the raised arms and the flare of the skirt, and a rect
-    // that reached those would hang windows out over bare wall — where a look
-    // pane shows nothing at all, since the wall is identical in all six frames.
-    portrait: { x: 0.415, y: 0.360, w: 0.545, h: 0.640 },
-  };
+  /* Her outline, measured off the pixels rather than guessed: for each horizontal
+     band of the master frame, the left and right edge of the garment. Taken from
+     |look(n) - base| across all five looks (3rd/97th percentile of the pixels
+     that changed in at least two of them) — nothing in these frames differs
+     except her clothes, so the diff IS the silhouette.
 
-  /* Window layout, in fractions of the usable canvas (see canvasFor). Tall
-     panes, not wide ones — a vertical cut follows the line of a dress far better
-     than a horizontal band, which reads as a stripe laid across her. They're
-     scattered rather than aligned: widths vary, each hangs from its own height,
-     and they overlap, so the five together read as one collage of the same woman
-     in five outfits. */
-  var WINDOWS = {
-    landscape: [
-      { x: 0.00, y: 0.02, w: 0.40, h: 0.50 },
-      { x: 0.30, y: 0.00, w: 0.40, h: 0.44 },
-      { x: 0.60, y: 0.08, w: 0.40, h: 0.52 },
-      { x: 0.12, y: 0.46, w: 0.42, h: 0.54 },
-      { x: 0.50, y: 0.52, w: 0.44, h: 0.48 },
-    ],
-    // Phone: the clear ground is the band between the last line of copy and the
-    // CTAs — wide but short — so the tall panes stand side by side across her
-    // hips, each dropped to its own height, like swatches hung in a row.
-    portrait: [
-      { x: 0.00, y: 0.04, w: 0.30, h: 0.88 },
-      { x: 0.19, y: 0.00, w: 0.28, h: 0.82 },
-      { x: 0.37, y: 0.10, w: 0.30, h: 0.90 },
-      { x: 0.56, y: 0.02, w: 0.28, h: 0.84 },
-      { x: 0.72, y: 0.12, w: 0.28, h: 0.88 },
-    ],
-  };
+     This is why a single rectangle wasn't enough: she is 0.755-0.887 wide at the
+     chest and 0.661-0.869 at the hem, so a box sized for one height hangs over
+     bare wall at another — and a pane over bare wall shows nothing at all, since
+     the wall is identical in all six frames. Cells get clipped to these bounds at
+     their own height instead.
+     Reprint this table with `py scripts/gen-look-images.py --silhouette` — it
+     reads the shipped derivatives, so it still works after the masters are gone,
+     and it MUST be rerun if the campaign photo is ever replaced. */
+  var BAND = 0.03;   // each row spans this much of the master's height
+  var SILHOUETTE = [
+    [0.340, 0.623, 0.840], [0.370, 0.755, 0.887], [0.400, 0.752, 0.889],
+    [0.430, 0.748, 0.858], [0.460, 0.744, 0.861], [0.490, 0.741, 0.863],
+    [0.520, 0.729, 0.863], [0.550, 0.755, 0.857], [0.580, 0.753, 0.864],
+    [0.610, 0.749, 0.874], [0.640, 0.744, 0.882], [0.670, 0.740, 0.888],
+    [0.700, 0.733, 0.895], [0.730, 0.723, 0.893], [0.760, 0.710, 0.885],
+    [0.790, 0.697, 0.881], [0.820, 0.686, 0.877], [0.850, 0.675, 0.875],
+    [0.880, 0.666, 0.873], [0.910, 0.661, 0.869], [0.940, 0.661, 0.866],
+    [0.970, 0.661, 0.863],
+  ];
 
-  /* Insets that keep the cluster inside the part of the hero a visitor can see
-     and won't fight with. Landscape only has to clear the sticky header and the
-     seam where the page sheet slides up. Portrait sets `band`: on a phone she
-     fills the frame, so instead of a fixed inset the canvas is squeezed into the
-     gap the copy leaves — measured live off .hero-text and .hero-actions, which
-     move with the headline's length and the viewport's height. */
+  /* The portrait derivative is this rect of the master, in master pixels — the
+     numbers scripts/gen-look-images.py cuts hero-look*-mobile.webp with. Both
+     crops therefore share one coordinate system, so SILHOUETTE is stated once. */
+  var PORTRAIT_CROP = { x: 1058.73, y: -3.36, w: 719.28, h: 1284.32 };
+  var MASTER = { w: 1920, h: 1280 };
+
+  /* Windows are packed at runtime, not hand-placed: fresh positions every visit,
+     never touching each other, always on her at every viewport. Tall panes, not
+     wide ones — a vertical cut follows the line of a dress, where a horizontal
+     band reads as a stripe laid across her. */
+  var ASPECT = { landscape: 1.80, portrait: 1.55 };  // pane height / width
+  var GAP = 12;           // clear space kept between neighbours, px
+  // Below MIN a pane shows a smear rather than an outfit and is not worth
+  // placing; GOOD is the size worth having all five at. A phone that can't seat
+  // five that big gets four, or three — a few panes you can actually read beats
+  // five slivers, and beats the nothing at all that a phone used to get.
+  var MIN = { landscape: { w: 40, h: 64 }, portrait: { w: 34, h: 54 } };
+  var GOOD = { landscape: 56, portrait: 42 };
+  var LEAST = 3;          // never bother with fewer than this
+  var SLACK = 0.92;       // a grid within this much of the best pane size can win
+                          //   on having spare cells instead — that's the scatter
+
+  /* Insets that keep the panes inside the part of the hero a visitor can see.
+     Landscape only has to clear the sticky header and the seam where the page
+     sheet slides up; portrait's real constraint is the copy, and that's measured
+     live rather than guessed (see regionsFor). */
   var MARGIN = {
-    landscape: { top: 80, right: 16, bottom: 44, left: 0 },
-    portrait: { top: 12, right: 10, bottom: 76, left: 8, band: true },
+    // The hero already begins below the sticky header, so the top inset is just
+    // breathing room — her shoulders (SILHOUETTE's first band) are what actually
+    // sets the ceiling at almost every size. Keeping it small is what leaves a
+    // rotated phone, whose hero is barely 320px tall, enough height to work with.
+    landscape: { top: 24, right: 16, bottom: 44 },
+    portrait: { top: 12, right: 10, bottom: 40 },
   };
-
-  var MIN_CANVAS = 130;   // below this the cluster reads as confetti — stay out
 
   /* Feel. Ported from the bssaub perk-field bubbles, minus the physics engine:
-     a grab that follows with a little lag, a hard ceiling on how far a window
-     can travel, and a fixed-duration glide home from wherever you let go (a
-     spring would land fast from far and slow from near — this lands the same
-     every time, which is what "it goes back" should feel like). */
+     a grab that follows with a little lag, a hard ceiling on how far a pane can
+     travel, and — once you let go — a pause where you dropped it, then a long
+     unhurried drift home. Fixed duration rather than a spring, so it lands the
+     same way from far and from near. */
   var GRAB_FOLLOW = 0.34;   // fraction of the pointer gap closed per 60fps step
-  var CLAMP = { fine: 96, coarse: 58 };  // max travel from home, px
-  var RETURN_MS = 760;
+  var CLAMP = { fine: 130, coarse: 84 };  // max travel from home, px
+  var RETURN_HOLD_MS = 900; // it stays put this long before it starts back
+  var RETURN_MS = 2600;     // ...and takes this long to get there
   var DRIFT_PX = 3.5;       // idle breathing so they read as grabbable
   var DRIFT_MS = 9000;
   var TOUCH_SLOP = 7;       // px of horizontal intent before a touch drag starts
@@ -157,7 +167,40 @@
     var dh = nat.h * s;
     var ox = (box.w - dw) * pos.x;
     var oy = (box.h - dh) * pos.y;
-    return function (u, v) { return { x: ox + u * dw, y: oy + v * dh }; };
+    return {
+      to: function (u, v) { return { x: ox + u * dw, y: oy + v * dh }; },
+      x: function (u) { return ox + u * dw; },
+      y: function (v) { return oy + v * dh; },
+      u: function (x) { return (x - ox) / dw; },
+      v: function (y) { return (y - oy) / dh; },
+    };
+  }
+
+  // Crop-local fractions <-> master-frame fractions, so SILHOUETTE reads the same
+  // on the landscape frame and on the portrait cut of it.
+  function toMasterV(v, portrait) {
+    return portrait ? (v * PORTRAIT_CROP.h + PORTRAIT_CROP.y) / MASTER.h : v;
+  }
+  function fromMasterX(u, portrait) {
+    return portrait ? (u * MASTER.w - PORTRAIT_CROP.x) / PORTRAIT_CROP.w : u;
+  }
+  function fromMasterY(v, portrait) {
+    return portrait ? (v * MASTER.h - PORTRAIT_CROP.y) / PORTRAIT_CROP.h : v;
+  }
+
+  /* Where her garment starts and ends across a vertical slice, as master
+     fractions. The INTERSECTION over the bands the slice touches, not the union:
+     a pane has to be on fabric for its whole height, not just somewhere in it. */
+  function outlineOver(v0, v1) {
+    var l = 0, r = 1, found = false;
+    for (var i = 0; i < SILHOUETTE.length; i++) {
+      var b = SILHOUETTE[i];
+      if (b[0] + BAND <= v0 || b[0] >= v1) continue;
+      l = found ? Math.max(l, b[1]) : b[1];
+      r = found ? Math.min(r, b[2]) : b[2];
+      found = true;
+    }
+    return found && r - l > 0.02 ? { l: l, r: r } : null;
   }
 
   // object-position for the hero photo, mirroring css/styles.css. Read off the
@@ -172,69 +215,281 @@
     return { x: pct(raw[0] || '50%'), y: pct(raw[1] || raw[0] || '50%') };
   }
 
-  // The horizontal band the copy leaves free on a phone: under the paragraph,
-  // above the CTAs. Measured rather than assumed — the copy column is sized in
-  // vw, the headline wraps to two or three lines depending on the word, and the
-  // CTAs are bottom-anchored, so a hardcoded inset would be wrong on half the
-  // phones out there.
-  function copyBand(boxH) {
+  // Rightmost edge of a set of elements, in frame-local px. Used to find where
+  // the copy actually ends — the column is sized in vw, the headline wraps to two
+  // or three lines depending on the word, and the CTA buttons hug their labels
+  // inside a much wider column, so measuring beats assuming.
+  function rightOf(sel) {
     var h = hero.getBoundingClientRect();
-    var text = hero.querySelector('.hero-text');
-    var acts = hero.querySelector('.hero-actions');
+    var out = 0;
+    hero.querySelectorAll(sel).forEach(function (el) {
+      out = Math.max(out, el.getBoundingClientRect().right - h.left);
+    });
+    return out;
+  }
+
+  function bottomOf(sel) {
+    var el = hero.querySelector(sel);
+    if (!el) return 0;
+    return el.getBoundingClientRect().bottom - hero.getBoundingClientRect().top;
+  }
+
+  function topOf(sel, fallback) {
+    var el = hero.querySelector(sel);
+    if (!el) return fallback;
+    return el.getBoundingClientRect().top - hero.getBoundingClientRect().top;
+  }
+
+  /* Everything the layout needs about the frame as it is right now: how big it
+     is, which crop the browser picked, and how that crop maps onto it. */
+  function contextFor(baseImg) {
+    var box = { w: frame.offsetWidth, h: frame.offsetHeight };
+    if (!box.w || !box.h || !baseImg.naturalWidth) return null;
+    // Which crop is on screen comes from the IMAGE, not from re-running the
+    // <source> media query: after a resize some engines keep the crop they
+    // already picked, and guessing wrong would map her clothes to the wrong half
+    // of the frame. The two crops are 1.50 and 0.56 aspect, so the picture itself
+    // is unambiguous — and the panes carry the same <source> list as the base, so
+    // whatever it resolved to, they resolved to as well.
+    var portrait = baseImg.naturalWidth < baseImg.naturalHeight;
     return {
-      top: text ? text.getBoundingClientRect().bottom - h.top + 14 : 0,
-      bottom: acts ? acts.getBoundingClientRect().top - h.top - 14 : boxH,
+      box: box,
+      portrait: portrait,
+      aspect: portrait ? ASPECT.portrait : ASPECT.landscape,
+      min: portrait ? MIN.portrait : MIN.landscape,
+      good: portrait ? GOOD.portrait : GOOD.landscape,
+      map: coverMapper(
+        { w: baseImg.naturalWidth, h: baseImg.naturalHeight },
+        box,
+        objectPosition(baseImg),
+      ),
     };
   }
 
-  // The canvas: her clothes, cropped to what's on screen and clear of the copy.
-  function canvasFor(baseImg) {
-    var box = { w: frame.offsetWidth, h: frame.offsetHeight };
-    if (!box.w || !box.h || !baseImg.naturalWidth) return null;
+  /* The free ground: the part of the hero a pane may sit in — on screen, and not
+     already spoken for by the copy. A LIST of rects, because on a phone what is
+     left is an L and not a rectangle: she fills the frame there, so the panes get
+     the column beside the headline, the full width of her under the paragraph,
+     and the column beside the buttons down to the floor. Squeezing that into one
+     rect is what broke the phone layout before — on a real handset 100svh is
+     ~100px shorter than a desktop emulator's, the middle strip alone collapsed
+     under the minimum, and the feature switched itself off.
 
-    // Which crop is on screen comes from the IMAGE, not from re-running the
-    // <source> media query: after a resize some engines keep the crop they
-    // already picked, and guessing wrong here would map her clothes to the wrong
-    // half of the frame. The two crops are 1.50 and 0.56 aspect, so the picture
-    // itself is unambiguous — and the panes carry the same <source> list as the
-    // base, so whatever it resolved to, they resolved to as well.
-    var portrait = baseImg.naturalWidth < baseImg.naturalHeight;
-    var fab = portrait ? FABRIC.portrait : FABRIC.landscape;
-    var m = portrait ? MARGIN.portrait : MARGIN.landscape;
-    var map = coverMapper(
-      { w: baseImg.naturalWidth, h: baseImg.naturalHeight },
-      box,
-      objectPosition(baseImg),
+     Horizontal bounds are loose here on purpose; the packer clips every cell to
+     her outline at that cell's own height, which is what actually keeps panes on
+     fabric instead of on wall. */
+  function regionsFor(ctx) {
+    var box = ctx.box;
+    var m = ctx.portrait ? MARGIN.portrait : MARGIN.landscape;
+    var wide = { l: 1, r: 0 };
+    SILHOUETTE.forEach(function (b) {
+      wide.l = Math.min(wide.l, b[1]);
+      wide.r = Math.max(wide.r, b[2]);
+    });
+    var gL = Math.max(ctx.map.x(fromMasterX(wide.l, ctx.portrait)), 4);
+    var gR = Math.min(ctx.map.x(fromMasterX(wide.r, ctx.portrait)), box.w - m.right);
+    var gT = Math.max(ctx.map.y(fromMasterY(SILHOUETTE[0][0], ctx.portrait)), m.top);
+    var gB = Math.min(ctx.map.y(fromMasterY(1, ctx.portrait)), box.h - m.bottom);
+
+    var out = [];
+    var push = function (x, y, w, h) {
+      if (w >= ctx.min.w + GAP && h >= ctx.min.h + GAP) out.push({ x: x, y: y, w: w, h: h });
+    };
+
+    if (ctx.portrait) {
+      // Three strips, stacked and disjoint — the packer grids each one on its own,
+      // so they must never overlap each other.
+      var textB = Math.max(gT, bottomOf('.hero-text') + 12);
+      var actT = Math.max(textB, Math.min(gB, topOf('.hero-actions', gB) - 10));
+      var copyR = Math.max(gL, rightOf('.hero-text, .hero-copy h1') + 12);
+      var actR = Math.max(gL, rightOf('.hero-actions .btn') + 12);
+      push(copyR, gT, gR - copyR, textB - gT);
+      push(gL, textB, gR - gL, actT - textB);
+      push(actR, actT, gR - actR, gB - actT);
+    } else {
+      // Landscape phones and small tablets put the copy over the same half of the
+      // frame she stands in; desktops don't (her column starts well right of the
+      // headline's 760px cap).
+      var left = box.w < 960
+        ? Math.max(gL, rightOf('.hero-text, .hero-actions .btn') + 12)
+        : gL;
+      push(left, gT, gR - left, gB - gT);
+    }
+    return out;
+  }
+
+  /* Deterministic-per-visit randomness: a fresh seed each page load, but the SAME
+     seed replayed on every relayout, so a resize or an orientation flip re-packs
+     into the new shape instead of reshuffling under the visitor's eyes. */
+  var SEED = (Math.random() * 4294967296) >>> 0;
+  var seed = SEED;
+  function rnd() {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  }
+  // Triangular, peaked in the middle — nudges a pane toward the centre of the
+  // room it has rather than hugging an edge.
+  function centred() { return (rnd() + rnd()) / 2; }
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(rnd() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  /* One cell of a strip's grid, clipped to her outline at that cell's height.
+     Null when what's left is too narrow to hold a pane — those cells sit over
+     bare wall and simply never get used. */
+  function cellFor(ctx, reg, g, col, row) {
+    var y = reg.y + row * g.ch + GAP / 2;
+    var h = g.ch - GAP;
+    var band = outlineOver(
+      toMasterV(ctx.map.v(y), ctx.portrait),
+      toMasterV(ctx.map.v(y + h), ctx.portrait),
     );
+    if (!band) return null;
+    var x = Math.max(reg.x + col * g.cw + GAP / 2,
+                     ctx.map.x(fromMasterX(band.l, ctx.portrait)));
+    var right = Math.min(reg.x + (col + 1) * g.cw - GAP / 2,
+                         ctx.map.x(fromMasterX(band.r, ctx.portrait)));
+    return right - x >= ctx.min.w ? { x: x, y: y, w: right - x, h: h } : null;
+  }
 
-    var a = map(fab.x, fab.y);
-    var b = map(fab.x + fab.w, fab.y + fab.h);
-    var band = m.band ? copyBand(box.h) : null;
-    var left = Math.max(a.x, m.left);
-    var top = Math.max(a.y, m.top, band ? band.top : 0);
-    var right = Math.min(b.x, box.w - m.right);
-    var bottom = Math.min(b.y, box.h - m.bottom, band ? band.bottom : Infinity);
-    var c = { x: left, y: top, w: right - left, h: bottom - top };
-    return c.w >= MIN_CANVAS && c.h >= MIN_CANVAS ? c : null;
+  /* Best grid for k panes in one strip. Every (cols, rows) that holds k is tried;
+     the pane size a grid affords is the k-th largest of its usable cells, since
+     that is the smallest pane it would actually place. Among grids within SLACK
+     of the best size, the one with the most spare cells wins — those empty cells
+     are what stop the result reading as a table. */
+  function gridFor(ctx, reg, k, aspect) {
+    var all = [];
+    var top = 0;
+    for (var cols = 1; cols <= k; cols++) {
+      var need = Math.ceil(k / cols);
+      for (var rows = need; rows <= need + 1; rows++) {
+        var g = { cols: cols, rows: rows, cw: reg.w / cols, ch: reg.h / rows };
+        if (g.cw - GAP < ctx.min.w || g.ch - GAP < ctx.min.h) continue;
+        var cells = [];
+        for (var r = 0; r < rows; r++) {
+          for (var c = 0; c < cols; c++) {
+            var cell = cellFor(ctx, reg, g, c, r);
+            if (cell) cells.push(cell);
+          }
+        }
+        if (cells.length < k) continue;
+        var sizes = cells.map(function (cell) {
+          return Math.min(cell.w, cell.h / aspect);
+        }).sort(function (a, b) { return b - a; });
+        var pw = sizes[k - 1];
+        if (pw < ctx.min.w || pw * aspect < ctx.min.h) continue;
+        g.cells = cells;
+        g.pw = pw;
+        g.spare = cells.length - k;
+        all.push(g);
+        top = Math.max(top, pw);
+      }
+    }
+    var best = null;
+    all.forEach(function (g) {
+      if (g.pw < top * SLACK) return;
+      if (!best || g.spare > best.spare || (g.spare === best.spare && g.pw > best.pw)) best = g;
+    });
+    return best;
+  }
+
+  /* How to split n panes across the strips. Brute force — three strips and five
+     panes is 21 combinations — scored on the SMALLEST pane it produces, so the
+     five come out as a set rather than one hero and four crumbs. */
+  function allocate(ctx, regions, n, aspect) {
+    var best = null;
+    var counts = [];
+    (function walk(idx, left) {
+      if (idx === regions.length) {
+        if (left) return;
+        var grids = [];
+        var minPw = Infinity;
+        for (var j = 0; j < regions.length; j++) {
+          if (!counts[j]) { grids.push(null); continue; }
+          var g = gridFor(ctx, regions[j], counts[j], aspect);
+          if (!g) return;
+          grids.push(g);
+          minPw = Math.min(minPw, g.pw);
+        }
+        if (minPw !== Infinity && (!best || minPw > best.minPw)) {
+          best = { counts: counts.slice(), grids: grids, minPw: minPw };
+        }
+        return;
+      }
+      for (var c = 0; c <= left; c++) {
+        counts[idx] = c;
+        walk(idx + 1, left - c);
+      }
+      counts[idx] = 0;
+    })(0, n);
+    return best;
+  }
+
+  /* How many panes the room can actually carry. Take all five if they come out
+     at a readable size; otherwise take the fewest-but-biggest option down to
+     LEAST. This is the difference between a small phone showing four outfits and
+     a small phone showing none — the packer used to be all-or-nothing, and on a
+     360x492 hero (a short handset, once the browser chrome eats into 100svh)
+     five never fit, so nothing was drawn at all. */
+  function planFor(ctx, regions, n) {
+    var fallback = null;
+    for (var k = n; k >= LEAST; k--) {
+      var plan = allocate(ctx, regions, k, ctx.aspect);
+      if (!plan) continue;
+      plan.n = k;
+      if (plan.minPw >= ctx.good) return plan;
+      if (!fallback || plan.minPw > fallback.minPw) fallback = plan;
+    }
+    return fallback;
+  }
+
+  function pack(ctx, regions, n) {
+    var plan = regions.length ? planFor(ctx, regions, n) : null;
+    if (!plan) return [];
+
+    seed = SEED;
+    var out = [];
+    regions.forEach(function (reg, j) {
+      var k = plan.counts[j];
+      var g = plan.grids[j];
+      if (!k || !g) return;
+      // Roomiest cells first, then shuffled among them: panes land where there is
+      // most of her, but not in the same arrangement twice.
+      var pool = g.cells.slice().sort(function (a, b) { return b.w - a.w; });
+      shuffle(pool.slice(0, k + g.spare)).slice(0, k).forEach(function (cell) {
+        // A shade under the cell so there is room to sit anywhere inside it, and
+        // varied a little so five identical rectangles don't read as a chart.
+        var pw = Math.min(cell.w, cell.h / ctx.aspect) * (0.86 + rnd() * 0.14);
+        var ph = pw * ctx.aspect;
+        out.push({
+          x: Math.round(cell.x + centred() * Math.max(0, cell.w - pw)),
+          y: Math.round(cell.y + rnd() * Math.max(0, cell.h - ph)),
+          w: Math.round(pw),
+          h: Math.round(ph),
+        });
+      });
+    });
+    // Shuffle so the five outfits are not grouped strip by strip.
+    return shuffle(out);
   }
 
   function layout(baseImg) {
-    var c = canvasFor(baseImg);
-    hero.classList.toggle('has-looks', !!c);
-    if (!c) return false;
-    var spec = baseImg.naturalWidth < baseImg.naturalHeight ? WINDOWS.portrait : WINDOWS.landscape;
+    var ctx = contextFor(baseImg);
+    var rects = ctx ? pack(ctx, regionsFor(ctx), panes.length) : [];
+    hero.classList.toggle('has-looks', rects.length > 0);
     panes.forEach(function (p, i) {
-      var w = spec[i];
-      p.rect = {
-        x: Math.round(c.x + w.x * c.w),
-        y: Math.round(c.y + w.y * c.h),
-        w: Math.round(w.w * c.w),
-        h: Math.round(w.h * c.h),
-      };
+      p.rect = rects[i] || null;
+      p.pane.classList.toggle('is-out', !p.rect);
+      p.edge.classList.toggle('is-out', !p.rect);
+      if (!p.rect) return;
       writeRect(p);
       writeOffset(p);
     });
-    return true;
+    return rects.length > 0;
   }
 
   // The window's home box — the clip rectangle and the border that traces it.
@@ -312,10 +567,12 @@
         clampOffset(p);
         busy = true;
       } else if (p.ret) {
-        // Home is the DRIFT position, not zero: landing on a hard zero and then
-        // handing back to a drift that's mid-swing puts a visible hop at the end
-        // of every release.
-        var e = smoothstep(Math.min(1, (now - p.ret.t0) / RETURN_MS));
+        // Let go and it STAYS where you put it for a beat, then drifts back over
+        // a couple of seconds. Home is the DRIFT position, not zero: landing on a
+        // hard zero and then handing back to a drift that's mid-swing puts a
+        // visible hop at the end of every release.
+        var age = now - p.ret.t0 - RETURN_HOLD_MS;
+        var e = age <= 0 ? 0 : smoothstep(Math.min(1, age / RETURN_MS));
         p.dx = p.ret.fx + (driftX - p.ret.fx) * e;
         p.dy = p.ret.fy + (driftY - p.ret.fy) * e;
         if (e >= 1) p.ret = null;
@@ -434,6 +691,14 @@
     resizeTimer = setTimeout(relayout, 150);
   });
   window.addEventListener('orientationchange', function () { setTimeout(relayout, 250); });
+  // The phone regions are carved around the copy, and the copy is still moving
+  // for the first ~1.8s: heroRise holds each line 26px low until its delay
+  // elapses, and .hero-actions is the last to land. Re-measure when it settles —
+  // and again on a couple of timers, because a cascade that was interrupted (a
+  // fast scroll, a restored tab) may never fire animationend at all.
+  var actions = hero.querySelector('.hero-actions');
+  if (actions) actions.addEventListener('animationend', relayout);
+  [700, 2000].forEach(function (ms) { setTimeout(relayout, ms); });
   if (portraitQ.addEventListener) portraitQ.addEventListener('change', relayout);
   // A crop swap (rotate a phone, resize past 959px) re-fires load on the base
   // <img> with a new intrinsic size — the windows have to be re-measured against
