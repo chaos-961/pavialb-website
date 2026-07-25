@@ -264,13 +264,18 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   from { transform: scale(1.06); }
   to   { transform: scale(1); }
 }
-/* The photo reads clean — no top band or side veil dimming it. The only overlay
-   is a single bottom fade that melts the photo into the sheet seam. Overlay only
-   (no blur), fades upward from the bottom edge and never touches the top. */
+/* Two overlays, both soft: a warm scrim over the empty wall the copy sits on, and
+   the bottom fade that melts the photo into the sheet seam. Overlay only (no blur).
+   The scrim exists because the copy is white and the wall behind it is a pale
+   cream (~#D6C7BC) — white needs the wall several stops darker to hold its edges.
+   It's warm-brown rather than black so it reads as the light falling off toward
+   the corner, angled slightly (100deg) for the same reason, and it's fully out by
+   ~74% of the frame so it never lands on the model. */
 .hero-backdrop__wash {
   position: absolute;
   inset: 0;
   background:
+    linear-gradient(100deg, rgba(58, 43, 31, 0.64) 0%, rgba(58, 43, 31, 0.60) 34%, rgba(58, 43, 31, 0.54) 54%, rgba(58, 43, 31, 0.38) 64%, rgba(58, 43, 31, 0.13) 72%, rgba(58, 43, 31, 0) 80%),
     linear-gradient(0deg, rgba(230, 230, 230, 0.88) 0%, rgba(230, 230, 230, 0.32) 14%, rgba(230, 230, 230, 0) 34%);
 }
 .hero-grid {
@@ -287,6 +292,22 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
    phone screen, so the column stays narrower than that (left veil in the wash
    backs it up where a long headline word grazes her sleeve). */
 .hero-copy { position: relative; z-index: 2; max-width: min(560px, 58vw); display: flex; flex-direction: column; align-self: stretch; }
+/* The copy reads WHITE over the campaign photo. The wall behind it is a pale
+   cream, so white on its own would disappear — what carries it is a two-layer
+   shadow (a tight edge that defines the letterforms + a wide low-opacity halo
+   that darkens the wall around them), backed by the soft scrim the wash paints
+   on the left. Warm-black (not pure black) so the shadow stays in the photo's
+   temperature instead of reading as a grey outline. */
+.hero-copy .eyebrow,
+.hero-copy h1,
+.hero-copy .hero-text {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(46, 34, 24, 0.42), 0 5px 20px rgba(46, 34, 24, 0.34);
+}
+/* The headline is the biggest mass of white, so it carries a deeper halo. */
+.hero-copy h1 {
+  text-shadow: 0 2px 4px rgba(46, 34, 24, 0.44), 0 12px 38px rgba(46, 34, 24, 0.36);
+}
 /* Ghost CTA gets a faint paper fill here so its label never fights the photo. */
 .hero .btn-ghost { background: rgba(250, 250, 250, 0.55); }
 .hero .btn-ghost:hover { background: var(--ink); }
@@ -317,15 +338,16 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .hero-copy h1 em {
   font-style: italic;
   font-weight: 300;
-  color: var(--cocoa);
-  /* The accent word "blooms" from a soft tone into its deep cocoa just after the
-     headline lands — a quiet emphasis, no transform (so it never fights the
-     headline's rise or the scroll parallax). */
+  color: #ffffff;
+  /* The accent word "blooms" from a translucent white up to full white just
+     after the headline lands — a quiet emphasis, no transform (so it never
+     fights the headline's rise or the scroll parallax). Now that the whole
+     headline is white, the bloom is a brightness lift rather than a hue shift. */
   animation: heroEmBloom 1.1s var(--ease-out) 1s both;
 }
 @keyframes heroEmBloom {
-  from { color: var(--muted-soft); }
-  to   { color: var(--cocoa); }
+  from { color: rgba(255, 255, 255, 0.62); }
+  to   { color: #ffffff; }
 }
 /* A short editorial rule leads the eyebrow — scoped to the hero so the shop and
    visit eyebrows keep their plain form. Kept as an inline pseudo (not flex + gap,
@@ -2267,10 +2289,12 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
      upper third; the 88% X only matters on narrow-but-tall desktop windows
      (960-1300px), where it slides the crop window right so she stays in frame. */
   .hero-backdrop img { object-position: 88% 28%; }
-  /* Same clean read on desktop — only the bottom seam fade, no header band or
-     left veil over the photo. */
+  /* Desktop gets the same scrim a touch lighter and pulled in — the frame is wider
+     here, so the copy column ends sooner in percentage terms and the wall right of
+     the headline can stay open. Bottom seam fade unchanged; still no header band. */
   .hero-backdrop__wash {
     background:
+      linear-gradient(100deg, rgba(58, 43, 31, 0.62) 0%, rgba(58, 43, 31, 0.57) 34%, rgba(58, 43, 31, 0.50) 50%, rgba(58, 43, 31, 0.34) 58%, rgba(58, 43, 31, 0.12) 66%, rgba(58, 43, 31, 0) 73%),
       linear-gradient(0deg, rgba(230, 230, 230, 0.85) 0%, rgba(230, 230, 230, 0.30) 12%, rgba(230, 230, 230, 0) 30%);
   }
 
@@ -2310,6 +2334,16 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
    ========================================================= */
 @media print {
   .site-header, .whatsapp-fab, .drawer, .modal, .hero-backdrop { display: none !important; }
+  /* The photo is gone on paper, so the white hero copy would print blank — put
+     it back to ink and drop the shadow. */
+  .hero-copy .eyebrow,
+  .hero-copy h1,
+  .hero-copy h1 em,
+  .hero-copy .hero-text {
+    color: var(--ink) !important;
+    text-shadow: none !important;
+    animation: none !important;
+  }
 }
 
 /* =========================================================
