@@ -7,8 +7,8 @@
  * photo's geometry and then clipped down to a small rectangle, so all you see of
  * it is that window — and inside the window she's wearing another look. Drag a
  * window and it slides across her (the photo underneath stays put: the layer is
- * translated and its <img> is counter-translated by the same amount), then it
- * glides back to where it belongs.
+ * translated and its <img> is counter-translated by the same amount) anywhere on
+ * the figure, then glides back to its seat the moment you let go.
  *
  * Everything lives inside [data-hero-frame], which is what app.js scales for the
  * scroll camera-push — so the windows, their borders and the photo zoom as one
@@ -69,15 +69,13 @@
      wide ones — a vertical cut follows the line of a dress, where a horizontal
      band reads as a stripe laid across her. */
   var ASPECT = { landscape: 1.80, portrait: 1.55 };  // pane height / width
-  var GAP = 12;           // clear space kept between neighbours, px
+  var GAP = 10;           // clear space kept between neighbours, px
   // Below MIN a pane shows a smear rather than an outfit and is not worth
-  // placing; GOOD is the size worth having all five at. A phone that can't seat
-  // five that big gets four, or three — a few panes you can actually read beats
-  // five slivers, and beats the nothing at all that a phone used to get.
+  // placing. Everything above it is fair game — planFor packs as many panes as
+  // fit and the grid search maximises their size within that.
   var MIN = { landscape: { w: 40, h: 64 }, portrait: { w: 34, h: 54 } };
-  var GOOD = { landscape: 56, portrait: 42 };
   var LEAST = 3;          // never bother with fewer than this
-  var SLACK = 0.92;       // a grid within this much of the best pane size can win
+  var SLACK = 0.96;       // a grid within this much of the best pane size can win
                           //   on having spare cells instead — that's the scatter
 
   /* Insets that keep the panes inside the part of the hero a visitor can see.
@@ -95,13 +93,11 @@
 
   /* Feel. Ported from the bssaub perk-field bubbles, minus the physics engine:
      a grab that follows with a little lag, a hard ceiling on how far a pane can
-     travel, and — once you let go — a pause where you dropped it, then a long
-     unhurried drift home. Fixed duration rather than a spring, so it lands the
-     same way from far and from near. */
+     travel, and a glide home that begins the moment you let go. Fixed duration
+     rather than a spring, so it lands the same way from far and from near. */
   var GRAB_FOLLOW = 0.34;   // fraction of the pointer gap closed per 60fps step
-  var CLAMP = { fine: 130, coarse: 84 };  // max travel from home, px
-  var RETURN_HOLD_MS = 900; // it stays put this long before it starts back
-  var RETURN_MS = 2600;     // ...and takes this long to get there
+  var ROAM = 44;            // how far past her outline a dragged pane may go, px
+  var RETURN_MS = 2080;     // release -> home, starting the moment you let go
   var DRIFT_PX = 3.5;       // idle breathing so they read as grabbable
   var DRIFT_MS = 9000;
   var TOUCH_SLOP = 7;       // px of horizontal intent before a touch drag starts
@@ -112,7 +108,6 @@
 
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   var portraitQ = window.matchMedia('(max-width: 959px) and (orientation: portrait)');
-  var coarseQ = window.matchMedia('(pointer: coarse)');
 
   var paneWrap = document.createElement('div');
   paneWrap.className = 'hero-looks';
@@ -257,7 +252,6 @@
       portrait: portrait,
       aspect: portrait ? ASPECT.portrait : ASPECT.landscape,
       min: portrait ? MIN.portrait : MIN.landscape,
-      good: portrait ? GOOD.portrait : GOOD.landscape,
       map: coverMapper(
         { w: baseImg.naturalWidth, h: baseImg.naturalHeight },
         box,
@@ -291,6 +285,16 @@
     var gT = Math.max(ctx.map.y(fromMasterY(SILHOUETTE[0][0], ctx.portrait)), m.top);
     var gB = Math.min(ctx.map.y(fromMasterY(1, ctx.portrait)), box.h - m.bottom);
 
+    // The drag range: anywhere on her, and a little beyond — the pane may leave
+    // its seat entirely and ride the whole figure, it just can't wander off into
+    // the empty wall (where it would show nothing) or off screen.
+    roam = {
+      l: Math.max(gL - ROAM, 2),
+      t: Math.max(gT - ROAM, 2),
+      r: Math.min(gR + ROAM, box.w - 2),
+      b: Math.min(gB + ROAM, box.h - 2),
+    };
+
     var out = [];
     var push = function (x, y, w, h) {
       if (w >= ctx.min.w + GAP && h >= ctx.min.h + GAP) out.push({ x: x, y: y, w: w, h: h });
@@ -317,6 +321,8 @@
     }
     return out;
   }
+
+  var roam = null;   // her on-screen bounds + ROAM, refreshed on every relayout
 
   /* Deterministic-per-visit randomness: a fresh seed each page load, but the SAME
      seed replayed on every relayout, so a resize or an orientation flip re-packs
@@ -429,22 +435,18 @@
     return best;
   }
 
-  /* How many panes the room can actually carry. Take all five if they come out
-     at a readable size; otherwise take the fewest-but-biggest option down to
-     LEAST. This is the difference between a small phone showing four outfits and
-     a small phone showing none — the packer used to be all-or-nothing, and on a
-     360x492 hero (a short handset, once the browser chrome eats into 100svh)
-     five never fit, so nothing was drawn at all. */
+  /* How many panes the room can actually carry: as many as will FIT, full stop.
+     allocate() already refuses anything under MIN, so the first k that packs is
+     five readable panes whenever five are possible, and only a genuinely cramped
+     fold steps down to four or three. (An earlier version preferred fewer-but-
+     bigger; on a mid-size phone that quietly turned five outfits into three,
+     which read as broken rather than generous.) */
   function planFor(ctx, regions, n) {
-    var fallback = null;
     for (var k = n; k >= LEAST; k--) {
       var plan = allocate(ctx, regions, k, ctx.aspect);
-      if (!plan) continue;
-      plan.n = k;
-      if (plan.minPw >= ctx.good) return plan;
-      if (!fallback || plan.minPw > fallback.minPw) fallback = plan;
+      if (plan) { plan.n = k; return plan; }
     }
-    return fallback;
+    return null;
   }
 
   function pack(ctx, regions, n) {
@@ -461,9 +463,10 @@
       // most of her, but not in the same arrangement twice.
       var pool = g.cells.slice().sort(function (a, b) { return b.w - a.w; });
       shuffle(pool.slice(0, k + g.spare)).slice(0, k).forEach(function (cell) {
-        // A shade under the cell so there is room to sit anywhere inside it, and
-        // varied a little so five identical rectangles don't read as a chart.
-        var pw = Math.min(cell.w, cell.h / ctx.aspect) * (0.86 + rnd() * 0.14);
+        // Nearly the full cell — the gap between neighbours is already carved out
+        // of the grid — varied a touch so five identical rectangles don't read as
+        // a chart.
+        var pw = Math.min(cell.w, cell.h / ctx.aspect) * (0.92 + rnd() * 0.08);
         var ph = pw * ctx.aspect;
         out.push({
           x: Math.round(cell.x + centred() * Math.max(0, cell.w - pw)),
@@ -530,15 +533,12 @@
   var last = 0;
   var t = 0;
 
-  function clampRadius() { return coarseQ.matches ? CLAMP.coarse : CLAMP.fine; }
-
+  // Keep the dragged pane inside her figure (plus ROAM): the box, not the
+  // pointer, is what stops at the edge, so it never slides out onto bare wall.
   function clampOffset(p) {
-    var r = clampRadius();
-    var d = Math.hypot(p.dx, p.dy);
-    if (d > r) {
-      p.dx = (p.dx / d) * r;
-      p.dy = (p.dy / d) * r;
-    }
+    if (!roam || !p.rect) return;
+    p.dx = Math.min(Math.max(p.dx, roam.l - p.rect.x), roam.r - (p.rect.x + p.rect.w));
+    p.dy = Math.min(Math.max(p.dy, roam.t - p.rect.y), roam.b - (p.rect.y + p.rect.h));
   }
 
   function smoothstep(x) { return x * x * (3 - 2 * x); }
@@ -567,12 +567,11 @@
         clampOffset(p);
         busy = true;
       } else if (p.ret) {
-        // Let go and it STAYS where you put it for a beat, then drifts back over
-        // a couple of seconds. Home is the DRIFT position, not zero: landing on a
-        // hard zero and then handing back to a drift that's mid-swing puts a
-        // visible hop at the end of every release.
-        var age = now - p.ret.t0 - RETURN_HOLD_MS;
-        var e = age <= 0 ? 0 : smoothstep(Math.min(1, age / RETURN_MS));
+        // Starts home the moment you let go, at an unhurried glide. Home is the
+        // DRIFT position, not zero: landing on a hard zero and then handing back
+        // to a drift that's mid-swing puts a visible hop at the end of every
+        // release.
+        var e = smoothstep(Math.min(1, (now - p.ret.t0) / RETURN_MS));
         p.dx = p.ret.fx + (driftX - p.ret.fx) * e;
         p.dy = p.ret.fy + (driftY - p.ret.fy) * e;
         if (e >= 1) p.ret = null;
