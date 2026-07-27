@@ -303,8 +303,8 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   align-items: start;
 }
 /* Copy hugs the clear wall left of the model; her raised hands reach ~62% of a
-   phone screen, so the column stays narrower than that (left veil in the wash
-   backs it up where a long headline word grazes her sleeve). */
+   phone screen, so the column stays narrower than that — with no veil behind it,
+   the width is the only thing keeping a long headline word off her sleeve. */
 .hero-copy { position: relative; z-index: 2; max-width: min(560px, 58vw); display: flex; flex-direction: column; align-self: stretch; }
 /* The column is stretched to the full fold and the CTAs are pushed to its foot,
    so most of it is empty space — and on a phone that empty space sits right on
@@ -2390,12 +2390,12 @@ html.vt-modal::view-transition-new(root) { animation-duration: 0.34s; }
      upper third; the 88% X only matters on narrow-but-tall desktop windows
      (960-1300px), where it slides the crop window right so she stays in frame. */
   .hero-backdrop img { object-position: 88% 28%; }
-  /* Desktop gets the same scrim a touch lighter and pulled in — the frame is wider
-     here, so the copy column ends sooner in percentage terms and the wall right of
-     the headline can stay open. Bottom seam fade unchanged; still no header band. */
+  /* Desktop keeps ONLY the bottom seam fade (tuned a hair shorter than the base
+     rule — the frame is taller here). The dark left scrim that used to sit under
+     the copy is gone: it read as a black panel painted over the photograph. The
+     white copy is carried by its text-shadow alone, same as every other size. */
   .hero-backdrop__wash {
     background:
-      linear-gradient(100deg, rgba(58, 43, 31, 0.62) 0%, rgba(58, 43, 31, 0.57) 34%, rgba(58, 43, 31, 0.50) 50%, rgba(58, 43, 31, 0.34) 58%, rgba(58, 43, 31, 0.12) 66%, rgba(58, 43, 31, 0) 73%),
       linear-gradient(0deg, rgba(230, 230, 230, 0.85) 0%, rgba(230, 230, 230, 0.30) 12%, rgba(230, 230, 230, 0) 30%);
   }
 
