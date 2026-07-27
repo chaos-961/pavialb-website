@@ -315,20 +315,22 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .hero-copy > * { pointer-events: auto; }
 /* The copy reads WHITE over the campaign photo. The wall behind it is a pale
    cream, so white on its own would disappear — and with the left scrim removed
-   this shadow is now the ONLY thing carrying it. Three layers: a tight edge that
-   cuts the letterforms, a mid halo, and a wide low-opacity bloom that shades the
-   wall just enough around the words without reading as a panel behind them.
-   Warm-black (not pure black) so it stays in the photo's temperature instead of
-   reading as a grey outline. */
+   this shadow is now the ONLY thing carrying it — at every size, including
+   desktop (v0.8.4 dropped the last scrim), so it runs deep. Three layers: a
+   tight edge that cuts the letterforms, a mid halo, and a wide bloom that
+   shades the wall around the words. The bloom stays soft-edged and wide rather
+   than dense and tight, so it reads as light falling off the letters instead of
+   a panel behind them. Warm-black (not pure black) so it stays in the photo's
+   temperature instead of reading as a grey outline. */
 .hero-copy .eyebrow,
 .hero-copy h1,
 .hero-copy .hero-text {
   color: #ffffff;
-  text-shadow: 0 1px 2px rgba(46, 34, 24, 0.55), 0 3px 10px rgba(46, 34, 24, 0.42), 0 8px 30px rgba(46, 34, 24, 0.34);
+  text-shadow: 0 1px 3px rgba(46, 34, 24, 0.72), 0 4px 14px rgba(46, 34, 24, 0.58), 0 10px 38px rgba(46, 34, 24, 0.46);
 }
 /* The headline is the biggest mass of white, so it carries a deeper halo. */
 .hero-copy h1 {
-  text-shadow: 0 2px 4px rgba(46, 34, 24, 0.55), 0 6px 18px rgba(46, 34, 24, 0.44), 0 16px 46px rgba(46, 34, 24, 0.36);
+  text-shadow: 0 2px 5px rgba(46, 34, 24, 0.74), 0 7px 22px rgba(46, 34, 24, 0.60), 0 20px 58px rgba(46, 34, 24, 0.48);
 }
 /* Ghost CTA gets a faint paper fill here so its label never fights the photo. */
 .hero .btn-ghost { background: rgba(250, 250, 250, 0.55); }
