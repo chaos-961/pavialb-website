@@ -106,6 +106,20 @@
   var SHARE = { w: 0.26, h: 0.21 };      // of her on-screen figure
   var CAP = { short: 78, long: 106 };
   var BOTTOM = { short: 58, long: 78 };
+  /* …and what the floor is worth is settled against a look going missing, not
+     before it. SHARE is measured off her BOUNDING BOX, and she is not a
+     rectangle: on a 375px phone the box says 272 wide while the run of garment a
+     window can actually be cut from is 85-180, so the floor comes out at 26% of
+     a width that isn't there. Two panes abreast then need 154px of cell and a
+     row offers 154 — six pixels short after the gap, at every height, so a phone
+     was laid out one window per row and the packer dropped down to two or three
+     looks for want of those six pixels.
+     So the floor is a LADDER, walked down toward BOTTOM (never past it — that's
+     the point of BOTTOM) and re-tried before a single k is given up. Same rule
+     GROWS already follows, one level up: the panes give up size before the
+     collage gives up a look. A viewport with the room to seat all five at full
+     size never leaves the first rung. */
+  var FLOORS = [1, 0.9, 0.8];
   var NARROW = 260;       // a figure thinner than this gets no landscape cuts.
                           //   Phones land ~244 and tablets ~283, so the split is
                           //   clear of both rather than sitting on either.
@@ -133,6 +147,21 @@
                           //   its area under a single neighbour. A box mostly
                           //   under its neighbour isn't a collage, it's a
                           //   missing box (on phones it read as "only 3 of 5").
+  /* How far the rows of a grid may close up on each other. Normally they don't
+     at all — a row is a pane plus its GAP, laid clear of the next. But GAP is
+     the first thing a short fold cannot afford, and it was being charged for
+     even when the alternative was losing a whole look: 153px of her above the
+     buttons holds two 78px windows with 3px to spare, and refused them, because
+     two windows PLUS a gap wants 168. So when a strip can't seat its share the
+     honest way, the row PITCH compresses while the cells stay full height, and
+     the file shingles like a deck of prints instead of the collage going short.
+     Set a little above BURIED rather than equal to it, because the two measure
+     different things: this is how far two rows close up VERTICALLY, while BURIED
+     is the share of a pane's AREA that ends up hidden — and neighbours never
+     line up edge to edge (they differ in width and jitter sideways), so a fifth
+     of the height costs rather less than a fifth of the box. The grid proposes;
+     anyBuried, which sees the finished arrangement, disposes. */
+  var SHINGLE = 0.26;
   var SPILL = 26;         // how far a pane may grow out of its own strip. Keeps
                           //   the overgrowth from wandering onto the copy, which
                           //   the strips were carved to avoid in the first place.
@@ -323,6 +352,19 @@
     return Math.min(w, h) >= min.short - 0.5 && Math.max(w, h) >= min.long - 0.5;
   }
 
+  /* The floor in force for the attempt being made right now: ctx.floor stepped
+     down a rung of FLOORS, and never below BOTTOM. Everything that measures a
+     box reads ctx.min/ctx.cellMin at call time, so setting it here is enough. */
+  function setFloor(ctx, f) {
+    ctx.min = {
+      short: Math.max(BOTTOM.short, ctx.floor.short * f),
+      long: Math.max(BOTTOM.long, ctx.floor.long * f),
+    };
+    // Grid cells are measured as "could an upright pane live here?", so the cell
+    // floor is the short side by the long side.
+    ctx.cellMin = { w: ctx.min.short, h: ctx.min.long };
+  }
+
   // object-position for the hero photo, mirroring css/styles.css. Read off the
   // element instead of duplicating the breakpoints, so retuning the crop there
   // moves the windows with it.
@@ -430,13 +472,11 @@
     // settles (see SHARE/CAP/BOTTOM above) — as a share of the figure itself.
     ctx.figure = { w: gR - gL, h: gB - gT };
     ctx.narrow = ctx.figure.w < NARROW;
-    ctx.min = {
+    ctx.floor = {
       short: Math.min(CAP.short, Math.max(BOTTOM.short, ctx.figure.w * SHARE.w)),
       long: Math.min(CAP.long, Math.max(BOTTOM.long, ctx.figure.h * SHARE.h)),
     };
-    // Grid cells are measured as "could an upright pane live here?", so the cell
-    // floor is the short side by the long side.
-    ctx.cellMin = { w: ctx.min.short, h: ctx.min.long };
+    setFloor(ctx, 1);
 
     /* TWO candidate carves, and the packer is left to decide — which beats any
        breakpoint rule, because the two are better in different places for
@@ -456,9 +496,15 @@
        one rect is what broke it before — on a real handset 100svh is ~100px
        shorter than a desktop emulator's, the middle strip alone collapsed under
        the minimum, and the feature switched itself off. */
-    // A region too small to hold even one pane is not a region.
+    /* A region too small to hold even one pane is not a region — measured at
+       BOTTOM, the smallest window the packer can ever ask for, NOT at the floor
+       in force right now. The ground is carved once and the floor is a ladder
+       (see FLOORS), so gating here on the top rung would throw away the very
+       strips the lower rungs exist to use: on a 390px phone the block beside the
+       buttons is 100px tall against a 103.6px top-rung cell, so it was discarded
+       before the ladder could ever reach down and place a window in it. */
     var add = function (list, x, y, w, h) {
-      if (w >= ctx.cellMin.w + GAP && h >= ctx.cellMin.h + GAP) {
+      if (w >= BOTTOM.short + GAP && h >= BOTTOM.long + GAP) {
         list.push({ x: x, y: y, w: w, h: h });
       }
     };
@@ -542,17 +588,25 @@
      with visibly smaller windows. Fitting each row to its own span keeps every
      cell on her and hands the panes the room that was being thrown away. */
   function rowCells(ctx, reg, g, row) {
-    var y = reg.y + row * g.ch + GAP / 2;
-    var h = g.ch - GAP;
+    // Rows sit on the grid's PITCH — a cell plus its gap, except where the strip
+    // was too short to hold them apart and they shingled (see SHINGLE).
+    var y = reg.y + row * g.pitch;
+    var h = g.ch;
     var s = spanAt(ctx, y, h);
     if (!s) return [];
     var l = Math.max(reg.x, s.l - OUTGROW);
     var r = Math.min(reg.x + reg.w, s.r + OUTGROW);
-    var cw = (r - l) / g.cols;
-    if (cw - GAP < ctx.min.short) return [];
+    /* GAP is clear space BETWEEN cells, so a row of n columns pays for n-1 of
+       them — not n. Charging one per column also billed the two outside edges,
+       where there is no neighbour to clear and the run of fabric has already
+       been bounded by OUTGROW. It cost every row 12px, and a row only ever has
+       ~100px of her to give: above the copy on a 375px phone that was the
+       difference between a 67px cell (a window) and a 55px one (nothing). */
+    var cw = (r - l - GAP * (g.cols - 1)) / g.cols;
+    if (cw < ctx.min.short) return [];
     var out = [];
     for (var c = 0; c < g.cols; c++) {
-      var cell = { x: l + c * cw + GAP / 2, y: y, w: cw - GAP, h: h };
+      var cell = { x: l + c * (cw + GAP), y: y, w: cw, h: h, row: row };
       var up = uprightIn(cell);
       if (!fits(ctx.min, up.w, up.h)) continue;
       cell.score = Math.sqrt(up.w * up.h);   // how big a window it really affords
@@ -571,10 +625,23 @@
     for (var cols = 1; cols <= k; cols++) {
       var need = Math.ceil(k / cols);
       for (var rows = need; rows <= need + 1; rows++) {
-        var g = { cols: cols, rows: rows, cw: reg.w / cols, ch: reg.h / rows };
+        /* Cells are the size of the windows they carry, and GAP is the clear
+           space BETWEEN them — n rows pay for n-1 gaps, same as the columns.
+           A cell never shrinks below the floor to make a row fit: a short strip
+           buys its extra row out of the space between rows, never out of the
+           windows, and once that space is gone the rows shingle. */
+        var g = {
+          cols: cols, rows: rows,
+          cw: (reg.w - GAP * (cols - 1)) / cols,
+          ch: Math.max(ctx.cellMin.h, (reg.h - GAP * (rows - 1)) / rows),
+        };
+        // A lone row has no next row to close up on, so its pitch is its own
+        // height — which reads as "no shingle at all" to the test below.
+        g.pitch = rows > 1 ? (reg.h - g.ch) / (rows - 1) : g.ch;
         // Cheap early-out: a row is never wider than the strip, so a strip too
         // narrow for `cols` columns can't be saved by fitting rows to her.
-        if (g.cw - GAP < ctx.cellMin.w || g.ch - GAP < ctx.cellMin.h) continue;
+        if (g.cw < ctx.cellMin.w) continue;
+        if (g.ch - g.pitch > SHINGLE * g.ch) continue;
         var cells = [];
         for (var r = 0; r < rows; r++) cells = cells.concat(rowCells(ctx, reg, g, r));
         if (cells.length < k) continue;
@@ -721,20 +788,39 @@
   /* The pane a cell is dealt: the cell grown past its own edges (so neighbours
      overlap like stacked prints), in one of the two shape bands, with the aspect
      following the cell so the box actually fills the room it was given. */
-  function shapeIn(cell, grow, wide) {
+  function shapeIn(ctx, cell, grow, wide) {
     var band = wide ? WIDE : TALL;
     var ar = Math.min(band.max, Math.max(band.min, cell.h / cell.w));
     ar = Math.min(band.max, Math.max(band.min, ar * cell.jar));
-    var w = Math.min(cell.w * grow, (cell.h * grow) / ar) * cell.jsc;
+    var w = Math.min(cell.w * grow, (cell.h * grow) / ar);
+    /* The size jitter spends SLACK, never the floor. Applied flat it took up to
+       6% off whatever it was handed, including a box already sitting exactly on
+       the minimum — and then fits() rejected that box by half a pixel and the
+       whole attempt was thrown away. On a roomy fold nobody noticed; on a phone
+       every one of the eight tries at seating five looks died that way, and the
+       collage gave up a look to buy a variety it could have taken from the panes
+       that actually had room to give it. */
+    var lo = ar >= 1 ? Math.max(ctx.min.short, ctx.min.long / ar)
+                     : Math.max(ctx.min.long, ctx.min.short / ar);
+    w = Math.max(Math.min(w, lo), w * cell.jsc);
     return { w: w, h: w * ar, ar: ar };
   }
 
   /* Lay k panes out at one overgrowth setting, then relax the result until it is
      honest: nothing crossing too deep, nothing off her, nothing under the floor.
      Null if this setting can't get there — the caller then tries a tighter one
-     before it gives up a whole look. */
-  function place(ctx, regions, plan, k, grow) {
-    seed = SEED;
+     before it gives up a whole look.
+
+     `salt` shifts which cells are drawn and how they jitter. Every attempt used
+     to replay the identical draw, so the four overgrowth settings were really
+     one arrangement tried at four sizes: if that arrangement was the unlucky one
+     — a tall aspect jitter on the very pane a shingled file had no room for — all
+     four failed together and a look was dropped over a coin toss. Salting by
+     attempt makes them four different arrangements instead, which is what the
+     retry was always meant to be. Still a pure function of the page's seed, so a
+     relayout replays it exactly and a resize doesn't reshuffle the collage. */
+  function place(ctx, regions, plan, k, grow, salt) {
+    seed = (SEED + salt * 2654435761) >>> 0;
     var out = [];
     /* No landscape cuts across a narrow figure. Where she is only ~110px wide
        and several hundred tall, a horizontal window has to buy its width out of
@@ -771,7 +857,7 @@
         .sort(function (a, b) { return a.h / a.w - b.h / b.w; })
         .forEach(function (c) {
           if (wide.length >= wideLeft) return;
-          var s = shapeIn(c, grow, true);
+          var s = shapeIn(ctx, c, grow, true);
           if (fits(ctx.min, s.w, s.h)) wide.push(c);
         });
       wideLeft -= wide.length;
@@ -786,15 +872,35 @@
         b: Math.min(ground.home.b, reg.y + reg.h + SPILL),
       };
 
+      /* A single file whose rows had to shingle has no slack left between them,
+         and centring every window in its cell would then drop each one squarely
+         onto the one below — the same overlap counted twice, and anyBuried
+         rightly throws the whole arrangement away. So a shingled file FANS
+         instead: consecutive rows lean to opposite ends of the run of fabric
+         they were cut from, which trades overlap the eye reads (vertical, an
+         edge tucked under an edge) for overlap it doesn't (horizontal, which
+         the lean removes). It is the only way five honest windows go down a
+         phone-width figure, and a fanned deck is a better picture than a pile.
+         Files only — across a row the cells are already laid side by side and
+         there is nothing to lean into. */
+      var fan = g.cols === 1 && g.pitch < g.ch;
+
       for (var c = 0; c < chosen.length; c++) {
         var cell = chosen[c];
-        var s = shapeIn(cell, grow, wide.indexOf(cell) >= 0);
+        var s = shapeIn(ctx, cell, grow, wide.indexOf(cell) >= 0);
+        var slack = (cell.w - s.w) / 2;
+        // How far a fanned row leans off centre. Never negative: a pane that has
+        // outgrown its cell has nothing to lean with, and a lean that went
+        // negative would quietly flip which side each row went to.
+        var lean = Math.max(0, slack + GAP);
         var r = {
           ar: s.ar, w: s.w, h: s.h, bounds: bounds,
           // Centred on the cell (plus jitter), so the overgrowth spreads onto
           // both neighbours instead of piling up one side.
-          x: cell.x + (cell.w - s.w) / 2 + (cell.jx - 0.5) * GAP * 2,
-          y: cell.y + (cell.h - s.h) / 2 + (cell.jy - 0.5) * GAP * 2,
+          x: cell.x + slack + (fan
+            ? (cell.row % 2 ? lean : -lean)
+            : (cell.jx - 0.5) * GAP * 2),
+          y: cell.y + (cell.h - s.h) / 2 + (fan ? 0 : (cell.jy - 0.5) * GAP * 2),
         };
         if (!refit(ctx, r)) return null;
         out.push(r);
@@ -820,19 +926,29 @@
   }
 
   /* How many panes the room can carry, and how big. As many as will FIT, at the
-     roomiest overgrowth that still relaxes into an honest arrangement — panes
-     give up size before the collage gives up a look. (An earlier version
+     roomiest floor and overgrowth that still relax into an honest arrangement —
+     panes give up size before the collage gives up a look. (An earlier version
      preferred fewer-but-bigger; on a mid-size phone that quietly turned five
-     outfits into three, which read as broken rather than generous.) */
+     outfits into three, which read as broken rather than generous.)
+
+     Both ladders are walked out INSIDE k, so every way of seating five is spent
+     before four is even considered. Cost is bounded and small: the first rung
+     wins outright wherever there was room to begin with, so a desktop pays one
+     allocate() exactly as it always did, and only a viewport that would
+     otherwise drop a look does the extra work. */
   function pack(ctx, regions, n) {
     for (var k = n; k >= LEAST; k--) {
-      var plan = allocate(ctx, regions, k);
-      if (!plan) continue;
-      for (var i = 0; i < GROWS.length; i++) {
-        var rects = place(ctx, regions, plan, k, GROWS[i]);
-        if (rects) return rects;
+      for (var f = 0; f < FLOORS.length; f++) {
+        setFloor(ctx, FLOORS[f]);
+        var plan = allocate(ctx, regions, k);
+        if (!plan) continue;
+        for (var i = 0; i < GROWS.length; i++) {
+          var rects = place(ctx, regions, plan, k, GROWS[i], f * GROWS.length + i);
+          if (rects) return rects;
+        }
       }
     }
+    setFloor(ctx, 1);
     return [];
   }
 
@@ -965,7 +1081,21 @@
   var tabVisible = !document.hidden;
   var last = 0;
   var t = 0;
-  var scale = 1;          // frame px -> screen px, read once per frame
+  var drew = 0;           // wall clock of the last frame that wrote anything
+  var scale = 1;          // frame px -> screen px, sampled while a pane is held
+
+  /* Rate the collage is redrawn at when the DRIFT is the only thing moving it.
+     That drift is 3.5px over nine seconds — four hundredths of a pixel per
+     60fps frame, which is well under what a phone can even show. Writing it
+     sixty times a second cost twenty custom-property writes a frame, each one
+     invalidating a pane and the full-bleed photograph inside it, for motion no
+     eye can resolve. Anything the visitor is actually tracking — a drag, a
+     flight, a pane springing home — goes straight back to every frame; this is
+     only the resting breath. */
+  var IDLE_HZ = 30;
+  // Below this a pane counts as at rest, so its breathing may run at IDLE_HZ.
+  var STILL_PX = 0.05;
+  var STILL_VEL = 1;      // px/s
 
   // Keep the dragged pane inside her figure (plus ROAM): the box, not the
   // pointer, is what stops at the edge, so it never slides out onto bare wall.
@@ -986,6 +1116,15 @@
   // lands without a visible kink, which smoothstep (used for the old return)
   // does not manage.
   function smoother(x) { return x * x * x * (x * (x * 6 - 15) + 10); }
+
+  // Is this pane doing anything the eye is tracking — springing home, or being
+  // shoved aside by a held neighbour? (Its breathing doesn't count: that's the
+  // one motion slow enough to draw at IDLE_HZ.)
+  function unsettled(p) {
+    return seated(p) && (
+      Math.abs(p.ox) > STILL_PX || Math.abs(p.oy) > STILL_PX ||
+      Math.abs(p.svx) > STILL_VEL || Math.abs(p.svy) > STILL_VEL);
+  }
 
   /* Critically damped: never overshoots, and it inherits whatever speed the pane
      already had, so a throw flows into its glide home instead of stopping dead.
@@ -1015,17 +1154,34 @@
     var calm = reduced.matches;
     var busy = false;
 
-    // One layout read per frame, before any style writes — the scroll
-    // camera-push scales the frame, and reading this inside pointermove instead
-    // forced a synchronous layout on every single move event.
-    scale = frame.getBoundingClientRect().width / (frame.offsetWidth || 1) || 1;
-
     // Positions as of last frame, for the repulsion pass: every pane the
     // visitor is holding is an obstacle the idle ones scoot away from.
     var held = panes.filter(function (g) { return seated(g) && g.grab; });
 
+    /* The camera-push scale, and ONLY while a pane is being dragged — it exists
+       to turn pointer deltas into frame-local px (see the pointermove handler)
+       and nothing else reads it. Sampling it every frame meant a
+       getBoundingClientRect() and an offsetWidth — two forced synchronous
+       layouts — in the same frame app.js writes the hero's scroll transform, so
+       every frame of every hero scroll paid for a reflow it then threw away.
+       Reading it inside pointermove is what this originally replaced; reading it
+       only while there is a hand on the collage costs neither. */
+    if (held.length) scale = frame.getBoundingClientRect().width / (frame.offsetWidth || 1) || 1;
+
     busy = advanceFlights(sec) || busy;
     if (!held.length) schedule(dt);
+
+    /* Nothing but the resting breath to draw? Then draw it at IDLE_HZ. `t` and
+       the swap countdown have already been advanced above, so the drift keeps
+       its phase and the choreography its clock — this skips the WRITES, not the
+       passage of time. Reduced motion falls through: it has one last pass to
+       settle the panes flat, and then the loop stops on its own. */
+    if (!calm && !held.length && !busy && !panes.some(unsettled)
+        && now - drew < 1000 / IDLE_HZ) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    drew = now;
 
     panes.forEach(function (p) {
       if (!seated(p)) return;
@@ -1350,6 +1506,10 @@
       p.grab = { id: ev.pointerId, px: ev.clientX, py: ev.clientY, tx: p.dx, ty: p.dy };
       p.vx = 0;
       p.vy = 0;
+      // The frame may have been scrolled (and so scaled) since the last drag —
+      // tick() only keeps `scale` fresh while something is held, so the first
+      // reading of a new grab is taken here, before any move can use it.
+      scale = frame.getBoundingClientRect().width / (frame.offsetWidth || 1) || 1;
       p.edge.classList.add('is-held');
       raise(p);           // what you're holding is the top of the pile
       start();
