@@ -435,6 +435,19 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 .hero-look.is-in { opacity: 1; }
 .hero-look img { transform: translate3d(calc(-1 * var(--dx, 0px)), calc(-1 * var(--dy, 0px)), 0); }
 
+/* Every few seconds the windows trade seats: --wx/--wy/--ww/--wh are driven per
+   frame for the two seconds a swap takes, so the clip rectangle slides AND
+   morphs into the one it's taking over — the frames change places while the
+   photograph under them never moves. Only then is the compositing hint worth
+   paying for; the rest of the time the clip rect is completely static. */
+.hero-look.is-flying,
+.hero-look-edge.is-flying { will-change: clip-path, transform; }
+/* Slower crossfade for the other kind of swap: on a fold too cramped to seat all
+   five, a benched look takes a seat in place rather than flying to it. Same 2s
+   beat as a flight, not the 0.9s entrance. */
+.hero-look.is-dissolving,
+.hero-look-edge.is-dissolving { transition-duration: 2s; }
+
 /* The border is a separate, unclipped element so it can carry a soft outer
    shadow (inside the pane it would be cut off at the window edge). It rides the
    same --wx/--wy/--dx/--dy, so it traces its window exactly. */
@@ -459,6 +472,14 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   transition: opacity 0.9s var(--ease-out), border-color 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
 }
 .hero-look-edge.is-in { opacity: 1; }
+/* In flight the frame lifts off the photograph — a deeper, longer shadow reads
+   as "carried across" rather than "sliding on the surface". Listed before the
+   hover/held rule (same specificity) so a window you grab mid-swap still shows
+   the held treatment. */
+.hero-look-edge.is-flying {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 1px rgba(58, 43, 31, 0.14), 0 30px 64px -22px rgba(46, 34, 24, 0.66);
+}
 .hero-look-edge:hover,
 .hero-look-edge.is-held {
   border-color: #ffffff;

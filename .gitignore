@@ -85,3 +85,6 @@ temp/
 *.tmp
 *.temp
 *.bak
+
+# Local preview render dumps (serve-local.mjs /__shot) — never deployed.
+.preview-shots/
