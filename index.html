@@ -116,33 +116,6 @@
     /* The splash wordmark renders statically (no draw-in animation). */
     @keyframes paviaSplashCap{0%,82%{opacity:1;visibility:visible;}100%{opacity:0;visibility:hidden;}}
     @media (prefers-reduced-motion:reduce){#pavia-splash,.pavia-splash__bar{transition:none;}}
-
-    /* Under-construction LAUNCH gate (storefront only; restored in v0.4.8).
-       js/construction-gate.js shows this on load for every visitor who hasn't
-       entered the preview password, and REMEMBERS the unlock in localStorage.
-       No real security — the password is plain in source by design; it's a
-       "not public yet" screen. js/app.js additionally re-shows it as the calm
-       fallback when Firebase fails with no cached catalog to render. */
-    .uc-gate{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:24px;background:#f4f4f4;color:#1a1a1a;font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;}
-    .uc-gate.is-active{display:flex;}
-    .uc-card{width:min(420px,100%);text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;}
-    .uc-kicker{color:#1a1a1a;line-height:0;margin-bottom:4px;}
-    .uc-kicker svg{display:block;width:148px;height:auto;margin-inline:auto;color:#1a1a1a;}
-    .uc-title{margin:0;font-family:'Fraunces',Didot,Georgia,serif;font-weight:500;font-size:clamp(28px,7vw,42px);line-height:1.1;letter-spacing:.02em;}
-    .uc-text{margin:0;max-width:34ch;color:#5a5a5a;font-size:14px;line-height:1.6;}
-    .uc-form{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:8px;}
-    .uc-field{display:flex;flex-direction:column;gap:6px;text-align:left;}
-    .uc-field span{font-size:12px;font-weight:600;color:#5a5a5a;}
-    .uc-field input{width:100%;min-height:46px;padding:12px 14px;border:1px solid #d8d8d8;border-radius:12px;background:#fff;font:inherit;color:#1a1a1a;}
-    .uc-field input:focus{outline:none;border-color:#1a1a1a;}
-    .uc-btn{min-height:46px;border:0;border-radius:12px;background:#1a1a1a;color:#fafafa;font:600 14px/1 'Plus Jakarta Sans',system-ui,sans-serif;letter-spacing:.02em;cursor:pointer;transition:transform .15s ease,opacity .2s ease;}
-    .uc-btn:hover{opacity:.92;}
-    .uc-btn:active{transform:scale(.98);}
-    .uc-error{margin:2px 0 0;color:#9d2e24;font-size:13px;font-weight:600;}
-    .uc-gate.uc-shake{animation:ucShake .4s ease;}
-    @keyframes ucShake{0%,100%{transform:translateX(0);}20%,60%{transform:translateX(-7px);}40%,80%{transform:translateX(7px);}}
-    html.uc-locked,html.uc-locked body{overflow:hidden;}
-    @media (prefers-reduced-motion:reduce){.uc-gate.uc-shake{animation:none;}.uc-btn{transition:none;}}
   </style>
 </head>
 <body class="storefront">
@@ -151,24 +124,6 @@
   <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
     <symbol id="paviaWordmark" viewBox="0 0 982 333"><path fill="currentColor" fill-rule="evenodd" d="M519 321C519 319.01 519.67 319 745.5 319C971.33 319 972 319.01 972 321C972 322.99 971.33 323 745.5 323C519.67 323 519 322.99 519 321ZM546.45 280.91C546.02 280.22 538.4 250.59 529.52 215.07L513.38 150.5 470.19 150.24C437.83 150.04 427 150.27 427 151.14C427 153.26 456.94 271.01 457.96 272.92C458.51 273.95 460.36 275.28 462.07 275.87C463.85 276.49 465 277.5 464.76 278.23C464.16 280.03 436.85 280.06 436.25 278.26C436.02 277.57 437 276.57 438.42 276.03C440.38 275.29 440.98 274.38 440.91 272.27C440.86 270.75 438.05 258.7 434.66 245.5L428.5 221.5 383.79 221.24L339.08 220.98 338.11 224.74C328.88 260.49 326.05 272.58 326.54 274.13C326.87 275.16 327.98 276 329.01 276C331.45 276 332.64 277.98 330.88 279.12C330.12 279.61 326.35 279.9 322.51 279.76C317 279.55 315.46 279.16 315.21 277.88C315 276.78 315.85 276.08 317.9 275.67C319.54 275.34 321.35 274.22 321.91 273.17C322.74 271.62 353 152.23 353 150.51C353 150.23 312.95 150 264 150L175 150 175.02 211.25C175.02 244.94 175.37 273.03 175.79 273.69C176.2 274.34 177.81 275.36 179.35 275.94C180.9 276.53 181.98 277.57 181.75 278.26C181.44 279.17 177.62 279.5 167.42 279.5C155.77 279.5 153.5 279.26 153.5 278.01C153.5 277.2 154.4 276.37 155.5 276.18C160.04 275.39 160 275.97 160 211.31L160 150 85 150C10.67 150 10 149.98 10 148C10 146.02 10.67 146 85 146L160 146 159.98 82.25C159.98 47.19 159.63 17.97 159.21 17.31C158.8 16.66 157.19 15.64 155.65 15.06C154.1 14.47 153.02 13.43 153.25 12.74C153.58 11.78 163.96 11.5 200.08 11.5C245.96 11.5 246.59 11.53 254 13.84C266.52 17.75 274.65 22.61 283.64 31.54C290.42 38.29 292.53 41.21 296.29 49.07C302.15 61.31 303.46 67.11 303.37 80.5C303.31 89.53 302.82 92.93 300.67 99.5C297.01 110.67 291.68 119.32 283.42 127.49C275.3 135.52 268.06 140.14 258.32 143.52L251.5 145.89 302.94 145.7L354.38 145.5 362.75 112.02C367.35 93.61 371.3 78.37 371.52 78.15C371.73 77.93 372.55 78 373.33 78.3C374.47 78.73 373.11 85.22 366.38 111.67C361.78 129.73 358.01 144.84 358.01 145.25C358 145.66 369.65 146 383.88 146L409.76 146 395.93 90.7L382.09 35.4 385.3 22.95C387.61 13.97 388.92 10.5 390 10.5C391.15 10.5 395.45 26.25 408.5 78.25L425.49 146 468.75 146C492.54 146 512 145.87 512 145.71C512 144.49 480.74 20.98 479.98 19.2C479.44 17.93 477.39 16.23 475.43 15.41C468.73 12.61 471.69 11.52 486.83 11.22C500.49 10.96 501 11.02 501 12.97C501 14.09 500.38 15 499.62 15C495.31 15 495.58 16.46 511.01 78.15C519.31 111.34 526.55 140.2 527.09 142.27L528.09 146.03 553.73 145.77L579.38 145.5 595.18 82.5C603.87 47.85 610.75 18.49 610.47 17.25C610.15 15.81 609.22 15 607.91 15C606.49 15 605.96 14.46 606.19 13.25C606.48 11.76 607.7 11.5 614.43 11.5C623.32 11.5 625.34 13 619.65 15.37C617.73 16.17 615.73 17.66 615.19 18.67C614.36 20.24 583 143.69 583 145.39C583 145.72 584.83 146 587.07 146C590.41 146 591.09 146.32 590.81 147.75C590.58 149.01 589.23 149.64 585.99 150L581.5 150.5 575.3 175C571.88 188.47 568.84 200.51 568.53 201.75C568.05 203.63 565 205.12 565 203.47C565 203.18 567.92 191.27 571.5 177C575.08 162.73 578 150.82 578 150.53C578 150.24 566.94 150 553.43 150C530.5 150 528.9 150.12 529.39 151.75C529.68 152.71 535.64 176.43 542.64 204.45L555.35 255.41 552.1 267.95C548.74 280.89 547.78 283.08 546.45 280.91ZM645.52 279.03C644.69 277.69 645.76 276 647.44 276C648.16 276 649.25 275.4 649.86 274.66C651.48 272.72 651.52 18.33 649.91 16.39C649.27 15.62 647.88 15 646.8 15C645.48 15 644.96 14.43 645.19 13.25C645.49 11.68 646.98 11.5 659.43 11.5C674.31 11.5 677.36 12.57 670.57 15.41L667 16.9 667 145.33C667 281.22 666.8 275.28 671.5 276.16C672.6 276.36 673.5 277.2 673.5 278.01C673.5 279.24 671.13 279.55 659.83 279.78C651.24 279.95 645.92 279.67 645.52 279.03ZM696.46 278.93C695.64 277.61 696.01 277.24 700.17 275.16L703.5 273.5 728 176.06C741.48 122.48 753.02 78.46 753.66 78.26C755.48 77.68 756.06 79.51 755.05 82.64C754.04 85.73 721 216.58 721 217.46C721 217.76 740.81 218 765.02 218L809.04 218 808.36 215.25C807.99 213.74 797.69 172.76 785.47 124.19L763.27 35.87 766.43 23.25C768.17 16.31 770.13 10.46 770.78 10.24C771.44 10.02 772.42 10.89 772.97 12.17C773.52 13.45 788.17 71.42 805.52 141C822.87 210.58 837.52 268.89 838.06 270.59C838.69 272.57 840.34 274.36 842.66 275.59C844.65 276.64 846.21 277.95 846.14 278.5C845.92 280.06 817.77 279.82 817.25 278.26C817.02 277.57 818 276.57 819.42 276.03C821.12 275.38 822.01 274.28 822.04 272.77C822.07 271.52 819.26 259.36 815.81 245.75L809.53 221 764.93 221L720.33 221 713.67 246.93C710.01 261.19 707.28 273.57 707.61 274.43C707.94 275.29 709.04 276 710.05 276C712.46 276 713.63 277.99 711.88 279.1C709.91 280.34 697.25 280.21 696.46 278.93ZM419.25 183.98L410.74 149.97 383.72 150.23L356.71 150.5 348.38 183C343.8 200.88 340.04 216.06 340.03 216.75C340.01 217.73 349.43 218 383.88 218L427.76 218 419.25 183.98ZM235 145C235 144.45 236.53 144 238.39 144C244.07 144 254.31 140.26 260.22 136.03C267.21 131.02 273.14 123.64 277.49 114.54C282.26 104.54 284 97.16 284.66 84C286.2 53.62 274.16 28.6 253.22 18.68L246.5 15.5 210.75 15.2L175 14.91 175 80.45L175 146 205 146C224.33 146 235 145.64 235 145Z"/></symbol>
   </svg>
-  <div id="ucGate" class="uc-gate" role="dialog" aria-modal="true" aria-label="Site under construction">
-    <div class="uc-card">
-      <div class="uc-kicker">
-        <svg class="pavia-wordmark" viewBox="0 0 982 333" role="img" aria-label="Pavia"><use href="#paviaWordmark"/></svg>
-      </div>
-      <h1 class="uc-title">Under Construction</h1>
-      <p class="uc-text">We are putting the finishing touches on the new Pavia. Please check back soon.</p>
-      <form id="ucForm" class="uc-form" autocomplete="off">
-        <label class="uc-field">
-          <span>Have a preview password?</span>
-          <input id="ucInput" type="password" placeholder="Enter password" aria-label="Preview password" autocomplete="off" />
-        </label>
-        <button type="submit" class="uc-btn">Enter</button>
-        <p id="ucError" class="uc-error" role="alert" hidden>That password is not right.</p>
-      </form>
-    </div>
-  </div>
-  <script src="js/construction-gate.js?v=3"></script>
   <div id="pavia-splash" role="status" aria-live="polite" aria-label="Loading Pavia">
     <div class="pavia-splash__inner">
       <div class="pavia-splash__word" aria-hidden="true">
@@ -434,7 +389,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.8.6</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.8.7</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -564,7 +519,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=61"></script>
+  <script defer src="js/config.js?v=62"></script>
   <script defer src="js/firebase-config.js?v=12"></script>
   <script defer src="js/backend-config.js?v=18"></script>
   <script defer src="js/image-catalog.js?v=12"></script>
@@ -573,7 +528,7 @@
   <script defer src="js/backend.js?v=22"></script>
   <script defer src="js/backend-firebase.js?v=38"></script>
   <script defer src="js/products.js?v=12"></script>
-  <script defer src="js/app.js?v=53"></script>
+  <script defer src="js/app.js?v=54"></script>
   <script defer src="js/hero-looks.js?v=8"></script>
 </body>
 </html>

@@ -1014,8 +1014,6 @@
     updateOnlineStatus();
     window.addEventListener('online', onReconnect);
     window.addEventListener('offline', () => setOfflineBanner(true));
-    // Owner entered the gate password during a Firebase outage — retry the load.
-    window.addEventListener('pavia:gate-unlocked', () => { void retryLoad(); });
   }
 
   // ---------- Event bindings ----------
@@ -1531,14 +1529,6 @@
   function renderProducts() {
     renderActiveFilters();
     updateFilterDot();
-    // Major Firebase error (backend failed AND no cached catalog to fall back on)
-    // → reveal the branded gate so shoppers see a calm "back soon" screen instead
-    // of a broken page. Any healthy render hides it again. This is the ONLY thing
-    // that shows the gate; the storefront is otherwise fully public.
-    if (window.PaviaGate) {
-      if (loadError) window.PaviaGate.show();
-      else window.PaviaGate.hide();
-    }
     // Catalog-level states (error / genuinely empty) take precedence over filter-empty.
     if (!products.length) {
       setResultCount(0);
