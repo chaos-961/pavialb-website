@@ -33,7 +33,7 @@ jobs:
           cp index.html 404.html favicon.ico robots.txt sitemap.xml manifest.webmanifest service-worker.js _site/
           cp admin/index.html admin/payload.js _site/admin/
           cp css/styles.css css/admin.css _site/css/
-          cp js/app.js js/admin.js js/backend.js js/backend-config.js js/backend-firebase.js js/firebase-config.js js/config.js js/image-catalog.js js/image-store.js js/store-core.js js/catalog-cache.js js/products.js js/splash.js js/hero-looks.js _site/js/
+          cp js/app.js js/admin.js js/backend.js js/backend-config.js js/backend-firebase.js js/firebase-config.js js/config.js js/image-catalog.js js/image-store.js js/store-core.js js/catalog-cache.js js/products.js js/splash.js js/construction-gate.js js/hero-looks.js _site/js/
           cp assets/logo.svg assets/icon.svg assets/favicon.svg assets/icon-192.png assets/icon-512.png assets/icon-maskable-192.png assets/icon-maskable-512.png assets/apple-touch-icon.png assets/hero-bg2-1920.avif assets/hero-bg2-1920.webp assets/hero-bg2-2560.avif assets/hero-bg2-2560.webp assets/hero-bg2-mobile-v3.webp assets/hero-look1-1920.avif assets/hero-look1-1920.webp assets/hero-look1-mobile.webp assets/hero-look2-1920.avif assets/hero-look2-1920.webp assets/hero-look2-mobile.webp assets/hero-look3-1920.avif assets/hero-look3-1920.webp assets/hero-look3-mobile.webp assets/hero-look4-1920.avif assets/hero-look4-1920.webp assets/hero-look4-mobile.webp assets/hero-look5-1920.avif assets/hero-look5-1920.webp assets/hero-look5-mobile.webp _site/assets/
           if [ -f CNAME ]; then cp CNAME _site/; fi
           touch _site/.nojekyll

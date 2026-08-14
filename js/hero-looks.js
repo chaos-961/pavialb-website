@@ -3,12 +3,12 @@
  *
  * How it works: assets/hero-look1..5 are the IDENTICAL frame to the hero shot
  * (same wall, same light, same pose to the pixel) with a different garment on
- * the model. Each one is stacked full-bleed over the hero at exactly the base
- * photo's geometry and then clipped down to a small rectangle, so all you see of
- * it is that window — and inside the window she's wearing another look. Drag a
- * window and it slides across her (the photo underneath stays put: the layer is
- * translated and its <img> is counter-translated by the same amount) anywhere on
- * the figure, then springs back to its seat the moment you let go.
+ * the model. Each one is a small overflow-hidden box holding a frame-sized copy
+ * of the photo at exactly the base photo's geometry, so all you see of it is
+ * that window — and inside the window she's wearing another look. Drag a
+ * window and it slides across her (the photo underneath stays put: the box is
+ * translated and its <picture> is counter-translated by the same amount)
+ * anywhere on the figure, then springs back to its seat the moment you let go.
  *
  * Left alone, the collage keeps rearranging itself: every SWAP_WAIT the windows
  * trade seats, gliding along a shallow arc into each other's rectangle over
@@ -1017,6 +1017,13 @@
 
   function layout(baseImg) {
     var ctx = contextFor(baseImg);
+    if (ctx) {
+      // The frame's size in px, for the CSS that restates each window's
+      // photograph at full-frame size (see `.hero-look picture` in styles.css).
+      // Written here, not read per frame: it only moves when the layout does.
+      paneWrap.style.setProperty('--fw', ctx.box.w + 'px');
+      paneWrap.style.setProperty('--fh', ctx.box.h + 'px');
+    }
     ground = ctx ? groundFor(ctx) : null;
     slots = ctx && ground ? packBest(ctx, panes.filter(function (p) { return !p.dead; }).length) : [];
     hero.classList.toggle('has-looks', slots.length > 0);
@@ -1024,8 +1031,9 @@
     return slots.length > 0;
   }
 
-  // The window's box — the clip rectangle and the border that traces it. Static
-  // between swaps, so it stays out of the animation loop except while flying.
+  // The window's box — the overflow-hidden rectangle and the border that traces
+  // it. Static between swaps, so it stays out of the animation loop except
+  // while flying.
   function writeRect(p) {
     var r = p.rect;
     if (r.x === p.wroteX && r.y === p.wroteY && r.w === p.wroteW && r.h === p.wroteH) return;
@@ -1044,8 +1052,8 @@
   // long as the hero is on screen, so this is the one thing in here that has to
   // stay cheap. Kept to 1/20 px rather than whole pixels: the drift is only 3.5px
   // wide, and rounding a motion that small to integers is what made it step
-  // instead of breathe. The pane's <img> takes the inverse slide (in CSS), which
-  // is what keeps the photograph nailed down while its window travels.
+  // instead of breathe. The pane's <picture> takes the inverse slide (in CSS),
+  // which is what keeps the photograph nailed down while its window travels.
   function writeOffset(p) {
     var dx = Math.round(p.dx * 20) / 20;
     var dy = Math.round(p.dy * 20) / 20;

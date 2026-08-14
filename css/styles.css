@@ -397,15 +397,21 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
    Hero look windows — five other outfits, on the same model
    ---------------------------------------------------------
    assets/hero-look1..5 are the SAME frame as the hero shot with a different
-   garment on her. Each is stacked full-bleed at the base photo's exact geometry
-   (inherited from `.hero-backdrop img` above — that shared rule is the whole
-   trick) and then clipped down to one rectangle, so all that shows through is
-   the window: her, in another look. js/hero-looks.js sizes the rectangles from
-   the live cover-crop and drives the drag; without it, or without the images,
-   nothing here renders and the hero is exactly as it was.
+   garment on her. Each window is a small overflow:hidden box holding a copy of
+   the photo restated at the frame's full size (--fw/--fh, written by
+   js/hero-looks.js) with the base photo's exact object-fit/position (the shared
+   `.hero-backdrop img` rules above), so all that shows through the box is her,
+   in another look, in register with the shot behind it. js/hero-looks.js sizes
+   the boxes from the live cover-crop and drives the drag; without it, or
+   without the images, nothing here renders and the hero is exactly as it was.
 
-   The pane translates and its <img> counter-translates by the same amount, so
-   dragging slides the WINDOW across a photograph that never moves. */
+   The box translates and its <picture> counter-translates by the same amount,
+   so dragging slides the WINDOW across a photograph that never moves. Both are
+   permanently promoted, window-sized transform layers: every kind of motion
+   this collage does (drift, drag, spring, swap) then runs on the compositor.
+   The old shape was full-bleed panes cut down with a per-frame clip-path, and
+   on phones that repainted five viewport-sized layers on every frame a box
+   moved, which is what the mobile jitter was. */
 .hero-looks,
 .hero-look-edges {
   position: absolute;
@@ -421,27 +427,34 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
 
 .hero-look {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: var(--ww, 0px);
+  height: var(--wh, 0px);
+  overflow: hidden;
   opacity: 0;
   transition: opacity 0.9s var(--ease-out);
-  transform: translate3d(var(--dx, 0px), var(--dy, 0px), 0);
-  clip-path: inset(
-    var(--wy, 0px)
-    calc(100% - var(--wx, 0px) - var(--ww, 0px))
-    calc(100% - var(--wy, 0px) - var(--wh, 0px))
-    var(--wx, 0px)
-  );
+  transform: translate3d(calc(var(--wx, 0px) + var(--dx, 0px)), calc(var(--wy, 0px) + var(--dy, 0px)), 0);
+  will-change: transform;
 }
 .hero-look.is-in { opacity: 1; }
-.hero-look img { transform: translate3d(calc(-1 * var(--dx, 0px)), calc(-1 * var(--dy, 0px)), 0); }
+/* The photograph inside the window: restated at the frame's full size and
+   pinned to the frame's origin by the counter-translate, so the box is the only
+   thing that moves. Its raster is clipped to the box by the overflow above, so
+   the promoted layer stays window-sized, never viewport-sized. */
+.hero-look picture {
+  width: var(--fw, 100%);
+  height: var(--fh, 100%);
+  transform: translate3d(calc(-1 * (var(--wx, 0px) + var(--dx, 0px))), calc(-1 * (var(--wy, 0px) + var(--dy, 0px))), 0);
+  will-change: transform;
+}
 
 /* Every few seconds the windows trade seats: --wx/--wy/--ww/--wh are driven per
-   frame for the two seconds a swap takes, so the clip rectangle slides AND
-   morphs into the one it's taking over — the frames change places while the
-   photograph under them never moves. Only then is the compositing hint worth
-   paying for; the rest of the time the clip rect is completely static. */
-.hero-look.is-flying,
-.hero-look-edge.is-flying { will-change: clip-path, transform; }
+   frame for the two seconds a swap takes, so the box slides AND morphs into the
+   rectangle it's taking over — the frames change places while the photograph
+   under them never moves. That morph animates width/height (cheap: the box and
+   its fixed-size picture are the whole layout scope); the travel itself is the
+   same composited transform as everything else. */
 /* Slower crossfade for the other kind of swap: on a fold too cramped to seat all
    five, a benched look takes a seat in place rather than flying to it. Same 2s
    beat as a flight, not the 0.9s entrance. */
@@ -470,6 +483,10 @@ p { margin: 0; line-height: 1.65; color: var(--ink-soft); }
   touch-action: pan-y;
   opacity: 0;
   transition: opacity 0.9s var(--ease-out), border-color 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
+  /* Promoted like the boxes: the border and its shadow move every frame the
+     window does, and repainting a blurred shadow per frame is exactly the kind
+     of work a phone GPU drops frames on. */
+  will-change: transform;
 }
 .hero-look-edge.is-in { opacity: 1; }
 /* In flight the frame lifts off the photograph — a deeper, longer shadow reads
