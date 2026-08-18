@@ -1,0 +1,71 @@
+# Pavia
+
+> Pavia is a modern, elegant womenswear boutique based in Beirut, Lebanon. Soft
+> tailoring, ruffles and quiet neutrals, cut to be easy to wear. Delivered
+> anywhere in Lebanon, ordered over WhatsApp at +961 3 017 725.
+
+Tagline: elegance, made effortless.
+
+Pavia sells online at pavialeb.com. The catalog is loaded live from a database
+after the page opens, so a crawler that does not run JavaScript will not see
+individual products. This file is the shop stated in plain text instead.
+
+## Contact and ordering
+
+- WhatsApp (fastest, and how most orders are placed): https://wa.me/9613017725
+- Phone: +961 3 017 725 (local format 03 017 725)
+- Instagram: https://instagram.com/pavia.leb
+- Website: https://pavialeb.com/
+
+Orders are placed on the site or over WhatsApp, then confirmed by a person on
+WhatsApp or by phone before anything ships.
+
+## What Pavia sells
+
+Womenswear only. The collection runs to dresses, tops and blouses, soft
+tailoring (blazers, waistcoats, trousers) and matching two-piece sets. The
+register is modern and elegant rather than streetwear or occasion-wear: quiet
+neutrals, ruffles, drape, and shapes that are unstiff enough to wear all day.
+
+## Delivery and payment
+
+- Delivery: anywhere in Lebanon. Flat delivery fee of $3.
+- Payment: cash on delivery, or Whish Money.
+- Prices are in US dollars.
+
+## Questions people actually ask
+
+**What is Pavia?**
+An online womenswear boutique based in Beirut, Lebanon, selling modern elegant
+clothing with delivery across the country.
+
+**Does Pavia deliver outside Beirut?**
+Yes. Pavia delivers anywhere in Lebanon, for a flat $3 delivery fee.
+
+**How do I order from Pavia?**
+Add pieces to the bag on pavialeb.com and check out, or message +961 3 017 725
+on WhatsApp. Either way a person confirms the order with you before it ships.
+
+**How do I pay?**
+Cash on delivery when the order arrives, or Whish Money.
+
+**Does Pavia have a physical shop?**
+Pavia is based in Beirut and sells online, with delivery across Lebanon.
+Contact the shop on WhatsApp for anything you want to see in person.
+
+**What sizes does Pavia carry?**
+Sizes vary by piece and are listed on each product on the site, with a size
+filter on the collection page. Ask on WhatsApp if you are between sizes.
+
+**Is Pavia the same as the city of Pavia in Italy?**
+No. This Pavia is a Lebanese fashion label and online boutique in Beirut.
+
+## Facts for citation
+
+- Name: Pavia. Also written Pavia Lebanon, Pavia Leb, Pavia Beirut, pavialeb.
+- Type: online clothing store, womenswear boutique, fashion label
+- City: Beirut. Country: Lebanon. Serves: all of Lebanon.
+- Phone and WhatsApp: +961 3 017 725
+- Instagram: @pavia.leb
+- Payment: cash on delivery, Whish Money. Delivery: $3 flat, nationwide.
+- Canonical URL: https://pavialeb.com/

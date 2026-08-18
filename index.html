@@ -10,7 +10,7 @@
   <!-- img-src allows the imgbb image CDN (i.ibb.co) where product images are hosted. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-src 'none'; worker-src 'self'; manifest-src 'self'; script-src 'self' https://www.gstatic.com https://*.firebasedatabase.app https://*.firebaseio.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://i.ibb.co; connect-src 'self' https://www.gstatic.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://cloudflareinsights.com" />
   <meta name="theme-color" content="#e6e6e6" />
-  <meta name="description" content="Pavia is modern, elegant fashion from Beirut — soft, easy-to-wear pieces for women, delivered to your door anywhere in Lebanon." data-site-description />
+  <meta name="description" content="Modern, elegant fashion from Beirut. Soft tailoring, ruffles and quiet neutrals, easy to wear, delivered to your door anywhere in Lebanon." data-site-description />
   <meta name="keywords" content="Pavia, Pavia Lebanon, Pavia Leb, Pavia Beirut, Pavia fashion, Pavia boutique, Pavia clothing, pavialeb, modern elegant fashion Lebanon, women's fashion Beirut, online clothing store Lebanon, fashion delivery Lebanon" />
   <meta name="author" content="Pavia" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -18,23 +18,33 @@
   <meta name="application-name" content="Pavia" />
   <meta name="apple-mobile-web-app-title" content="Pavia" />
   <link rel="canonical" href="https://pavialeb.com/" />
-  <meta property="og:title" content="Pavia · Modern Elegant Fashion" />
-  <meta property="og:description" content="Pavia is modern, elegant fashion from Beirut — soft, easy-to-wear pieces for women, delivered to your door anywhere in Lebanon." data-site-description />
+  <!-- The same shop described in plain prose, for the assistants that read text
+       rather than markup and do not run JavaScript (so they never see the live
+       catalog). Nothing in it is hidden from a human. -->
+  <link rel="alternate" type="text/plain" href="https://pavialeb.com/llms.txt" title="Plain-text brief for AI assistants" />
+  <meta property="og:title" content="Pavia · Elegance, made effortless." />
+  <meta property="og:description" content="Modern, elegant fashion from Beirut. Soft tailoring, ruffles and quiet neutrals, easy to wear, delivered to your door anywhere in Lebanon." data-site-description />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://pavialeb.com/" />
   <meta property="og:site_name" content="Pavia" />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:image" content="https://pavialeb.com/assets/icon-512.png" />
-  <meta property="og:image:type" content="image/png" />
-  <meta property="og:image:width" content="512" />
-  <meta property="og:image:height" content="512" />
-  <meta property="og:image:alt" content="Pavia logo" />
+  <!-- 1200x630, which is the shape WhatsApp, Messenger and iMessage need before
+       they will render the LARGE preview card. This used to point at the 512px
+       square app icon, and a square gets the small thumbnail beside a line of
+       grey text instead. WhatsApp is how this shop is shared, so the shape of
+       this one file is worth more than most of the tags around it. -->
+  <meta property="og:image" content="https://pavialeb.com/assets/og-pavia.jpg" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Pavia: elegance, made effortless. Womenswear from Beirut, delivered across Lebanon." />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Pavia · Modern Elegant Fashion" />
-  <meta name="twitter:description" content="Pavia is modern, elegant fashion from Beirut — soft, easy-to-wear pieces for women, delivered to your door anywhere in Lebanon." data-site-description />
-  <meta name="twitter:image" content="https://pavialeb.com/assets/icon-512.png" />
+  <meta name="twitter:title" content="Pavia · Elegance, made effortless." />
+  <meta name="twitter:description" content="Modern, elegant fashion from Beirut. Soft tailoring, ruffles and quiet neutrals, easy to wear, delivered to your door anywhere in Lebanon." data-site-description />
+  <meta name="twitter:image" content="https://pavialeb.com/assets/og-pavia.jpg" />
+  <meta name="twitter:image:alt" content="Pavia: elegance, made effortless. Womenswear from Beirut, delivered across Lebanon." />
   <meta name="format-detection" content="telephone=no" />
-  <title>Pavia</title>
+  <title>Pavia | Modern Elegant Fashion in Beirut, Delivered in Lebanon</title>
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
@@ -54,52 +64,134 @@
        only referenced by the construction gate and now falls back to Fraunces. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
   <link rel="stylesheet" href="css/styles.css?v=62" />
+  <!-- One @graph rather than three loose blocks, because the nodes reference
+       each other by @id: the store IS the organisation, the WebSite is published
+       by it, and the page is about it. Three unlinked blocks naming "Pavia"
+       three times is three candidate entities to a search engine; this is one.
+       The catalog itself is loaded from Firebase at runtime, so no crawler and
+       no assistant ever sees a product. hasOfferCatalog is therefore where the
+       shop states what it actually sells, in markup that is in the HTML. -->
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Pavia",
-      "alternateName": ["Pavia Lebanon", "Pavia Leb", "Pavia Beirut"],
-      "url": "https://pavialeb.com/"
-    }
-  </script>
-  <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "Pavia",
-      "alternateName": ["Pavia Lebanon", "Pavia Leb", "Pavia Beirut"],
-      "description": "Pavia, a modern elegant fashion boutique based in Beirut, with delivery across Lebanon.",
-      "url": "https://pavialeb.com/",
-      "logo": "https://pavialeb.com/assets/icon-512.png",
-      "image": "https://pavialeb.com/assets/icon-512.png",
-      "areaServed": "LB",
-      "sameAs": ["https://instagram.com/pavia.leb"],
-      "contactPoint": [{
-        "@type": "ContactPoint",
-        "telephone": "+9613017725",
-        "contactType": "customer service",
-        "areaServed": "LB"
-      }]
-    }
-  </script>
-  <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "ClothingStore",
-      "name": "Pavia",
-      "alternateName": ["Pavia Lebanon", "Pavia Leb", "Pavia Beirut"],
-      "description": "Modern elegant women's fashion in ruffles, tailoring and soft neutrals, from Pavia in Beirut, with delivery across Lebanon.",
-      "image": "https://pavialeb.com/assets/icon-512.png",
-      "url": "https://pavialeb.com/",
-      "telephone": "+9613017725",
-      "priceRange": "$$",
-      "currenciesAccepted": "USD",
-      "paymentAccepted": "Cash",
-      "areaServed": "LB",
-      "address": { "@type": "PostalAddress", "addressLocality": "Beirut", "addressCountry": "LB" },
-      "geo": { "@type": "GeoCoordinates", "latitude": 33.8787650, "longitude": 35.4968680 },
-      "sameAs": ["https://instagram.com/pavia.leb"]
+      "@graph": [
+        {
+          "@type": ["ClothingStore", "OnlineStore", "Organization"],
+          "@id": "https://pavialeb.com/#store",
+          "name": "Pavia",
+          "alternateName": ["Pavia Lebanon", "Pavia Leb", "Pavia Beirut", "pavialeb"],
+          "description": "Pavia is a modern, elegant womenswear boutique based in Beirut: soft tailoring, ruffles and quiet neutrals, easy to wear, delivered across Lebanon with cash on delivery or Whish Money.",
+          "slogan": "Elegance, made effortless.",
+          "url": "https://pavialeb.com/",
+          "logo": {
+            "@type": "ImageObject",
+            "@id": "https://pavialeb.com/#logo",
+            "url": "https://pavialeb.com/assets/icon-512.png",
+            "width": 512,
+            "height": 512,
+            "caption": "Pavia"
+          },
+          "image": "https://pavialeb.com/assets/og-pavia.jpg",
+          "telephone": "+961 3 017 725",
+          "priceRange": "$$",
+          "currenciesAccepted": "USD",
+          "paymentAccepted": "Cash on delivery, Whish Money",
+          "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Beirut",
+            "addressCountry": "LB"
+          },
+          "geo": { "@type": "GeoCoordinates", "latitude": 33.8787650, "longitude": 35.4968680 },
+          "areaServed": { "@type": "Country", "name": "Lebanon" },
+          "knowsLanguage": ["ar", "en"],
+          "knowsAbout": [
+            "Women's fashion",
+            "Modern elegant clothing",
+            "Soft tailoring",
+            "Ruffle tops and dresses",
+            "Neutral colour womenswear",
+            "Online clothing delivery in Lebanon"
+          ],
+          "contactPoint": [
+            {
+              "@type": "ContactPoint",
+              "contactType": "customer service",
+              "telephone": "+961 3 017 725",
+              "url": "https://wa.me/9613017725",
+              "areaServed": "LB",
+              "availableLanguage": ["Arabic", "English"]
+            }
+          ],
+          "hasOfferCatalog": {
+            "@type": "OfferCatalog",
+            "name": "The Pavia collection",
+            "itemListElement": [
+              {
+                "@type": "OfferCatalog",
+                "name": "Dresses",
+                "description": "Modern, easy-to-wear dresses in soft neutrals and quiet colour."
+              },
+              {
+                "@type": "OfferCatalog",
+                "name": "Tops and blouses",
+                "description": "Ruffles, drapes and clean lines, cut to wear day into evening."
+              },
+              {
+                "@type": "OfferCatalog",
+                "name": "Tailoring",
+                "description": "Soft blazers, waistcoats and trousers in relaxed, unstiff shapes."
+              },
+              {
+                "@type": "OfferCatalog",
+                "name": "Sets",
+                "description": "Matching two-piece looks that arrive already styled."
+              }
+            ]
+          },
+          "hasDeliveryMethod": "https://schema.org/OnSitePickup",
+          "potentialAction": {
+            "@type": "OrderAction",
+            "name": "Order on WhatsApp",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://wa.me/9613017725",
+              "actionPlatform": [
+                "http://schema.org/DesktopWebPlatform",
+                "http://schema.org/MobileWebPlatform",
+                "http://schema.org/IOSPlatform",
+                "http://schema.org/AndroidPlatform"
+              ]
+            },
+            "deliveryMethod": "https://schema.org/ParcelService"
+          },
+          "sameAs": ["https://instagram.com/pavia.leb"]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://pavialeb.com/#website",
+          "url": "https://pavialeb.com/",
+          "name": "Pavia",
+          "alternateName": ["Pavia Lebanon", "Pavia Leb", "Pavia Beirut"],
+          "description": "Modern, elegant womenswear from Beirut, delivered across Lebanon.",
+          "inLanguage": "en",
+          "publisher": { "@id": "https://pavialeb.com/#store" }
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://pavialeb.com/#webpage",
+          "url": "https://pavialeb.com/",
+          "name": "Pavia | Modern Elegant Fashion in Beirut, Delivered in Lebanon",
+          "isPartOf": { "@id": "https://pavialeb.com/#website" },
+          "about": { "@id": "https://pavialeb.com/#store" },
+          "primaryImageOfPage": {
+            "@type": "ImageObject",
+            "url": "https://pavialeb.com/assets/og-pavia.jpg",
+            "width": 1200,
+            "height": 630
+          },
+          "inLanguage": "en"
+        }
+      ]
     }
   </script>
   <style>
@@ -434,7 +526,7 @@
       </div>
       <p>&copy; <span data-year></span> <span data-site-title>Pavia Lebanon</span> · Made with care.</p>
       <p class="footer-tagline" data-site-tagline>Modern elegant fashion</p>
-      <span class="footer-version" data-site-version>v0.9.0</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
+      <span class="footer-version" data-site-version>v0.9.1</span> <!-- version (from js/config.js): bump +0.0.1 each release; after x.x.9 roll to x.(x+1).0 (e.g. 0.0.9 -> 0.1.0) -->
     </div>
   </footer>
 
@@ -564,7 +656,7 @@
   <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 
   <!-- defer: fetched in parallel during parse, executed in order after the DOM is ready. -->
-  <script defer src="js/config.js?v=63"></script>
+  <script defer src="js/config.js?v=64"></script>
   <script defer src="js/firebase-config.js?v=12"></script>
   <script defer src="js/backend-config.js?v=18"></script>
   <script defer src="js/image-catalog.js?v=12"></script>
